@@ -16,14 +16,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- 端末間の表示ズレを防止する自動リフレッシュ（15秒ごとに最新同期） ---
-st.markdown(
-    """
-    <meta http-equiv="refresh" content="15">
-    """,
-    unsafe_allow_html=True,
-)
-
 # --- 永続化（ファイル保存）による自己学習データ・勝率管理 ---
 DATA_FILE = "learning_data.txt"
 
@@ -177,7 +169,7 @@ st.sidebar.metric(
     value=f"{st.session_state.quick_total}件 ({quick_win_rate:.2f}%)",
 )
 st.sidebar.markdown(
-    "<small>※15秒ごとに全端末の画面とAI判定が完全自動同期されます。</small>",
+    "<small>※選択した銘柄や設定を保持したまま、AI判定が自動同期されます。</small>",
     unsafe_allow_html=True,
 )
 
@@ -195,6 +187,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       ("ドル円 (USD/JPY)", "USDJPY=X"),
   ]
 
+  # 選択状態をセッションに確実に保存し、リセットを防ぐ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
@@ -203,6 +196,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       assets_list,
       index=st.session_state.selected_asset_index,
       format_func=lambda x: x[0],
+      key="asset_selectbox_key",
   )
 
   st.session_state.selected_asset_index = assets_list.index(
@@ -216,7 +210,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       "### 🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム"
   )
   st.markdown(
-      "<small>スマホやパソコンなどの複数端末で開いている場合でも、15秒ごとに完全自動同期。重要な判定結果はスクロールなしの最上部に表示されます。</small>",
+      "<small>選択した銘柄の分析結果をキープしたまま、最新の市場データと自動同期します。</small>",
       unsafe_allow_html=True,
   )
   st.markdown("---")
