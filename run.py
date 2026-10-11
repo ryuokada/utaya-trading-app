@@ -185,7 +185,7 @@ st.sidebar.markdown(
 # 1. ⚡ マルチタイムフレーム相場判定（標準 ＆ クイック両対応）
 # -------------------------------------------------------------
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
-  # 📌 ご要望の順番：1. アセット選択 ➔ 2. 中くらいの大きさの自律自己学習システムタイトル
+  # 1. アセット選択
   asset_option = st.selectbox(
       "🎯 分析対象アセットを選択",
       [
@@ -201,7 +201,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   )
   ticker_symbol = asset_option[1]
 
-  # 中くらいの文字サイズのタイトルとサブタイトル
+  # 2. 中くらいの大きさの自律自己学習システムタイトル
   st.markdown(
       "### 🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム"
   )
@@ -265,17 +265,17 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = "様子見（見送り）"
           quick_color = "green"
 
-        # 🌟 スクロールなしでスマホの最上部に即座に見えるカラー判定ボックス
+        # 🌟 1行ですっきり見えるリアルタイム判定速報ボックス
         st.markdown("### 🚨 【最重要】リアルタイム判定速報")
         col_res1, col_res2 = st.columns(2)
 
         msg_std = (
-            f"**【標準モード (2ドル堅実目標)】**\n\n対象: {asset_option[0]} ➔"
-            f" **{std_signal}** (中期RSI: {rsi_mid:.1f})"
+            f"**標準(2ドル目標):** {asset_option[0]} ➔ **{std_signal}**"
+            f" (RSI:{rsi_mid:.1f})"
         )
         msg_quick = (
-            f"**【クイックモード (丁半・バイナリ特化)】**\n\n対象: {asset_option[0]}"
-            f" ➔ **{quick_signal}** (短期RSI: {rsi_short:.1f})"
+            f"**クイック(丁半):** {asset_option[0]} ➔ **{quick_signal}**"
+            f" (RSI:{rsi_short:.1f})"
         )
 
         with col_res1:
@@ -475,6 +475,3 @@ elif mode == "💬 AIプロチャット＆画像解析":
           st.markdown(response_text)
           st.session_state.messages.append(
               {"role": "assistant", "content": response_text}
-          )
-        except Exception as e:
-          st.error(f"エラー: {e}")
