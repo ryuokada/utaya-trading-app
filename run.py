@@ -66,7 +66,7 @@ if "std_total" not in st.session_state:
 
 st.title("🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム")
 st.markdown(
-    "スマホやパソコンでアプリを開いている間、裏側でシステムが自動的に試行回数を積み上げ、AIが自己分析と反省を繰り返して勝率を100%へ高めるためのプロンプト調整を常時行います。"
+    "スマホやパソコンでアプリを開いている間、システムが自動的に試行回数を積み上げ、AIが自己分析と反省を繰り返して勝率を100%へ高めるためのチューニングを常時行います。"
 )
 
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
@@ -237,7 +237,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         col_res1, col_res2 = st.columns(2)
 
-        # 標準モード判定（買い:青, 売り:赤, 見送り:緑）
+        # 標準モード判定（買い:青=info, 売り:赤=error, 見送り:緑=success）
         if avg_rsi < 43:
           std_signal = "買い優勢"
           std_color = "blue"
@@ -248,7 +248,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           std_signal = "見送り待機"
           std_color = "green"
 
-        # クイックモード判定（買い:青, 売り:赤, 見送り:緑）
+        # クイックモード判定（買い:青=info, 売り:赤=error, 見送り:緑=success）
         if rsi_short < 40:
           quick_signal = "HIGH優勢（買い）"
           quick_color = "blue"
@@ -261,42 +261,29 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         with col_res1:
           st.markdown("### 📊 標準モード判定 (2ドル堅実目標)")
+          msg_std = (
+              f"対象: {asset_option[0]} ➔ 【標準：{std_signal}】 (中期RSI:"
+              f" {rsi_mid:.1f})"
+          )
           if std_color == "blue":
-            st.markdown(
-                f"対象: {asset_option[0]} ➔ :blue[**【標準：{std_signal}】**]"
-                f" (中期RSI: {rsi_mid:.1f})"
-            )
+            st.info(msg_std)  # 🔵 青枠（買い）
           elif std_color == "red":
-            st.markdown(
-                f"対象: {asset_option[0]} ➔ :red[**【標準：{std_signal}】**]"
-                f" (中期RSI: {rsi_mid:.1f})"
-            )
+            st.error(msg_std)  # 🔴 赤枠（売り）
           else:
-            st.markdown(
-                f"対象: {asset_option[0]} ➔ :green[**【標準：{std_signal}】**]"
-                f" (中期RSI: {rsi_mid:.1f})"
-            )
+            st.success(msg_std)  # 🟢 緑枠（見送り）
 
         with col_res2:
           st.markdown("### ⚡ クイックモード判定 (丁半・バイナリー特化)")
+          msg_quick = (
+              f"対象: {asset_option[0]} ➔ 【クイック：{quick_signal}】 (短期RSI:"
+              f" {rsi_short:.1f})"
+          )
           if quick_color == "blue":
-            st.markdown(
-                f"対象: {asset_option[0]} ➔"
-                f" :blue[**【クイック：{quick_signal}】**] (短期RSI:"
-                f" {rsi_short:.1f})"
-            )
+            st.info(msg_quick)  # 🔵 青枠（買い）
           elif quick_color == "red":
-            st.markdown(
-                f"対象: {asset_option[0]} ➔"
-                f" :red[**【クイック：{quick_signal}】**] (短期RSI:"
-                f" {rsi_short:.1f})"
-            )
+            st.error(msg_quick)  # 🔴 赤枠（売り）
           else:
-            st.markdown(
-                f"対象: {asset_option[0]} ➔"
-                f" :green[**【クイック：{quick_signal}】**] (短期RSI:"
-                f" {rsi_short:.1f})"
-            )
+            st.success(msg_quick)  # 🟢 緑枠（見送り）
 
         col1, col2, col3, col4 = st.columns(4)
         col1.metric(
@@ -376,7 +363,7 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
         st.markdown(
             f"### 🚤 {race_type_auto} ({jst_now_str}) 自動予測レポート"
         )
-        st.markdown(res_text)
+        st.info(res_text)  # 視覚的な青枠でハイライト表示
       except Exception as e:
         st.error(f"エラー: {e}")
   else:
@@ -429,7 +416,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
         st.markdown(
             f"### 🎰 {hall_auto} ({jst_now_str}) 期待値自動分析レポート"
         )
-        st.markdown(res_text)
+        st.success(res_text)  # 視覚的な緑枠でハイライト表示
       except Exception as e:
         st.error(f"エラー: {e}")
   else:
