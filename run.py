@@ -62,12 +62,12 @@ SYSTEM_INSTRUCTION = """
 """
 
 
-# 429エラー対策用：リトライ付きAPI実行ラッパー
+# 429エラー対策用：リトライ付きAPI実行ラッパー（最新の gemini-3.8-flash を使用）
 def generate_with_retry(client, model, contents, max_retries=3):
   wait_time = 2
   for i in range(max_retries):
     try:
-      res = client.models.generate_content(model=model, contents=contents)
+      res = client.models.generate_content(model="gemini-3.8-flash", contents=contents)
       return res.text if hasattr(res, "text") else str(res)
     except Exception as e:
       if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
@@ -177,8 +177,7 @@ elif mode == "⚡ マルチタイムフレーム相場分析・判定":
       "⚡ 複数時間足クロススキャン（貴金属・仮想通貨・石油・日経平均対応）"
   )
   st.write(
-      "Yahoo"
-      " Financeからリアルタイムデータを自動取得し、複数時間足のテクニカル指標を統合算出します。"
+      "Yahoo Financeからリアルタイムデータを自動取得し、複数時間足のテクニカル指標を統合算出します。"
   )
 
   asset_option = st.selectbox(
@@ -297,7 +296,7 @@ elif mode == "⚡ マルチタイムフレーム相場分析・判定":
                             対象銘柄: {asset_option[0]} ({ticker_symbol})
                             短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
                             判定: {overall_signal}
-                            現在の学習データ数: {st.session_state.total_count}件 (勝率: {current_win_rate:.1f}%
+                            現在の学習データ数: {st.session_state.total_count}件 (勝率: {current_win_rate:.1f}%)
                             プロの視点で以下を解説してください：
                             1. タイムフレーム間の整合性
                             2. 最終根拠（損切りなし・微小利益戦略の観点含む）
@@ -307,7 +306,7 @@ elif mode == "⚡ マルチタイムフレーム相場分析・判定":
               with st.spinner("AIアナリストが統合戦略レポートを構築中..."):
                 res_text = generate_with_retry(
                     client,
-                    "gemini-2.5-flash",
+                    "gemini-3.8-flash",
                     [SYSTEM_INSTRUCTION, prompt_analysis],
                 )
                 st.markdown("### 🤖 AIアナリストの統合戦略レポート")
@@ -340,20 +339,16 @@ elif mode == "🚤 公営競技・締め切り直前2連単自動予想":
     if client:
       current_time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
       with st.spinner(
-          f"現在時刻 ({current_time_str})"
-          " 基準で直前オッズ・選手データを自動スクリーニング中..."
+          f"現在時刻 ({current_time_str}) 基準で直前オッズ・選手データを自動スクリーニング中..."
       ):
         try:
           if run_auto_race_quick:
             prompt_q = (
-                f"現在時刻 {current_time_str}。直近で開催されている"
-                f" {race_type_auto}"
-                "の締め切り直前レースを想定し、最も期待値の高い『推奨2連単の買い目（例: 1-3"
-                " など）』とレース条件を3行以内で結論のみ簡潔に出力してください。"
+                f"現在時刻 {current_time_str}。直近で開催されている {race_type_auto} の締め切り直前レースを想定し、最も期待値の高い『推奨2連単の買い目（例: 1-3 など）』とレース条件を3行以内で結論のみ簡潔に出力してください。"
             )
             res_text = generate_with_retry(
                 client,
-                "gemini-2.5-flash",
+                "gemini-3.8-flash",
                 [
                     SYSTEM_INSTRUCTION
                     + f"\n学習データ数: {st.session_state.total_count}件",
@@ -364,13 +359,11 @@ elif mode == "🚤 公営競技・締め切り直前2連単自動予想":
             st.info(res_text)
           else:
             prompt_f = (
-                f"現在時刻 {current_time_str}。直近で開催されている"
-                f" {race_type_auto}"
-                "の締め切り直前レースを自動シミュレートし、最も期待値の高い『推奨2連単の買い目』と、その詳細な展開・回収率の根拠をプロの視点で解説してください。"
+                f"現在時刻 {current_time_str}。直近で開催されている {race_type_auto} の締め切り直前レースを自動シミュレートし、最も期待値の高い『推奨2連単の買い目』と、その詳細な展開・回収率の根拠をプロの視点で解説してください。"
             )
             res_text = generate_with_retry(
                 client,
-                "gemini-2.5-flash",
+                "gemini-3.8-flash",
                 [
                     SYSTEM_INSTRUCTION
                     + f"\n学習データ数: {st.session_state.total_count}件",
@@ -430,30 +423,22 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）ワンタッチ狙�
         try:
           if run_auto_pachi_quick:
             quick_ap_prompt = (
-                f"ホール名: {hall_auto}\n条件:"
-                f" {budget_type}、現在日時: {current_date_str}\n{hall_auto}"
-                "において、今すぐ"
-                f"{budget_type.split('（')[0]}"
-                "で狙い目となる『おすすめの機種カテゴリ、具体的な台番号の傾向、立ち回り方針』を3行以内で結論のみ出力してください。"
+                f"ホール名: {hall_auto}\n条件: {budget_type}、現在日時: {current_date_str}\n{hall_auto}において、今すぐ{budget_type.split('（')[0]}で狙い目となる『おすすめの機種カテゴリ、具体的な台番号の傾向、立ち回り方針』を3行以内で結論のみ出力してください。"
             )
             res_text = generate_with_retry(
                 client,
-                "gemini-2.5-flash",
+                "gemini-3.8-flash",
                 [SYSTEM_INSTRUCTION, quick_ap_prompt],
             )
             st.markdown("### 🎯 ワンタッチ自動抽出・狙い目結果")
             st.success(res_text)
           else:
             full_ap_prompt = (
-                f"ホール名: {hall_auto}\n条件:"
-                f" {budget_type}、現在日時: {current_date_str}\n{hall_auto}"
-                "における直近のデータ・出玉傾向を想定し、"
-                f"{budget_type.split('（')[0]}"
-                "で最もプラス期待値を叩き出せる台の選定基準、狙い目機種、および立ち回りの根拠をプロの視点で詳細に分析してください。"
+                f"ホール名: {hall_auto}\n条件: {budget_type}、現在日時: {current_date_str}\n{hall_auto}における直近のデータ・出玉傾向を想定し、{budget_type.split('（')[0]}で最もプラス期待値を叩き出せる台の選定基準、狙い目機種、および立ち回りの根拠をプロの視点で詳細に分析してください。"
             )
             res_text = generate_with_retry(
                 client,
-                "gemini-2.5-flash",
+                "gemini-3.8-flash",
                 [SYSTEM_INSTRUCTION, full_ap_prompt],
             )
             st.markdown(f"### 🎰 {hall_auto} 期待値完全自動分析レポート")
