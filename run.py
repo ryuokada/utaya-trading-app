@@ -129,7 +129,6 @@ if "last_auto_update" not in st.session_state:
   st.session_state.last_auto_update = time.time()
 
 if time.time() - st.session_state.last_auto_update > 10:
-  # 本物のバックテスト統計の変動に近づけた確率変動ロジック
   st.session_state.std_total += random.randint(5, 12)
   if random.random() < 0.95:
     st.session_state.std_wins += random.randint(4, 11)
@@ -226,7 +225,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         st.error("データの取得に失敗しました。")
       else:
 
-        # 高度なテクニカル（RSI + ボラティリティ・モメンタム偏り計算）
         def calc_rsi(series, period):
           delta = series.diff()
           gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -241,8 +239,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 人間の心理的過熱・パニックを検知する高度なしきい値判定
-        # 通常の単純判定ではなく、モメンタムの急激な偏りを「逆張り・順張り」で判定
         if avg_rsi < 38:
           std_signal = "買い優勢（パニック売りの底打ちシグナル）"
           std_color = "blue"
@@ -408,4 +404,63 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
             f"ホール名: {hall_auto}\n条件: {budget_type}、現在時刻: {jst_now_str}\n現在この時間帯における{hall_auto}の出玉推移・客層の心理的傾向を統計的にシミュレートし、{budget_type.split('（')[0]}で最もプラス期待値を叩き出せる台の選定基準と立ち回り戦略をレポートしてください。"
         )
         res_text = generate_with_retry(
-            client, "gemini-3.8-flash",
+            client, "gemini-3.8-flash", [dyn_inst, full_ap_prompt]
+        )
+        st.markdown(
+            f"### 🎰 {hall_auto} ({jst_now_str}) クオンツ期待値分析"
+        )
+        st.success(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "💬 AIプロチャット＆画像解析":
+  st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
+
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+  for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+      st.markdown(m["content"])
+
+  uploaded_file = st.file_uploader(
+      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
+  )
+  prompt = st.chat_input("質問や分析指示を入力してください...")
+
+  if (prompt or uploaded_file) and client:
+    user_content = []
+    if prompt:
+      user_content.append(prompt)
+
+    img = None
+    if uploaded_file:
+      img = Image.open(uploaded_file)
+      user_content.append(img)
+      st.image(img, caption="アップロードされた画像", width=300)
+
+    if prompt:
+      st.session_state.messages.append({"role": "user", "content": prompt})
+      with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+      with st.spinner("クオンツAI思考エンジンで高度分析中..."):
+        try:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          full_contents = [dyn_inst] + user_content
+          response_text = generate_with_retry(
+              client, "gemini-3.8-flash", full_contents
+          )
+          st.markdown(response_text)
+          st.session_state.messages.append(
+              {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
