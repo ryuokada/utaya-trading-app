@@ -74,7 +74,7 @@ if "std_total" not in st.session_state:
 
 st.title("🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム")
 st.markdown(
-    "スマホやパソコンなどの複数端末で開いている場合でも、15秒ごとに完全自動同期。AIが最新の市場・競技・ホール状況を反映し、常に一致した正確な判定結果を表示します。"
+    "スマホやパソコンなどの複数端末で開いている場合でも、15秒ごとに完全自動同期。重要な判定結果はスクロールなしの最上部に表示されます。"
 )
 
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
@@ -191,12 +191,10 @@ st.sidebar.markdown(
 # -------------------------------------------------------------
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
   st.subheader("⚡ 複数時間足クロススキャン・自動クオンツ判定システム")
-  st.write(
-      "指定アセットのリアルタイムデータを自動取得し、**「標準モード（堅実2ドル利確）」**と**「クイック／バイナリーモード（丁半スキャルピング）」**の両方の視点でAIが自動判定・自己分析レポートを生成します。"
-  )
 
+  # 📌 スマホでもすぐ見えるように、アセット選択と最重要判定ボックスを最上部に配置
   asset_option = st.selectbox(
-      "分析対象アセット",
+      "🎯 分析対象アセットを選択",
       [
           ("WTI原油 / 石油 (CL=F)", "CL=F"),
           ("日経平均株価 (^N225)", "^N225"),
@@ -242,8 +240,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        col_res1, col_res2 = st.columns(2)
-
         # 標準モード判定（買い:青=info, 売り:赤=error, 見送り:緑=success）
         if avg_rsi < 43:
           std_signal = "買い優勢"
@@ -266,35 +262,39 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = "様子見（見送り）"
           quick_color = "green"
 
+        # 🌟【最重要UI変更】スクロールなしでスマホの最上部に即座に見えるカラー判定ボックス
+        st.markdown("### 🚨 【最重要】リアルタイム判定速報")
+        col_res1, col_res2 = st.columns(2)
+
+        msg_std = (
+            f"**【標準モード (2ドル堅実目標)】**\n\n対象: {asset_option[0]} ➔"
+            f" **{std_signal}** (中期RSI: {rsi_mid:.1f})"
+        )
+        msg_quick = (
+            f"**【クイックモード (丁半・バイナリ特化)】**\n\n対象: {asset_option[0]}"
+            f" ➔ **{quick_signal}** (短期RSI: {rsi_short:.1f})"
+        )
+
         with col_res1:
-          st.markdown("### 📊 標準モード判定 (2ドル堅実目標)")
-          msg_std = (
-              f"対象: {asset_option[0]} ➔ 【標準：{std_signal}】 (中期RSI:"
-              f" {rsi_mid:.1f})"
-          )
           if std_color == "blue":
-            st.info(msg_std)  # 🔵 青枠（買い）
+            st.info(msg_std)
           elif std_color == "red":
-            st.error(msg_std)  # 🔴 赤枠（売り）
+            st.error(msg_std)
           else:
-            st.success(msg_std)  # 🟢 緑枠（見送り）
+            st.success(msg_std)
 
         with col_res2:
-          st.markdown("### ⚡ クイックモード判定 (丁半・バイナリー特化)")
-          msg_quick = (
-              f"対象: {asset_option[0]} ➔ 【クイック：{quick_signal}】 (短期RSI:"
-              f" {rsi_short:.1f})"
-          )
           if quick_color == "blue":
-            st.info(msg_quick)  # 🔵 青枠（買い）
+            st.info(msg_quick)
           elif quick_color == "red":
-            st.error(msg_quick)  # 🔴 赤枠（売り）
+            st.error(msg_quick)
           else:
-            st.success(msg_quick)  # 🟢 緑枠（見送り）
+            st.success(msg_quick)
 
+        # テクニカル指標メトリック
         col1, col2, col3, col4 = st.columns(4)
         col1.metric(
-            "短期RSI (スキャル・丁半用)",
+            "短期RSI (スキャル・丁半)",
             f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A",
         )
         col2.metric(
@@ -343,9 +343,6 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
   st.subheader(
       f"🚤 公営競技 自律自動・直前2連単予想エンジン ({jst_now_str})"
   )
-  st.write(
-      "日本時間（JST）完全同期。締め切り直前のレースオッズと自己学習データを元に、AIが推奨買い目を自動算出します。"
-  )
 
   race_type_auto = st.selectbox(
       "競技選択",
@@ -383,9 +380,6 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
   jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
   st.subheader(
       f"🎰 板橋区・豊島区の特定ホール（やすだ等）自動狙い目抽出 ({jst_now_str})"
-  )
-  st.write(
-      "日本時間（JST）の稼働状況に合わせ、池袋・大山・板橋・巣鴨の「やすだ」系列における高期待値台の傾向と立ち回りを自動抽出します。"
   )
 
   hall_auto = st.selectbox(
@@ -434,9 +428,6 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
 # -------------------------------------------------------------
 elif mode == "💬 AIプロチャット＆画像解析":
   st.subheader("💬 AIプロチャット ＆ 画像解析アシスタント")
-  st.write(
-      "チャートや出走表のスクリーンショットなどをアップロードして詳細な分析を行えます。"
-  )
 
   if "messages" not in st.session_state:
     st.session_state.messages = []
