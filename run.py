@@ -185,23 +185,37 @@ st.sidebar.markdown(
 # 1. ⚡ マルチタイムフレーム相場判定（標準 ＆ クイック両対応）
 # -------------------------------------------------------------
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
-  # 1. アセット選択
-  asset_option = st.selectbox(
+  # アセット選択肢の定義
+  assets_list = [
+      ("WTI原油 / 石油 (CL=F)", "CL=F"),
+      ("日経平均株価 (^N225)", "^N225"),
+      ("ビットコイン (BTC-USD)", "BTC-USD"),
+      ("イーサリアム (ETH-USD)", "ETH-USD"),
+      ("ゴールド・金 (GC=F)", "GC=F"),
+      ("シルバー・銀 (SI=F)", "SI=F"),
+      ("ドル円 (USD/JPY)", "USDJPY=X"),
+  ]
+
+  # セッション状態に保存してリフレッシュ後も保持する仕組み
+  if "selected_asset_index" not in st.session_state:
+    st.session_state.selected_asset_index = 0
+
+  selected_asset_tuple = st.selectbox(
       "🎯 分析対象アセットを選択",
-      [
-          ("WTI原油 / 石油 (CL=F)", "CL=F"),
-          ("日経平均株価 (^N225)", "^N225"),
-          ("ビットコイン (BTC-USD)", "BTC-USD"),
-          ("イーサリアム (ETH-USD)", "ETH-USD"),
-          ("ゴールド・金 (GC=F)", "GC=F"),
-          ("シルバー・銀 (SI=F)", "SI=F"),
-          ("ドル円 (USD/JPY)", "USDJPY=X"),
-      ],
+      assets_list,
+      index=st.session_state.selected_asset_index,
       format_func=lambda x: x[0],
   )
+
+  # 選択されたインデックスをセッションに保存（リフレッシュ対策）
+  st.session_state.selected_asset_index = assets_list.index(
+      selected_asset_tuple
+  )
+
+  asset_option = selected_asset_tuple
   ticker_symbol = asset_option[1]
 
-  # 2. 中くらいの大きさの自律自己学習システムタイトル
+  # タイトル表示
   st.markdown(
       "### 🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム"
   )
@@ -475,6 +489,3 @@ elif mode == "💬 AIプロチャット＆画像解析":
           st.markdown(response_text)
           st.session_state.messages.append(
               {"role": "assistant", "content": response_text}
-          )
-        except Exception as e:
-          st.error(f"エラー: {e}")
