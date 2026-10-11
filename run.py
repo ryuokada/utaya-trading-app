@@ -72,11 +72,6 @@ if "std_total" not in st.session_state:
   st.session_state.quick_total = q_tot
   st.session_state.quick_wins = q_win
 
-st.title("🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム")
-st.markdown(
-    "スマホやパソコンなどの複数端末で開いている場合でも、15秒ごとに完全自動同期。重要な判定結果はスクロールなしの最上部に表示されます。"
-)
-
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
@@ -190,9 +185,7 @@ st.sidebar.markdown(
 # 1. ⚡ マルチタイムフレーム相場判定（標準 ＆ クイック両対応）
 # -------------------------------------------------------------
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
-  st.subheader("⚡ 複数時間足クロススキャン・自動クオンツ判定システム")
-
-  # 📌 スマホでもすぐ見えるように、アセット選択と最重要判定ボックスを最上部に配置
+  # 📌 ご要望の順番：1. アセット選択 ➔ 2. 中くらいの大きさの自律自己学習システムタイトル
   asset_option = st.selectbox(
       "🎯 分析対象アセットを選択",
       [
@@ -207,6 +200,16 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       format_func=lambda x: x[0],
   )
   ticker_symbol = asset_option[1]
+
+  # 中くらいの文字サイズのタイトルとサブタイトル
+  st.markdown(
+      "### 🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム"
+  )
+  st.markdown(
+      "<small>スマホやパソコンなどの複数端末で開いている場合でも、15秒ごとに完全自動同期。重要な判定結果はスクロールなしの最上部に表示されます。</small>",
+      unsafe_allow_html=True,
+  )
+  st.markdown("---")
 
 
   @st.cache_data(ttl=15)
@@ -262,7 +265,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = "様子見（見送り）"
           quick_color = "green"
 
-        # 🌟【最重要UI変更】スクロールなしでスマホの最上部に即座に見えるカラー判定ボックス
+        # 🌟 スクロールなしでスマホの最上部に即座に見えるカラー判定ボックス
         st.markdown("### 🚨 【最重要】リアルタイム判定速報")
         col_res1, col_res2 = st.columns(2)
 
