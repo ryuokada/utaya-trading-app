@@ -475,3 +475,6 @@ elif mode == "💬 AIプロチャット＆画像解析":
           st.markdown(response_text)
           st.session_state.messages.append(
               {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
