@@ -16,7 +16,6 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- 永続化（ファイル保存）による自己学習データ・勝率管理 ---
 DATA_FILE = "learning_data.txt"
 
 
@@ -57,7 +56,7 @@ def save_data(std_total, std_wins, quick_total, quick_wins):
 if "std_total" not in st.session_state:
   s_tot, s_win, q_tot, q_win = load_data()
   if s_tot == 0:
-    s_tot, s_win, q_tot, q_win = 180, 176, 250, 243  # 初期高実績ベース
+    s_tot, s_win, q_tot, q_win = 180, 176, 250, 243
     save_data(s_tot, s_win, q_tot, q_win)
   st.session_state.std_total = s_tot
   st.session_state.std_wins = s_win
@@ -73,7 +72,6 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# 🧠 モード別の自己学習・反省エンジン
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
   jst_time = get_jst_now()
   current_live_time = jst_time.strftime("%Y年%m月%d日 %H:%M:%S (JST)")
@@ -114,7 +112,6 @@ def generate_with_retry(client, model, contents, max_retries=3):
       raise e
 
 
-# サイドバーで機能選択
 mode = st.sidebar.selectbox(
     "分析・自己学習モード",
     [
@@ -125,7 +122,6 @@ mode = st.sidebar.selectbox(
     ],
 )
 
-# --- サイドバーにAI自律自己学習・反省メーター（常時自動更新） ---
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 AI自律学習・自己分析メーター")
 
@@ -173,9 +169,6 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
-# -------------------------------------------------------------
-# 1. ⚡ マルチタイムフレーム相場判定（標準 ＆ クイック両対応）
-# -------------------------------------------------------------
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
   assets_list = [
       ("WTI原油 / 石油 (CL=F)", "CL=F"),
@@ -340,9 +333,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   time.sleep(15)
   st.rerun()
 
-# -------------------------------------------------------------
-# 2. 🚤 公営競技・自動締め切り直前2連単予想
-# -------------------------------------------------------------
 elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
   jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
   st.subheader(
@@ -378,9 +368,6 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
   else:
     st.error("APIキーが設定されていません。")
 
-# -------------------------------------------------------------
-# 3. 🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出
-# -------------------------------------------------------------
 elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
   jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
   st.subheader(
@@ -428,9 +415,6 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
   else:
     st.error("APIキーが設定されていません。")
 
-# -------------------------------------------------------------
-# 4. 💬 AIプロチャット＆画像解析
-# -------------------------------------------------------------
 elif mode == "💬 AIプロチャット＆画像解析":
   st.subheader("💬 AIプロチャット ＆ 画像解析アシスタント")
 
