@@ -160,7 +160,7 @@ if mode == "💬 AIプロチャット＆画像解析":
               + user_content
           )
           response_text = generate_with_retry(
-              client, "gemini-2.5-flash", full_contents
+              client, "gemini-3.8-flash", full_contents
           )
           st.markdown(response_text)
           st.session_state.messages.append(
