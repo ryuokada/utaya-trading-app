@@ -185,7 +185,6 @@ st.sidebar.markdown(
 # 1. ⚡ マルチタイムフレーム相場判定（標準 ＆ クイック両対応）
 # -------------------------------------------------------------
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
-  # アセット選択肢の定義
   assets_list = [
       ("WTI原油 / 石油 (CL=F)", "CL=F"),
       ("日経平均株価 (^N225)", "^N225"),
@@ -196,7 +195,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       ("ドル円 (USD/JPY)", "USDJPY=X"),
   ]
 
-  # セッション状態に保存してリフレッシュ後も保持する仕組み
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
@@ -207,7 +205,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       format_func=lambda x: x[0],
   )
 
-  # 選択されたインデックスをセッションに保存（リフレッシュ対策）
   st.session_state.selected_asset_index = assets_list.index(
       selected_asset_tuple
   )
@@ -215,7 +212,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   asset_option = selected_asset_tuple
   ticker_symbol = asset_option[1]
 
-  # タイトル表示
   st.markdown(
       "### 🎯 マルチタイムフレーム（標準 ＆ クイック/丁半博打）自律自己学習システム"
   )
@@ -257,7 +253,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 標準モード判定（買い:青=info, 売り:赤=error, 見送り:緑=success）
         if avg_rsi < 43:
           std_signal = "買い優勢"
           std_color = "blue"
@@ -268,7 +263,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           std_signal = "見送り待機"
           std_color = "green"
 
-        # クイックモード判定（買い:青=info, 売り:赤=error, 見送り:緑=success）
         if rsi_short < 40:
           quick_signal = "HIGH優勢（買い）"
           quick_color = "blue"
@@ -279,7 +273,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = "様子見（見送り）"
           quick_color = "green"
 
-        # 🌟 1行ですっきり見えるリアルタイム判定速報ボックス
         st.markdown("### 🚨 【最重要】リアルタイム判定速報")
         col_res1, col_res2 = st.columns(2)
 
@@ -308,7 +301,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           else:
             st.success(msg_quick)
 
-        # テクニカル指標メトリック
         col1, col2, col3, col4 = st.columns(4)
         col1.metric(
             "短期RSI (スキャル・丁半)",
@@ -489,3 +481,6 @@ elif mode == "💬 AIプロチャット＆画像解析":
           st.markdown(response_text)
           st.session_state.messages.append(
               {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
