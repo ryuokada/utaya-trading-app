@@ -9,7 +9,7 @@ from PIL import Image
 import streamlit as st
 import yfinance as yf
 
-API_KEY = "AQ.Ab8RN6LyHT8-V2mHy2bAgSsXHWSTkU4O60nPPzmF_LB71-cJHQ"
+API_KEY = "AQ.Ab8RN6KV_HvFmtD29UALxW8fH2umURHa8pLZ47ET5Eme8hZJwg"
 
 st.set_page_config(
     page_title="次世代自律進化型クオンツAI・未来予測プラットフォーム",
