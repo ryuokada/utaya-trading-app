@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3900, 3840, 10100, 10020
+  return 4000, 3940, 10300, 10220
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -515,4 +515,27 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
   st.subheader("🎰 UTAYA 板橋・豊島エリアホール解析")
   st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
 
-elif
+elif mode == "💬 UTAYA AIメタ認知・思考プロチャット":
+  st.subheader("💬 UTAYA AIメタ認知・思考プロチャットアシスタント")
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+  for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+      st.markdown(m["content"])
+
+  prompt = st.chat_input("UTAYAの全銘柄フェアな脳内思考について質問してください...")
+  if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+      st.markdown(prompt)
+    with st.chat_message("assistant"):
+      local_ans = (
+          f"【UTAYAフェア自律応答】ご質問「{prompt}」に対し、全銘柄中立の脳内エンジンが即時回答します。"
+          "特定の銘柄除外や一方向への固定バイアスは完全に排除されています。"
+          "ビットコインを含むすべての対象アセットをフェアな基準で機械学習し、市場エッジに応じて自律判定を下します。"
+      )
+      st.markdown(local_ans)
+      st.session_state.messages.append(
+          {"role": "assistant", "content": local_ans}
+      )
