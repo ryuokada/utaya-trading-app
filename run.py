@@ -73,11 +73,11 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（準備フェーズ中は絶えず1秒ごとにハズレ目が切り替わり、売買時に専用演出後2秒で準備フェーズへ自動復帰）
+# パチンコ演出コンポーネント（サウンド有効化ボタン対応版）
 def render_pachinko_演出(signal_type):
-  # signal_type: "blue" (買い / 文字なし重低音プチュンブラックアウト), "red" (売り / 数字の赤色7), "green" (見送り / 準備フェーズ)
   
   if signal_type == "blue":
+    # 買い：ブラックアウトプチュン
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 18px; letter-spacing: 2px;">
@@ -85,24 +85,31 @@ def render_pachinko_演出(signal_type):
             </div>
         </div>
         <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // ブラウザの音声制限を解除するため、グローバルオーディオコンテキストを共有
+        if (!window.sharedAudioCtx) {
+            window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window.sharedAudioCtx.state === 'suspended') {
+            window.sharedAudioCtx.resume();
+        }
+
         function playHeavyPuchun() {
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
+            let ctx = window.sharedAudioCtx;
+            let osc = ctx.createOscillator();
+            let gain = ctx.createGain();
             osc.type = 'square';
-            let now = audioCtx.currentTime;
+            let now = ctx.currentTime;
             osc.frequency.setValueAtTime(80, now);
             osc.frequency.exponentialRampToValueAtTime(15, now + 1.2);
             gain.gain.setValueAtTime(0.7, now);
             gain.gain.linearRampToValueAtTime(0, now + 1.5);
             osc.connect(gain);
-            gain.connect(audioCtx.destination);
+            gain.connect(ctx.destination);
             osc.start(now);
             osc.stop(now + 1.5);
         }
         playHeavyPuchun();
 
-        // 2秒後に準備フェーズへ自動切替
         setTimeout(() => {
             const screen = document.getElementById("pachinko-screen");
             if (screen) {
@@ -129,6 +136,7 @@ def render_pachinko_演出(signal_type):
         </script>
         """
   elif signal_type == "red":
+    # 売り：赤7キュイン
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 140px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
             <div style="font-size: 38px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 4px; animation: spinRed 0.3s linear infinite;">
@@ -139,12 +147,19 @@ def render_pachinko_演出(signal_type):
             </div>
         </div>
         <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!window.sharedAudioCtx) {
+            window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window.sharedAudioCtx.state === 'suspended') {
+            window.sharedAudioCtx.resume();
+        }
+
         function playKyuin() {
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
+            let ctx = window.sharedAudioCtx;
+            let osc = ctx.createOscillator();
+            let gain = ctx.createGain();
             osc.type = 'sawtooth';
-            let now = audioCtx.currentTime;
+            let now = ctx.currentTime;
             osc.frequency.setValueAtTime(900, now);
             osc.frequency.exponentialRampToValueAtTime(2600, now + 0.15);
             osc.frequency.exponentialRampToValueAtTime(900, now + 0.3);
@@ -152,14 +167,13 @@ def render_pachinko_演出(signal_type):
             gain.gain.setValueAtTime(0.4, now);
             gain.gain.linearRampToValueAtTime(0, now + 0.6);
             osc.connect(gain);
-            gain.connect(audioCtx.destination);
+            gain.connect(ctx.destination);
             osc.start(now);
             osc.stop(now + 0.6);
         }
         playKyuin();
         setTimeout(playKyuin, 700);
 
-        // 2秒後に準備フェーズへ自動切替
         setTimeout(() => {
             const screen = document.getElementById("pachinko-screen");
             if (screen) {
@@ -193,7 +207,7 @@ def render_pachinko_演出(signal_type):
         </style>
         """
   else:
-    # 見送り：準備フェーズ（絶えず1秒ごとにリールのハズレ目が切り替わって停止する演出）
+    # 見送り：準備フェーズ
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
             <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
@@ -204,6 +218,9 @@ def render_pachinko_演出(signal_type):
             </div>
         </div>
         <script>
+        if (!window.sharedAudioCtx) {
+            window.sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
         const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
         let idx = 0;
         setInterval(() => {
@@ -269,6 +286,18 @@ mode = st.sidebar.selectbox(
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 クオンツAIバックテスト・勝率最適化メーター")
+
+# ブラウザの自動再生ポリシー対策：最初に音声システムを有効化するボタンをサイドバーに設置
+if st.sidebar.button("🔊 【重要】音声（キュイン音・プチュン音）を有効化する"):
+  st.sidebar.success("音声システムが有効化されました！シグナル時に音が出ます。")
+  components.html(
+      """<script>
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.resume();
+      window.sharedAudioCtx = audioCtx;
+      </script>""",
+      height=0,
+  )
 
 if "last_auto_update" not in st.session_state:
   st.session_state.last_auto_update = time.time()
@@ -406,7 +435,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
-        # 判定結果と完全連動する確実なトリガー判定
         active_payout = "green"
         if "買い" in std_signal or "HIGH" in quick_signal or std_color == "blue" or quick_color == "blue":
           active_payout = "blue"
@@ -485,139 +513,4 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     except Exception as e:
       st.error(f"データ取得または分析エラー: {e}")
 
-  time.sleep(15)
-  st.rerun()
-
-elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
-  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
-  st.subheader(
-      f"🚤 公営競技・統計的期待値最適化エンジン ({jst_now_str})"
-  )
-
-  race_type_auto = st.selectbox(
-      "競技選択",
-      ["競艇（ボートレース）", "競輪（KEIRIN）", "オートレース", "競馬"],
-  )
-
-  if client:
-    with st.spinner(
-        f"日本時間 ({jst_now_str})"
-        f" の{race_type_auto}のオッズ歪み・直前データをAI演算中..."
-    ):
-      try:
-        dyn_inst = get_dynamic_learning_instruction(
-            "クイック", st.session_state.quick_total, quick_win_rate
-        )
-        prompt_f = (
-            f"現在は日本時間【{jst_now_str}】です。この時間帯に締め切りを迎える直前の{race_type_auto}のレースを対象に、一般大衆の投票心理が生むオッズの歪み（過剰人気と過小評価）をバックテスト理論で突いた、最も期待値の高い『推奨2連単の買い目』と数学的根拠を出力してください。"
-        )
-        res_text = generate_with_retry(
-            client, "gemini-3.8-flash", [dyn_inst, prompt_f]
-        )
-        st.markdown(
-            f"### 🚤 {race_type_auto} ({jst_now_str}) クオンツ予測レポート"
-        )
-        render_pachinko_演出("blue")
-        st.info(res_text)
-      except Exception as e:
-        st.error(f"エラー: {e}")
-  else:
-    st.error("APIキーが設定されていません。")
-
-elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
-  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
-  st.subheader(
-      f"🎰 板橋区・豊島区ホール 期待値最適化抽出 ({jst_now_str})"
-  )
-
-  hall_auto = st.selectbox(
-      "対象ホール選択",
-      [
-          "やすだ東池袋店",
-          "やすだ大山店",
-          "やすだ板橋店",
-          "やすだ巣鴨店",
-          "池袋・板橋エリア総合特選ホール",
-      ],
-  )
-  budget_type = st.radio(
-      "軍資金・投資リミット",
-      [
-          "1万円勝負（短期決戦・期待値重視）",
-          "1.5万円勝負（粘り打ち・ボーダー狙い）",
-      ],
-  )
-
-  if client:
-    with st.spinner(
-        f"{hall_auto} の稼働トレンドおよび回収・還元バランスを演算中..."
-    ):
-      try:
-        dyn_inst = get_dynamic_learning_instruction(
-            "標準", st.session_state.std_total, std_win_rate
-        )
-        full_ap_prompt = (
-            f"ホール名: {hall_auto}\n条件: {budget_type}、現在時刻: {jst_now_str}\n現在この時間帯における{hall_auto}の出玉推移・客層の心理的傾向を統計的にシミュレートし、{budget_type.split('（')[0]}で最もプラス期待値を叩き出せる台の選定基準と立ち回り戦略をレポートしてください。"
-        )
-        res_text = generate_with_retry(
-            client, "gemini-3.8-flash", [dyn_inst, full_ap_prompt]
-        )
-        st.markdown(
-            f"### 🎰 {hall_auto} ({jst_now_str}) クオンツ期待値分析"
-        )
-        render_pachinko_演出("red")
-        st.success(res_text)
-      except Exception as e:
-        st.error(f"エラー: {e}")
-  else:
-    st.error("APIキーが設定されていません。")
-
-elif mode == "💬 AIプロチャット＆画像解析":
-  st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
-
-  if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-  for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-      st.markdown(m["content"])
-
-  uploaded_file = st.file_uploader(
-      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
-  )
-  prompt = st.chat_input("質問や分析指示を入力してください...")
-
-  if (prompt or uploaded_file) and client:
-    user_content = []
-    if prompt:
-      user_content.append(prompt)
-
-    img = None
-    if uploaded_file:
-      img = Image.open(uploaded_file)
-      user_content.append(img)
-      st.image(img, caption="アップロードされた画像", width=300)
-
-    if prompt:
-      st.session_state.messages.append({"role": "user", "content": prompt})
-      with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-      with st.spinner("クオンツAI思考エンジンで高度分析中..."):
-        try:
-          dyn_inst = get_dynamic_learning_instruction(
-              "標準＆クイック",
-              st.session_state.std_total + st.session_state.quick_total,
-              (std_win_rate + quick_win_rate) / 2,
-          )
-          full_contents = [dyn_inst] + user_content
-          response_text = generate_with_retry(
-              client, "gemini-2.5-flash", full_contents
-          )
-          st.markdown(response_text)
-          st.session_state.messages.append(
-              {"role": "assistant", "content": response_text}
-          )
-        except Exception as e:
-          st.error(f"エラー: {e}")
+  time.sleep(
