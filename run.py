@@ -73,7 +73,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（2秒後に自動で準備フェーズのリール変動へ復帰する仕様）
+# パチンコ演出コンポーネント（準備フェーズ中は絶えず1秒ごとにハズレ目が切り替わり、売買時に専用演出後2秒で準備フェーズへ自動復帰）
 def render_pachinko_演出(signal_type):
   # signal_type: "blue" (買い / プチュン), "red" (売り / 数字の赤色7), "green" (見送り / 準備フェーズ)
   
@@ -103,7 +103,7 @@ def render_pachinko_演出(signal_type):
         }
         playPuchun();
 
-        // 2秒後に準備フェーズ（リール回転画面）へ自動切替
+        // 2秒後に準備フェーズ（絶えず回転・1秒ごとにハズレ目が止まる状態）へ自動切替
         setTimeout(() => {
             const screen = document.getElementById("pachinko-screen");
             if (screen) {
@@ -111,13 +111,20 @@ def render_pachinko_演出(signal_type):
                 screen.style.border = "1px solid #444444";
                 screen.style.boxShadow = "none";
                 screen.innerHTML = `
-                    <div style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
+                    <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
                     <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
                         🎰 クオンツAI 準備フェーズ（見送り中・ハズレ目変動）
                     </div>
                 `;
+                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
+                let idx = 0;
+                setInterval(() => {
+                    idx = (idx + 1) % symbols.length;
+                    const box = document.getElementById("reel-box");
+                    if (box) { box.innerHTML = symbols[idx]; }
+                }, 1000);
             }
         }, 2000);
         </script>
@@ -159,7 +166,7 @@ def render_pachinko_演出(signal_type):
         playKyuin();
         setTimeout(playKyuin, 700);
 
-        // 2秒後に準備フェーズ（リール回転画面）へ自動切替
+        // 2秒後に準備フェーズ（絶えず回転・1秒ごとにハズレ目が止まる状態）へ自動切替
         setTimeout(() => {
             const screen = document.getElementById("pachinko-screen");
             if (screen) {
@@ -167,13 +174,20 @@ def render_pachinko_演出(signal_type):
                 screen.style.border = "1px solid #444444";
                 screen.style.boxShadow = "none";
                 screen.innerHTML = `
-                    <div style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
+                    <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
                     <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
                         🎰 クオンツAI 準備フェーズ（見送り中・ハズレ目変動）
                     </div>
                 `;
+                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
+                let idx = 0;
+                setInterval(() => {
+                    idx = (idx + 1) % symbols.length;
+                    const box = document.getElementById("reel-box");
+                    if (box) { box.innerHTML = symbols[idx]; }
+                }, 1000);
             }
         }, 2000);
         </script>
@@ -186,10 +200,10 @@ def render_pachinko_演出(signal_type):
         </style>
         """
   else:
-    # 見送り：準備フェーズ（1秒おきにリールが変動しハズレ目が停止）
+    # 見送り：準備フェーズ（絶えず1秒ごとにリールのハズレ目が切り替わって停止する演出）
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px; animation: reelSpin 1s steps(4) infinite;">
+            <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
                 [ 🍒 · 🍉 · 🔔 ]
             </div>
             <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
@@ -205,13 +219,6 @@ def render_pachinko_演出(signal_type):
             if (box) { box.innerHTML = symbols[idx]; }
         }, 1000);
         </script>
-        <style>
-        @keyframes reelSpin {
-            0% { opacity: 0.6; }
-            50% { opacity: 1; }
-            100% { opacity: 0.6; }
-        }
-        </style>
         """
 
   components.html(html_content, height=140)
@@ -557,7 +564,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
             "標準", st.session_state.std_total, std_win_rate
         )
         full_ap_prompt = (
-            f"ホール名: {hall_auto}\n条件: {budget_type}、現在時刻: {jst_now_str}\n現在この時間帯における{hall_auto}の出玉推移・客層の心理的傾向を統計的にシミュレートし、{budget_type.split('(')[0]}で最もプラス期待値を叩き出せる台の選定基準と立ち回り戦略をレポートしてください。"
+            f"ホール名: {hall_auto}\n条件: {budget_type}、現在時刻: {jst_now_str}\n現在この時間帯における{hall_auto}の出玉推移・客層の心理的傾向を統計的にシミュレートし、{budget_type.split('（')[0]}で最もプラス期待値を叩き出せる台の選定基準と立ち回り戦略をレポートしてください。"
         )
         res_text = generate_with_retry(
             client, "gemini-3.8-flash", [dyn_inst, full_ap_prompt]
