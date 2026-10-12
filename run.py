@@ -330,28 +330,23 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 【AI自律機械学習エンジンによる動的判定】
-        # 過去のユーザーの勝敗ログを読み込み、AIが自動的に各銘柄の最適なしきい値を自律調整する
         trade_logs = load_trade_logs()
         asset_logs = [log for log in trade_logs if log["asset"] == current_asset_name]
         total_logs = len(asset_logs)
         win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
         asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 50.0
 
-        # AIの自己学習による適応バイアス（負けが多いほどより厳格に、勝っているときは最適化を維持）
         adaptive_offset = 0.0
         if total_logs >= 3:
           if asset_win_rate < 50.0:
-            adaptive_offset = 3.0  # 負けが込んでいる場合はよりシビアに判定を厳格化
+            adaptive_offset = 3.0
           elif asset_win_rate >= 80.0:
             adaptive_offset = -1.0
 
-        # 銘柄ごとの動的AI判定基準
         if "原油" in current_asset_name:
           buy_limit = 20 + adaptive_offset
           sell_limit = 72 - adaptive_offset
         elif "ビットコイン" in current_asset_name or "イーサリアム" in current_asset_name:
-          # 暗号資産はボラティリティが激しいため、AIが自己学習してダマシを回避する高度なしきい値を適用
           buy_limit = 15 + adaptive_offset
           sell_limit = 85 - adaptive_offset
         else:
@@ -601,7 +596,15 @@ elif mode == "💬 AIプロチャット＆画像解析":
               st.session_state.std_total + st.session_state.quick_total,
               (std_win_rate + quick_win_rate) / 2,
               "プロチャット自律学習モード",
-              "チャットアシスタント",
+              "チャスタント",
           )
           full_contents = [dyn_inst] + user_content
-          response_text = generate_with
+          response_text = generate_with_retry(
+              client, "gemini-2.5-flash", full_contents
+          )
+          st.markdown(response_text)
+          st.session_state.messages.append(
+              {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
