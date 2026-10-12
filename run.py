@@ -73,7 +73,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（すべての銘柄に対応した完全動的トリガー）
+# パチンコ演出コンポーネント（選択中の銘柄名を正確に反映）
 def render_pachinko_演出(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
@@ -251,7 +251,7 @@ def get_dynamic_learning_instruction(mode_name, total, win_rate):
 - 累計検証サンプル: {total}万回
 - 達成勝率: {win_rate:.2f}%
 【絶対の使命】
-選択されたすべての銘柄（イーサリアム、ゴールド、ドル円、日経平均、原油、ビットコイン等）を平等かつ完璧に個別解析してください。中途半端な状態では絶対に「見送り」とし、勝率99%の極限の歪みが起きたときだけ「買いシグナル」または「売りシグナル」を出力してください。
+ユーザーが選択した特定の銘柄のみを個別に完全解析してください。他の銘柄の結果を混同せず、その銘柄独自のリアルタイム価格・ボラティリティ・歪みだけを評価し、勝率99%の極限領域にあるときのみ「買いシグナル」または「売りシグナル」を出力してください。
 """
 
 
@@ -348,7 +348,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  @st.cache_data(ttl=15)
+  @st.cache_data(ttl=5)
   def fetch_market_data(symbol):
     df = yf.download(symbol, period="5d", interval="5m", progress=False)
     if df.empty:
@@ -381,6 +381,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
+        # 各銘柄ごとの個別データを正確に反映した判定ロジック
         std_signal = f"見送り（AI判定：{current_asset_name}はまだ完璧なタイミングではありません）"
         std_color = "green"
         if avg_rsi < 28:
@@ -407,6 +408,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         elif std_color == "red" or quick_color == "red":
           active_payout = "red"
 
+        # 選択中の銘柄名を正確に渡して演出を発動
         render_pachinko_演出(active_payout, sound_on, current_asset_name)
 
         st.markdown("---")
