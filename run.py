@@ -286,7 +286,7 @@ sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（キ�
 
 st.sidebar.markdown("---")
 
-# 📊 銘柄クイック・スライドバーをサイドバー（右側）に配置！
+# 📊 銘柄クイック選択バーをサイドバー（右側）に配置
 assets_list = [
     ("WTI原油 / 石油 (CL=F)", "CL=F"),
     ("日経平均株価 (^N225)", "^N225"),
@@ -464,4 +464,11 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         if client:
           dyn_inst = get_dynamic_learning_instruction(
               "標準＆クイック",
-              st.session_state.std_total + st.session_state.quick_
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          prompt_analysis = f"""
+                    対象銘柄: {current_asset_name} ({ticker_symbol})
+                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
+                    標準判定: {std_signal}
+                    クイック
