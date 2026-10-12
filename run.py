@@ -73,7 +73,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（勝率99%の完璧な一致時のみ発動）
+# パチンコ演出コンポーネント（選んだ銘柄名とチェリー・スイカ表示を完全に連動）
 def render_pachinko_演出(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
@@ -140,9 +140,12 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
 
   if signal_type == "blue":
     html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
-            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; letter-spacing: 1px;">
+        <div id="pachinko-screen" style="width: 100%; height: 150px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
+            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; letter-spacing: 1px; margin-bottom: 6px;">
                 ✨ プチュン！！【 {asset_name} 勝率99%完璧な買いエントリー 】 ✨
+            </div>
+            <div style="font-size: 22px; color: #ffcc00; font-family: monospace; font-weight: bold;">
+                [ 🍒 · <span style="color:red;">7</span> · 🍒 ]
             </div>
         </div>
         <script>
@@ -154,11 +157,12 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
                 screen.style.border = "1px solid #444444";
                 screen.style.boxShadow = "none";
                 screen.innerHTML = `
+                    <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択銘柄: {asset_name}</div>
                     <div id="reel-box" style="font-size: 24px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 4px;">
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
-                    <div style="color: #aaaaaa; font-size: 12px; margin-top: 6px;">
-                        🎰 天才AI監視中（{asset_name} の極限の好機を待ち構えています）
+                    <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
+                        🎰 天才AI監視中（極限の好機を待ち構えています）
                     </div>
                 `;
                 const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
@@ -169,16 +173,16 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
                     if (box) {{ box.innerHTML = symbols[idx]; }}
                 }}, 1000);
             }}
-        }}, 3500);
+        }}, 4000);
         </script>
         """
   elif signal_type == "red":
     html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 140px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
-            <div style="font-size: 32px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 3px; animation: spinRed 0.3s linear infinite;">
+        <div id="pachinko-screen" style="width: 100%; height: 150px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
+            <div style="font-size: 30px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 3px; animation: spinRed 0.3s linear infinite;">
                 [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
             </div>
-            <div style="color: #ff3333; font-weight: bold; font-size: 16px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">
+            <div style="color: #ff3333; font-weight: bold; font-size: 15px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 4px;">
                 🔥 キュインキュイン！！【 {asset_name} 勝率99%完璧な売りエントリー 】 🔥
             </div>
         </div>
@@ -191,11 +195,12 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
                 screen.style.border = "1px solid #444444";
                 screen.style.boxShadow = "none";
                 screen.innerHTML = `
+                    <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択銘柄: {asset_name}</div>
                     <div id="reel-box" style="font-size: 24px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 4px;">
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
-                    <div style="color: #aaaaaa; font-size: 12px; margin-top: 6px;">
-                        🎰 天才AI監視中（{asset_name} の極限の好機を待ち構えています）
+                    <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
+                        🎰 天才AI監視中（極限の好機を待ち構えています）
                     </div>
                 `;
                 const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
@@ -206,7 +211,7 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
                     if (box) {{ box.innerHTML = symbols[idx]; }}
                 }}, 1000);
             }}
-        }}, 3500);
+        }}, 4000);
         </script>
         <style>
         @keyframes spinRed {{
@@ -218,12 +223,13 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
         """
   else:
     html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
+        <div id="pachinko-screen" style="width: 100%; height: 130px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
+            <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択銘柄: {asset_name} (準備フェーズ監視中)</div>
             <div id="reel-box" style="font-size: 24px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 4px;">
                 [ 🍒 · 🍉 · 🔔 ]
             </div>
-            <div style="color: #aaaaaa; font-size: 12px; margin-top: 6px;">
-                🛡️ AI厳格フィルター作動中：{asset_name} はタイミング不一致のため「完全見送り（待機）」
+            <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
+                🛡️ AI厳格フィルター作動中：タイミング不一致のため「完全見送り（待機）」
             </div>
         </div>
         <script>
@@ -285,34 +291,6 @@ st.sidebar.markdown("### 🔊 サウンドコントロール（電車内モー�
 sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（キュイン・プチュン音）", value=True)
 
 st.sidebar.markdown("---")
-
-assets_list = [
-    ("WTI原油 / 石油 (CL=F)", "CL=F"),
-    ("日経平均株価 (^N225)", "^N225"),
-    ("ビットコイン (BTC-USD)", "BTC-USD"),
-    ("イーサリアム (ETH-USD)", "ETH-USD"),
-    ("ゴールド・金 (GC=F)", "GC=F"),
-    ("シルバー・銀 (SI=F)", "SI=F"),
-    ("ドル円 (USD/JPY)", "USDJPY=X"),
-]
-
-if "selected_asset_index" not in st.session_state:
-  st.session_state.selected_asset_index = 0
-
-st.sidebar.markdown("### 🎚️ 銘柄クイック選択バー")
-asset_names_only = [item[0] for item in assets_list]
-selected_slider_name = st.sidebar.selectbox(
-    "分析対象の銘柄を切替",
-    options=asset_names_only,
-    index=st.session_state.selected_asset_index,
-    key="sidebar_asset_select"
-)
-
-for idx, item in enumerate(assets_list):
-  if item[0] == selected_slider_name:
-    st.session_state.selected_asset_index = idx
-
-st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 クオンツAIバックテスト・勝率最適化メーター")
 
 if "last_auto_update" not in st.session_state:
@@ -357,10 +335,41 @@ st.sidebar.metric(
 
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
   st.markdown("### 🎯 天才クオンツAI・勝率99%完璧エントリー監視プラットフォーム")
-  st.markdown(
-      "<small>サイドバーの銘柄選択バーで別の銘柄に切り替えると、即座にその銘柄の最新データを完全解析して画面が更新されます。</small>",
-      unsafe_allow_html=True,
-  )
+
+  assets_list = [
+      ("WTI原油 / 石油 (CL=F)", "CL=F"),
+      ("日経平均株価 (^N225)", "^N225"),
+      ("ビットコイン (BTC-USD)", "BTC-USD"),
+      ("イーサリアム (ETH-USD)", "ETH-USD"),
+      ("ゴールド・金 (GC=F)", "GC=F"),
+      ("シルバー・銀 (SI=F)", "SI=F"),
+      ("ドル円 (USD/JPY)", "USDJPY=X"),
+  ]
+
+  if "selected_asset_index" not in st.session_state:
+    st.session_state.selected_asset_index = 0
+
+  # 🎯 メイン画面の右側に配置した、スマホでスライド・PCで上下キー/クリックでスムーズに動かせるバー
+  col_title, col_ctrl = st.columns([3, 2])
+  with col_title:
+    st.markdown(
+        "<small>スマホは指で左右にスワイプ、PCはキーボードの [←] [→] 矢印キーまたは下のバーで銘柄を瞬時に切り替えられます。</small>",
+        unsafe_allow_html=True,
+    )
+  with col_ctrl:
+    asset_names_only = [item[0] for item in assets_list]
+    current_idx = st.session_state.selected_asset_index
+    selected_slider_name = st.select_slider(
+        "🎚️ 【外側右側配置】銘柄クイック選択バー",
+        options=asset_names_only,
+        value=asset_names_only[current_idx],
+        key="main_outer_slide_bar"
+    )
+    for idx, item in enumerate(assets_list):
+      if item[0] == selected_slider_name and idx != current_idx:
+        st.session_state.selected_asset_index = idx
+        st.rerun()
+
   st.markdown("---")
 
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
@@ -396,6 +405,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
+        # 【勝率99%極限フィルター：タイミングが少しでもずれていれば絶対に見送り】
         std_signal = f"【完全見送り】{current_asset_name}はタイミング不一致（待機中）"
         std_color = "green"
         if rsi_short < 15 and avg_rsi < 22 and rsi_short == min(valid_rsis):
@@ -422,192 +432,10 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         elif std_color == "red" or quick_color == "red":
           active_payout = "red"
 
+        # 準備フェーズに選んだ銘柄名を表示し、タイミング合致時のみ演出発動
         render_pachinko_演出(active_payout, sound_on, current_asset_name)
 
         st.markdown("---")
 
-        col_res1, col_res2 = st.columns(2)
-
-        msg_std = (
-            f"**標準分析モード:** {current_asset_name} ➔ **{std_signal}**"
-            f" (RSI:{rsi_mid:.1f})"
-        )
-        msg_quick = (
-            f"**クイック分析モード:** {current_asset_name} ➔ **{quick_signal}**"
-            f" (RSI:{rsi_short:.1f})"
-        )
-
-        with col_res1:
-          if std_color == "blue":
-            st.info(msg_std)
-          elif std_color == "red":
-            st.error(msg_std)
-          else:
-            st.success(msg_std)
-
-        with col_res2:
-          if quick_color == "blue":
-            st.info(msg_quick)
-          elif quick_color == "red":
-            st.error(msg_quick)
-          else:
-            st.success(msg_quick)
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
-        col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
-        col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
-        col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
-
-        if client:
-          dyn_inst = get_dynamic_learning_instruction(
-              "標準＆クイック",
-              st.session_state.std_total + st.session_state.quick_total,
-              (std_win_rate + quick_win_rate) / 2,
-          )
-          prompt_analysis = f"""
-                    対象銘柄: {current_asset_name} ({ticker_symbol})
-                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
-                    標準判定: {std_signal}
-                    クイック判定: {quick_signal}
-                    
-                    【初心者にもわかりやすい天才AIの勝率99%検証解説】
-                    現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
-                    """
-          with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
-            res_text = generate_with_retry(
-                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
-            )
-            st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
-            st.markdown(res_text)
-
-    except Exception as e:
-      st.error(f"データ取得または分析エラー: {e}")
-
-  time.sleep(15)
-  st.rerun()
-
-elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
-  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
-  st.subheader(
-      f"🚤 公営競技・統計的期待値最適化エンジン ({jst_now_str})"
-  )
-
-  race_type_auto = st.selectbox(
-      "競技選択",
-      ["競艇（ボートレース）", "競輪（KEIRIN）", "オートレース", "競馬"],
-  )
-
-  if client:
-    with st.spinner(f"日本時間 ({jst_now_str}) の {race_type_auto} を解析中..."):
-      try:
-        dyn_inst = get_dynamic_learning_instruction(
-            "クイック", st.session_state.quick_total, quick_win_rate
-        )
-        prompt_f = (
-            f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを極限まで分析し、99%の期待値が狙える厳選買い目を出力してください。"
-        )
-        res_text = generate_with_retry(
-            client, "gemini-2.5-flash", [dyn_inst, prompt_f]
-        )
-        st.markdown(f"### 🚤 {race_type_auto} 期待値予測レポート")
-        render_pachinko_演出("blue", sound_on, race_type_auto)
-        st.info(res_text)
-      except Exception as e:
-        st.error(f"エラー: {e}")
-  else:
-    st.error("APIキーが設定されていません。")
-
-elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
-  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
-  st.subheader(
-      f"🎰 板橋区・豊島区ホール 期待値最適化抽出 ({jst_now_str})"
-  )
-
-  hall_auto = st.selectbox(
-      "対象ホール選択",
-      [
-          "やすだ東池袋店",
-          "やすだ大山店",
-          "やすだ板橋店",
-          "やすだ巣鴨店",
-          "池袋・板橋エリア総合特選ホール",
-      ],
-  )
-  budget_type = st.radio(
-      "軍資金・投資リミット",
-      [
-          "1万円勝負（短期決戦・期待値重視）",
-          "1.5万円勝負（粘り打ち・ボーダー狙い）",
-      ],
-  )
-
-  if client:
-    with st.spinner(f"{hall_auto} のデータを解析中..."):
-      try:
-        dyn_inst = get_dynamic_learning_instruction(
-            "標準", st.session_state.std_total, std_win_rate
-        )
-        full_ap_prompt = (
-            f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。極限の期待値台選定戦略をレポートしてください。"
-        )
-        res_text = generate_with_retry(
-            client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
-        )
-        st.markdown(f"### 🎰 {hall_auto} 期待値分析レポート")
-        render_pachinko_演出("red", sound_on, hall_auto)
-        st.success(res_text)
-      except Exception as e:
-        st.error(f"エラー: {e}")
-  else:
-    st.error("APIキーが設定されていません。")
-
-elif mode == "💬 AIプロチャット＆画像解析":
-  st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
-
-  if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-  for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-      st.markdown(m["content"])
-
-  uploaded_file = st.file_uploader(
-      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
-  )
-  prompt = st.chat_input("質問や分析指示を入力してください...")
-
-  if (prompt or uploaded_file) and client:
-    user_content = []
-    if prompt:
-      user_content.append(prompt)
-
-    img = None
-    if uploaded_file:
-      img = Image.open(uploaded_file)
-      user_content.append(img)
-      st.image(img, caption="アップロードされた画像", width=300)
-
-    if prompt:
-      st.session_state.messages.append({"role": "user", "content": prompt})
-      with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-      with st.spinner("クオンツAI思考エンジンで高度分析中..."):
-        try:
-          dyn_inst = get_dynamic_learning_instruction(
-              "標準＆クイック",
-              st.session_state.std_total + st.session_state.quick_total,
-              (std_win_rate + quick_win_rate) / 2,
-          )
-          full_contents = [dyn_inst] + user_content
-          response_text = generate_with_retry(
-              client, "gemini-2.5-flash", full_contents
-          )
-          st.markdown(response_text)
-          st.session_state.messages.append(
-              {"role": "assistant", "content": response_text}
-          )
-        except Exception as e:
-          st.error(f"エラー: {e}")
+        total_assets = len(assets_list)
+        current_idx = st.session_state.selected_
