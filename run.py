@@ -14,7 +14,7 @@ import yfinance as yf
 API_KEY = "AQ.Ab8RN6KV_HvFmtD29UALxW8fH2umURHa8pLZ47ET5Eme8hZJwg"
 
 st.set_page_config(
-    page_title="超高速クオンツAI・未来予測プラットフォーム（ミリ秒特化型）",
+    page_title="超高速クオンツAI・未来予測プラットフォーム（サウンド完全制御版）",
     layout="wide",
 )
 
@@ -91,10 +91,11 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# 画面酔いを完全に防ぐ静的プロフェッショナル・ダッシュボード表示
-def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
+# 【修正版】シグナルが発動した（blue/redかつis_premium=True）時のみ音を鳴らす厳格なプロフェッショナル・ダッシュボード表示
+def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal):
   sound_script = ""
-  if sound_enabled:
+  # 適切なエントリーシグナル発動中かつサウンドが有効な場合のみ音響スクリプトを生成
+  if sound_enabled and is_active_signal:
     if signal_type == "blue":
       sound_script = """
         if (!window.sharedAudioCtx) {
@@ -156,7 +157,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
         }, 700);
       """
 
-  if signal_type == "blue":
+  if signal_type == "blue" and is_active_signal:
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 15px rgba(0,85,255,0.4);">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
@@ -168,7 +169,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
         </div>
         <script>{sound_script}</script>
         """
-  elif signal_type == "red":
+  elif signal_type == "red" and is_active_signal:
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 15px rgba(255,51,51,0.4);">
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
@@ -183,9 +184,9 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (ミリ秒超高速監視中)</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (ミリ秒超高速監視中 - 見送り・待機)</div>
             <div style="color: #aaaaaa; font-size: 12px;">
-                🛡️ 2$到達確率: 上昇 {prob_val:.1f}% （高精度ライン未達のため堅実待機中）
+                🛡️ 2$到達確率: 上昇 {prob_val:.1f}% （高精度ライン未達のため無音で堅実待機中）
             </div>
         </div>
         """
@@ -205,7 +206,7 @@ mode = st.sidebar.selectbox(
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 サウンドコントロール（電車内モード対応）")
-sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（キュイン・プチュン音）", value=True)
+sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（シグナル発動時のみ鳴動）", value=True)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 クオンツAIバックテスト・勝率最適化メーター（超高速2$特化）")
@@ -328,13 +329,10 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     )
 
     probs = model.predict_proba(current_features)[0]
-    
-    # 確率配列の要素数を安全にチェックしてIndexErrorを防ぐ
     if len(probs) >= 2:
       prob_up = probs[1] * 100
       prob_down = probs[0] * 100
     else:
-      # クラスが1つしか検出されなかった場合のフォールバック
       pred_class = model.predict(current_features)[0]
       prob_up = 100.0 if pred_class == 1 else 0.0
       prob_down = 100.0 if pred_class == 0 else 0.0
@@ -393,17 +391,23 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       quick_color = "red"
       is_premium = True
 
+    # 実際にシグナルが点灯している（is_premiumかつblue/red）ときだけサウンドを許可
+    active_signal_type = "green"
+    if std_color == "blue" and is_premium:
+      active_signal_type = "blue"
+    elif std_color == "red" and is_premium:
+      active_signal_type = "red"
+    elif quick_color == "blue" and is_premium:
+      active_signal_type = "blue"
+    elif quick_color == "red" and is_premium:
+      active_signal_type = "red"
+
     render_static_signal_box(
-        "blue"
-        if (std_color == "blue" or quick_color == "blue") and is_premium
-        else (
-            "red"
-            if (std_color == "red" or quick_color == "red") and is_premium
-            else "green"
-        ),
-        sound_on and is_premium,
+        active_signal_type,
+        sound_on,
         current_asset_name,
         prob_up if prob_up >= prob_down else prob_down,
+        is_active_signal=is_premium,
     )
 
     st.markdown("#### 🎚️ 分析対象銘柄の切り替え")
@@ -459,17 +463,17 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     )
 
     with col_res1:
-      if std_color == "blue":
+      if std_color == "blue" and is_premium:
         st.info(msg_std)
-      elif std_color == "red":
+      elif std_color == "red" and is_premium:
         st.error(msg_std)
       else:
         st.success(msg_std)
 
     with col_res2:
-      if quick_color == "blue":
+      if quick_color == "blue" and is_premium:
         st.info(msg_quick)
-      elif quick_color == "red":
+      elif quick_color == "red" and is_premium:
         st.error(msg_quick)
       else:
         st.success(msg_quick)
@@ -490,7 +494,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
                         予測確率: 上昇 {prob_up:.1f}% / 下落 {prob_down:.1f}%
                         短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f}
                         現在の判定: {std_signal}
-                        損切りなしで2.0ドルの利益幅を狙うスキャルピング視点から、この数値の優位性を解説してください。
+                        損切りなしで2.0ドルの利益幅を狙うスキャルピング視点から、現在の実際の相場状況における優位性を解説してください。
                         """
             res_text = client.models.generate_content(
                 model="gemini-2.5-flash", contents=prompt_analysis
