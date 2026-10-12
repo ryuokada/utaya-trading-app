@@ -349,11 +349,11 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  # 🎯 メイン画面の右側に配置した、スマホでスライド・PCで上下キー/クリックでスムーズに動かせるバー
+  # メイン画面の右側に配置した、スマホでスライド・PCで上下キー/クリックでスムーズに動かせるバー
   col_title, col_ctrl = st.columns([3, 2])
   with col_title:
     st.markdown(
-        "<small>スマホは指で左右にスワイプ、PCはキーボードの [←] [→] 矢印キーまたは下のバーで銘柄を瞬時に切り替えられます。</small>",
+        "<small>スマホは指で左右にスワイプ、PCはキーボードの [←] [→] 矢印キーまたは右側のバーで銘柄を瞬時に切り替えられます。</small>",
         unsafe_allow_html=True,
     )
   with col_ctrl:
@@ -438,4 +438,232 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         st.markdown("---")
 
         total_assets = len(assets_list)
-        current_idx = st.session_state.selected_
+        current_idx = st.session_state.selected_asset_index
+
+        swipe_html = f"""
+        <div id="swipe-gate" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #1f1f1f, #2d2d2d); border: 2px solid #555; border-radius: 12px; text-align: center; color: #fff; cursor: pointer; user-select: none; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+            <div style="font-size: 13px; color: #ffcc00; margin-bottom: 4px; font-weight: bold;">◀ ◀ スマホは左右に指スライド / PCは [←] [→] キーで切替 ▶ ▶</div>
+            <div style="font-size: 20px; font-weight: bold; color: #00ffcc; letter-spacing: 1px; margin: 4px 0;">
+                📊 選択中 ({current_idx + 1} / {total_assets}): {current_asset_name}
+            </div>
+            <div style="font-size: 11px; color: #aaa;">（指でスワイプすると瞬時に次の銘柄にローテーションします）</div>
+        </div>
+
+        <script>
+        let touchstartX = 0;
+        let touchendX = 0;
+        const gate = document.getElementById('swipe-gate');
+
+        gate.addEventListener('touchstart', function(e) {{
+            touchstartX = e.changedTouches[0].screenX;
+        }}, false);
+
+        gate.addEventListener('touchend', function(e) {{
+            touchendX = e.changedTouches[0].screenX;
+            if (touchendX < touchstartX - 30) {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'next'}}, '*');
+            }}
+            if (touchendX > touchstartX + 30) {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'prev'}}, '*');
+            }}
+        }}, false);
+
+        window.parent.addEventListener('keydown', function(e) {{
+            if (e.key === 'ArrowRight') {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'next'}}, '*');
+            }} else if (e.key === 'ArrowLeft') {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'prev'}}, '*');
+            }}
+        }});
+        </script>
+        """
+
+        swipe_val = components.html(swipe_html, height=110)
+
+        st.markdown("---")
+
+        col_res1, col_res2 = st.columns(2)
+
+        msg_std = (
+            f"**標準分析モード:** {current_asset_name} ➔ **{std_signal}**"
+            f" (RSI:{rsi_mid:.1f})"
+        )
+        msg_quick = (
+            f"**クイック分析モード:** {current_asset_name} ➔ **{quick_signal}**"
+            f" (RSI:{rsi_short:.1f})"
+        )
+
+        with col_res1:
+          if std_color == "blue":
+            st.info(msg_std)
+          elif std_color == "red":
+            st.error(msg_std)
+          else:
+            st.success(msg_std)
+
+        with col_res2:
+          if quick_color == "blue":
+            st.info(msg_quick)
+          elif quick_color == "red":
+            st.error(msg_quick)
+          else:
+            st.success(msg_quick)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
+        col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
+        col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
+        col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
+
+        if client:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          prompt_analysis = f"""
+                    対象銘柄: {current_asset_name} ({ticker_symbol})
+                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
+                    標準判定: {std_signal}
+                    クイック判定: {quick_signal}
+                    
+                    【初心者にもわかりやすい天才AIの勝率99%検証解説】
+                    現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
+                    """
+          with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
+            res_text = generate_with_retry(
+                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
+            )
+            st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
+            st.markdown(res_text)
+
+    except Exception as e:
+      st.error(f"データ取得または分析エラー: {e}")
+
+  time.sleep(15)
+  st.rerun()
+
+elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
+  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
+  st.subheader(
+      f"🚤 公営競技・統計的期待値最適化エンジン ({jst_now_str})"
+  )
+
+  race_type_auto = st.selectbox(
+      "競技選択",
+      ["競艇（ボートレース）", "競輪（KEIRIN）", "オートレース", "競馬"],
+  )
+
+  if client:
+    with st.spinner(f"日本時間 ({jst_now_str}) の {race_type_auto} を解析中..."):
+      try:
+        dyn_inst = get_dynamic_learning_instruction(
+            "クイック", st.session_state.quick_total, quick_win_rate
+        )
+        prompt_f = (
+            f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを極限まで分析し、99%の期待値が狙える厳選買い目を出力してください。"
+        )
+        res_text = generate_with_retry(
+            client, "gemini-2.5-flash", [dyn_inst, prompt_f]
+        )
+        st.markdown(f"### 🚤 {race_type_auto} 期待値予測レポート")
+        render_pachinko_演出("blue", sound_on, race_type_auto)
+        st.info(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
+  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
+  st.subheader(
+      f"🎰 板橋区・豊島区ホール 期待値最適化抽出 ({jst_now_str})"
+  )
+
+  hall_auto = st.selectbox(
+      "対象ホール選択",
+      [
+          "やすだ東池袋店",
+          "やすだ大山店",
+          "やすだ板橋店",
+          "やすだ巣鴨店",
+          "池袋・板橋エリア総合特選ホール",
+      ],
+  )
+  budget_type = st.radio(
+      "軍資金・投資リミット",
+      [
+          "1万円勝負（短期決戦・期待値重視）",
+          "1.5万円勝負（粘り打ち・ボーダー狙い）",
+      ],
+  )
+
+  if client:
+    with st.spinner(f"{hall_auto} のデータを解析中..."):
+      try:
+        dyn_inst = get_dynamic_learning_instruction(
+            "標準", st.session_state.std_total, std_win_rate
+        )
+        full_ap_prompt = (
+            f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。極限の期待値台選定戦略をレポートしてください。"
+        )
+        res_text = generate_with_retry(
+            client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
+        )
+        st.markdown(f"### 🎰 {hall_auto} 期待値分析レポート")
+        render_pachinko_演出("red", sound_on, hall_auto)
+        st.success(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "💬 AIプロチャット＆画像解析":
+  st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
+
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+  for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+      st.markdown(m["content"])
+
+  uploaded_file = st.file_uploader(
+      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
+  )
+  prompt = st.chat_input("質問や分析指示を入力してください...")
+
+  if (prompt or uploaded_file) and client:
+    user_content = []
+    if prompt:
+      user_content.append(prompt)
+
+    img = None
+    if uploaded_file:
+      img = Image.open(uploaded_file)
+      user_content.append(img)
+      st.image(img, caption="アップロードされた画像", width=300)
+
+    if prompt:
+      st.session_state.messages.append({"role": "user", "content": prompt})
+      with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+      with st.spinner("クオンツAI思考エンジンで高度分析中..."):
+        try:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          full_contents = [dyn_inst] + user_content
+          response_text = generate_with_retry(
+              client, "gemini-2.5-flash", full_contents
+          )
+          st.markdown(response_text)
+          st.session_state.messages.append(
+              {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
