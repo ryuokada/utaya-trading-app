@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3000, 2940, 8300, 8220
+  return 3300, 3240, 8900, 8820
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -76,7 +76,6 @@ def record_trade_log(asset, rsi, result):
     pass
 
 
-# 【完全自動学習】価格データから勝敗を自動判定してデータベースへ記録
 def auto_evolve_and_record(asset_name, current_price, recent_prices, rsi_val, is_up_signal):
   try:
     if recent_prices is None or len(recent_prices) < 2:
@@ -98,7 +97,7 @@ def auto_evolve_and_record(asset_name, current_price, recent_prices, rsi_val, is
 def generate_local_reflection():
   logs = load_trade_logs()
   if not logs:
-    return "【UTAYA脳内内省ログ】全銘柄フェア統合モード稼働中。各アセットの確率的エッジを自律分析しています。"
+    return "【UTAYA内省ログ】全銘柄フェア統合モード稼働中。確率的エッジを自律分析中。"
 
   total = len(logs)
   wins = sum(1 for l in logs if l["result"] == "WIN")
@@ -110,13 +109,12 @@ def generate_local_reflection():
   avg_win_rsi = np.mean(win_rsis) if win_rsis else 50.0
   avg_lose_rsi = np.mean(lose_rsis) if lose_rsis else 50.0
 
-  reflection = f"""
-  ### 🧠 【UTAYA 全銘柄フェア内省・脳内分析レポート】 (総自動検証: {total}件 | 自動実測勝率: {win_rate:.1f}%)
-  - **全アセット横断解析 (WINパターン)**: 成功したトレードの平均RSI水準は **{avg_win_rsi:.1f}**。銘柄固有の偏見を排し、純粋な統計的歪みを捕捉。
-  - **全アセット横断解析 (LOSE要因)**: 失敗したケースの平均RSIは **{avg_lose_rsi:.1f}**。ノイズ環境における判断基準をモデルが自動修正。
-  - **自動進化ステータス**: 全銘柄が対等な条件でAIモデルによる高精度判定を受けています。
+  return f"""
+  ### 🧠 【UTAYA 全銘柄フェア内省レポート】 (総検証: {total}件 | 勝率: {win_rate:.1f}%)
+  - **WINパターン解析**: 成功トレード平均RSI水準 **{avg_win_rsi:.1f}**（統計的歪みを正確に捕捉）。
+  - **LOSE要因解析**: 失敗トレード平均RSI水準 **{avg_lose_rsi:.1f}**（ノイズ環境のモデル自動修正）。
+  - **自動進化ステータス**: 全銘柄対等な条件でAIモデル高精度判定が常時稼働中。
   """
-  return reflection
 
 
 if "std_total" not in st.session_state:
@@ -136,13 +134,6 @@ if "last_played_signal" not in st.session_state:
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
-def get_jst_now():
-  utc_now = datetime.datetime.now(datetime.timezone.utc)
-  jst_zone = datetime.timezone(datetime.timedelta(hours=9))
-  return utc_now.astimezone(jst_zone)
-
-
-# 【厳格な色・サウンド同期制御】シグナル発動時のみ赤/青になり、音が鳴る
 def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal, is_cooling_down):
   sound_script = ""
   should_play_sound = False
@@ -206,9 +197,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #1a1a00; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #cca300;">
             <div style="color: #ffcc00; font-size: 14px; font-weight: bold; margin-bottom: 2px;">⏳ UTAYA フェア検証中: {asset_name} (初期化クールダウン)</div>
-            <div style="color: #aaaaaa; font-size: 11px;">
-                🛡️ 全銘柄対等な基準でプライスアクションをスキャン中（完全無音維持）
-            </div>
+            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 全銘柄対等な基準でスキャン中（完全無音維持）</div>
         </div>
         """
   elif signal_type == "blue" and is_active_signal:
@@ -217,9 +206,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
                 ✨ UTAYA フェア予測【 {asset_name} 上昇2$到達 確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
             </div>
-            <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">
-                [ ベストエントリーポイント・損切りなし2$利確エッジ検出 ]
-            </div>
+            <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">[ ベストエントリーポイント検出 ]</div>
         </div>
         <script>{sound_script}</script>
         """
@@ -229,9 +216,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
                 🔥 UTAYA フェア予測【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売り注文シグナル発動 】 🔥
             </div>
-            <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">
-                [ ベストエントリーポイント・損切りなし2$利確エッジ検出 ]
-            </div>
+            <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">[ ベストエントリーポイント検出 ]</div>
         </div>
         <script>{sound_script}</script>
         """
@@ -239,9 +224,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
             <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA 監視中: {asset_name} (待機中)</div>
-            <div style="color: #aaaaaa; font-size: 11px;">
-                🛡️ 到達確率: {prob_val:.1f}% （まだベストポイント未達のため無音待機中）
-            </div>
+            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 到達確率: {prob_val:.1f}% （未達のため無音待機中）</div>
         </div>
         """
 
@@ -455,7 +438,6 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
     asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 99.2
 
-    # 【完全同期判定】確率が72%以上の時だけ赤（売り）または青（買い）になり、それ以外は緑（待機）
     if prob_down >= 72.0:
       std_signal = f"🔥【UTAYAベスト発動】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% ➔ 売り注文シグナル発動！"
       is_active = True
@@ -493,7 +475,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
       local_reflection = generate_local_reflection()
       st.markdown(local_reflection)
       st.info(
-          "💡 **完全フェア稼働中**: すべての銘柄が同一の公平なAIアルゴリズムで分析され、モメンタムやRSIの歪みから自律的に最適なエントリー判断を下します。"
+          "💡 **完全フェア稼働中**: すべての銘柄が公平なAIアルゴリズムで分析され、自律的に最適なエントリー判断を下します。"
       )
 
     st.markdown("---")
@@ -525,7 +507,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     st.markdown("---")
     st.markdown(
         "### 🤖 UTAYA 全銘柄フェア自律クオンツレポート\n"
-        f"現在の対象銘柄 **{current_asset_name}** において、特定のバイアスを一切排除し、機械学習モデルがリアルタイムの板や価格変動をフェアに分析して最適な損切りなし2ドル利確の方向（買い/売り）を自律判定しています。"
+        f"現在の対象銘柄 **{current_asset_name}** において、バイアスを排除し、AIがリアルタイムの価格変動をフェアに分析して最適な損切りなし2ドル利確の方向を自律判定しています。"
     )
 
 elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
@@ -538,25 +520,25 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
 
 elif mode == "💬 UTAYA AIメタ認知・思考プロチャット":
   st.subheader("💬 UTAYA AIメタ認知・思考プロチャットアシスタント")
-  if "messages" not in st.session_state:
-    st.session_state.messages = []
+  if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
 
-  for m in st.session_state.messages:
+  for m in st.session_state.chat_messages:
     with st.chat_message(m["role"]):
       st.markdown(m["content"])
 
   prompt = st.chat_input("UTAYAの全銘柄フェアな脳内思考について質問してください...")
   if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.chat_messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
       st.markdown(prompt)
     with st.chat_message("assistant"):
       local_ans = (
           f"【UTAYAフェア自律応答】ご質問「{prompt}」に対し、全銘柄中立の脳内エンジンが即時回答します。"
-          "特定の銘柄を除外したり、一方向に固定するような不自然なバイアスは完全に排除しました。"
-          "ビットコインを含むすべての対象アセットを完全にフェアな基準で機械学習し、その瞬間の市場エッジに応じて買い・売り・見送りを完全に自律判定してあなたを勝利へ導きます。"
+          "特定の銘柄除外や一方向への固定バイアスは完全に排除されています。"
+          "ビットコインを含むすべての対象アセットをフェアな基準で機械学習し、市場エッジに応じて自律判定を下します。"
       )
       st.markdown(local_ans)
-      st.session_state.messages.append(
+      st.session_state.chat_messages.append(
           {"role": "assistant", "content": local_ans}
       )
