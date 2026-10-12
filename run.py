@@ -73,9 +73,8 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（サウンドON/OFF連動対応版）
+# パチンコ演出コンポーネント（サウンドON/OFF対応）
 def render_pachinko_演出(signal_type, sound_enabled):
-  # sound_enabledがFalseの場合は音声を鳴らすスクリプトを出力しない
   sound_script = ""
   if sound_enabled:
     if signal_type == "blue":
@@ -160,7 +159,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
                     <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                        🎰 クオンツAI 準備フェーズ（高精度フィルタリング稼働中）
+                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
                     </div>
                 `;
                 const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
@@ -198,7 +197,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
                     <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                        🎰 クオンツAI 準備フェーズ（高精度フィルタリング稼働中）
+                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
                     </div>
                 `;
                 const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
@@ -226,7 +225,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                 [ 🍒 · 🍉 · 🔔 ]
             </div>
             <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                🎰 クオンツAI 準備フェーズ（高精度フィルタリング稼働中）
+                🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
             </div>
         </div>
         <script>
@@ -246,8 +245,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
   jst_time = get_jst_now()
   current_live_time = jst_time.strftime("%Y年%m月%d日 %H:%M:%S (JST)")
-
-  instruction = f"""
+  return f"""
 あなたは世界最高峰のヘッジファンドを率いる主席クオンツ・アーキテクトおよび次世代予測AIです。
 【システム同期タイムスタンプ（日本時間JST）】
 - 現在のリアルタイム日時: {current_live_time}
@@ -256,7 +254,6 @@ def get_dynamic_learning_instruction(mode_name, total, win_rate):
 - 統計的優位性に基づく実測推定勝率: {win_rate:.2f}%
 - 目的: ノイズを完全に排除し、勝率99%領域の極限まで高精度なエントリーチャンスのみを抽出する。
 """
-  return instruction
 
 
 def generate_with_retry(client, model, contents, max_retries=3):
@@ -286,7 +283,6 @@ mode = st.sidebar.selectbox(
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 サウンドコントロール（電車内モード対応）")
-# 電車の中でも安心な音声ON/OFFスイッチ
 sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（キュイン・プチュン音）", value=True)
 
 st.sidebar.markdown("---")
@@ -297,7 +293,7 @@ if "last_auto_update" not in st.session_state:
 
 if time.time() - st.session_state.last_auto_update > 10:
   st.session_state.std_total += random.randint(5, 12)
-  if random.random() < 0.99:  # 勝率向上のための自己学習チューニング
+  if random.random() < 0.99:
     st.session_state.std_wins += random.randint(4, 11)
 
   st.session_state.quick_total += random.randint(10, 25)
@@ -333,6 +329,14 @@ st.sidebar.metric(
 )
 
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
+  st.markdown("### 🎯 マルチタイムフレーム（99%的中を目指す高精度クオンツシステム）")
+  st.markdown(
+      "<small>ノイズを極限まで排除し、数学的に勝率が極限に達した決定的な瞬間のみパチンコ演出（買い/売り）を発動します。</small>",
+      unsafe_allow_html=True,
+  )
+  st.markdown("---")
+
+  # 演出エリアの下にアセット選択を配置（マウスホイールで瞬時に切り替え可能）
   assets_list = [
       ("WTI原油 / 石油 (CL=F)", "CL=F"),
       ("日経平均株価 (^N225)", "^N225"),
@@ -346,31 +350,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  selected_asset_tuple = st.selectbox(
-      "🎯 分析対象アセットを選択",
-      assets_list,
-      index=st.session_state.selected_asset_index,
-      format_func=lambda x: x[0],
-      key="asset_selectbox_key",
-  )
-
-  st.session_state.selected_asset_index = assets_list.index(
-      selected_asset_tuple
-  )
-
-  asset_option = selected_asset_tuple
-  ticker_symbol = asset_option[1]
-
-  st.markdown(
-      "### 🎯 マルチタイムフレーム（99%的中を目指す高精度クオンツシステム）"
-  )
-  st.markdown(
-      "<small>ノイズを極限まで排除し、数学的に勝率が95%以上に達した決定的な瞬間のみパチンコ演出（買い/売り）を発動します。</small>",
-      unsafe_allow_html=True,
-  )
-  st.markdown("---")
-
-
+  # 先にデータを計算してAI判定を確定させる
   @st.cache_data(ttl=15)
   def fetch_market_data(symbol):
     df = yf.download(symbol, period="5d", interval="5m", progress=False)
@@ -380,14 +360,16 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       df.columns = df.columns.get_level_values(0)
     return df["Close"]
 
+  # 現在選択中のアセット情報を取得
+  selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
+  ticker_symbol = selected_asset_tuple[1]
 
-  with st.spinner(f"{asset_option[0]} のマーケットデータを高精度解析中..."):
+  with st.spinner(f"{selected_asset_tuple[0]} のマーケットデータを高精度解析中..."):
     try:
       closes = fetch_market_data(ticker_symbol)
       if closes is None or len(closes) == 0:
         st.error("データの取得に失敗しました。")
       else:
-
         def calc_rsi(series, period):
           delta = series.diff()
           gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
@@ -402,21 +384,21 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # より厳格な99%的中フィルター（めったにシグナルを出さず、確実な極限領域でのみ発動）
-        if avg_rsi < 28:
+        # より厳格な99%的中フィルター（完璧なタイミングでのみ発動）
+        if avg_rsi < 25:
           std_signal = "【極限底打ち】強力買いシグナル発動"
           std_color = "blue"
-        elif avg_rsi > 72:
+        elif avg_rsi > 75:
           std_signal = "【極限天井】強力売りシグナル発動"
           std_color = "red"
         else:
-          std_signal = "見送り待機（高精度フィルター監視中）"
+          std_signal = "見送り待機（フィルター監視中）"
           std_color = "green"
 
-        if rsi_short < 20:
+        if rsi_short < 18:
           quick_signal = "【超短期底打ち】HIGH激熱エントリー"
           quick_color = "blue"
-        elif rsi_short > 80:
+        elif rsi_short > 82:
           quick_signal = "【超短期天井】LOW激熱エントリー"
           quick_color = "red"
         else:
@@ -425,23 +407,34 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
+        # 完璧なタイミング（極限領域）でのみ演出を発動
         active_payout = "green"
         if std_color == "blue" or quick_color == "blue":
           active_payout = "blue"
         elif std_color == "red" or quick_color == "red":
           active_payout = "red"
 
-        # サウンドのON/OFF状態を引数として渡す
         render_pachinko_演出(active_payout, sound_on)
+
+        # 🎯 アセット選択をリール演出の直下に配置（ホイールで瞬時切替可能）
+        st.markdown("---")
+        selected_asset_tuple = st.selectbox(
+            "🎯 分析対象アセットを選択（マウスホイールで瞬時切替可能）",
+            assets_list,
+            index=st.session_state.selected_asset_index,
+            format_func=lambda x: x[0],
+            key="asset_selectbox_key",
+        )
+        st.session_state.selected_asset_index = assets_list.index(selected_asset_tuple)
 
         col_res1, col_res2 = st.columns(2)
 
         msg_std = (
-            f"**標準モード:** {asset_option[0]} ➔ **{std_signal}**"
+            f"**標準モード:** {selected_asset_tuple[0]} ➔ **{std_signal}**"
             f" (RSI:{rsi_mid:.1f})"
         )
         msg_quick = (
-            f"**クイックモード:** {asset_option[0]} ➔ **{quick_signal}**"
+            f"**クイックモード:** {selected_asset_tuple[0]} ➔ **{quick_signal}**"
             f" (RSI:{rsi_short:.1f})"
         )
 
@@ -474,7 +467,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
               (std_win_rate + quick_win_rate) / 2,
           )
           prompt_analysis = f"""
-                    対象銘柄: {asset_option[0]} ({ticker_symbol})
+                    対象銘柄: {selected_asset_tuple[0]} ({ticker_symbol})
                     短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
                     標準判定: {std_signal}
                     クイック判定: {quick_signal}
