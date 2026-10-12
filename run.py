@@ -139,85 +139,103 @@ def render_pachinko_演出(signal_type, sound_enabled):
       """
 
   if signal_type == "blue":
-    html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
-            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 18px; letter-spacing: 2px;">
-                …！？
-            </div>
-        </div>
-        <script>
-        {sound_script}
-
-        setTimeout(() => {{
-            const screen = document.getElementById("pachinko-screen");
-            if (screen) {{
-                screen.style.background = "#111111";
-                screen.style.border = "1px solid #444444";
-                screen.style.boxShadow = "none";
-                screen.innerHTML = `
-                    <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
-                        [ 🍒 · 🍉 · 🔔 ]
-                    </div>
-                    <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
-                    </div>
-                `;
-                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
-                let idx = 0;
-                setInterval(() => {{
-                    idx = (idx + 1) % symbols.length;
-                    const box = document.getElementById("reel-box");
-                    if (box) {{ box.innerHTML = symbols[idx]; }}
-                }}, 1000);
-            }}
-        }}, 2000);
-        </script>
-        """
+    html_content = (
+        '<div id="pachinko-screen" style="width: 100%; height: 140px;'
+        ' background: #000; display: flex; flex-direction: column;'
+        ' justify-content: center; align-items: center; border-radius: 8px;'
+        ' border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">'
+        '    <div style="color: #0080ff; font-family: monospace; font-weight:'
+        ' bold; font-size: 18px; letter-spacing: 2px;">'
+        "        …！？"
+        "    </div>"
+        "</div>"
+        "<script>"
+        f"{sound_script}"
+        "setTimeout(() => {"
+        '    const screen = document.getElementById("pachinko-screen");'
+        "    if (screen) {"
+        '        screen.style.background = "#111111";'
+        '        screen.style.border = "1px solid #444444";'
+        '        screen.style.boxShadow = "none";'
+        "        screen.innerHTML = `"
+        '            <div id="reel-box" style="font-size: 26px; font-family:'
+        ' monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">'
+        "                [ 🍒 · 🍉 · 🔔 ]"
+        "            </div>"
+        '            <div style="color: #aaaaaa; font-size: 13px; margin-top:'
+        ' 8px;">'
+        "                🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）"
+        "            </div>"
+        "        `;"
+        '        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span'
+        " style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 ·"
+        " 🍒 · <span style='color:red;'>7</span> ]"];'
+        "        let idx = 0;"
+        "        setInterval(() => {"
+        "            idx = (idx + 1) % symbols.length;"
+        '            const box = document.getElementById("reel-box");'
+        "            if (box) { box.innerHTML = symbols[idx]; }"
+        "        }, 1000);"
+        "    }"
+        "}, 2000);"
+        "</script>"
+    )
   elif signal_type == "red":
-    html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 140px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
-            <div style="font-size: 38px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 4px; animation: spinRed 0.3s linear infinite;">
-                [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
-            </div>
-            <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">
-                ✨ キュインキュイン！！【 売りシグナル確定 】 ✨
-            </div>
-        </div>
-        <script>
-        {sound_script}
-
-        setTimeout(() => {{
-            const screen = document.getElementById("pachinko-screen");
-            if (screen) {{
-                screen.style.background = "#111111";
-                screen.style.border = "1px solid #444444";
-                screen.style.boxShadow = "none";
-                screen.innerHTML = `
-                    <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
-                        [ 🍒 · 🍉 · 🔔 ]
-                    </div>
-                    <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
-                    </div>
-                `;
-                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
-                let idx = 0;
-                setInterval(() => {{
-                    idx = (idx + 1) % symbols.length;
-                    const box = document.getElementById("reel-box");
-                    if (box) {{ box.innerHTML = symbols[idx]; }}
-                }}, 1000);
-            }}
-        }}, 2000);
-        </script>
-        <style>
-        @keyframes spinRed {{
-            0% { transform: scale(1); }
-            50% { transform: scale(1.08); }
-            100% { transform: scale(1); }
-        }
-        </style>
-        """
+    html_content = (
+        '<div id="pachinko-screen" style="width: 100%; height: 140px;'
+        " background: linear-gradient(135deg, #2b0000, #550000); display: flex;"
+        " flex-direction: column; justify-content: center; align-items: center;"
+        ' border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px'
+        ' #ff3333;">'
+        '    <div style="font-size: 38px; font-family: monospace; font-weight:'
+        ' bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing:'
+        ' 4px; animation: spinRed 0.3s linear infinite;">'
+        '        [ <span style="color:red;">7</span> · <span'
+        ' style="color:red;">7</span> · <span style="color:red;">7</span> ]'
+        "    </div>"
+        '    <div style="color: #ff3333; font-weight: bold; font-size: 18px;'
+        ' text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">'
+        "        ✨ キュインキュイン！！【 売りシグナル確定 】 ✨"
+        "    </div>"
+        "</div>"
+        "<script>"
+        f"{sound_script}"
+        "setTimeout(() => {"
+        '    const screen = document.getElementById("pachinko-screen");'
+        "    if (screen) {"
+        '        screen.style.background = "#111111";'
+        '        screen.style.border = "1px solid #444444";'
+        '        screen.style.boxShadow = "none";'
+        "        screen.innerHTML = `"
+        '            <div id="reel-box" style="font-size: 26px; font-family:'
+        ' monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">'
+        "                [ 🍒 · 🍉 · 🔔 ]"
+        "            </div>"
+        '            <div style="color: #aaaaaa; font-size: 13px; margin-top:'
+        ' 8px;">'
+        "                🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）"
+        "            </div>"
+        "        `;"
+        '        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span'
+        " style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 ·"
+        " 🍒 · <span style='color:red;'>7</span> ]"];'
+        "        let idx = 0;"
+        "        setInterval(() => {"
+        "            idx = (idx + 1) % symbols.length;"
+        '            const box = document.getElementById("reel-box");'
+        "            if (box) { box.innerHTML = symbols[idx]; }"
+        "        }, 1000);"
+        "    }"
+        "}, 2000);"
+        "</script>"
+        "<style>"
+        "@keyframes spinRed {"
+        "    0% { transform: scale(1); }"
+        "    50% { transform: scale(1.08); }"
+        "    100% { transform: scale(1); }"
+        "}"
+        "</style>"
+    )
   else:
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
@@ -334,4 +352,328 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       "<small>ノイズを極限まで排除し、数学的に勝率が極限に達した決定的な瞬間のみパチンコ演出（買い/売り）を発動します。</small>",
       unsafe_allow_html=True,
   )
-  st.markdown("
+  st.markdown("---")
+
+  assets_list = [
+      ("WTI原油 / 石油 (CL=F)", "CL=F"),
+      ("日経平均株価 (^N225)", "^N225"),
+      ("ビットコイン (BTC-USD)", "BTC-USD"),
+      ("イーサリアム (ETH-USD)", "ETH-USD"),
+      ("ゴールド・金 (GC=F)", "GC=F"),
+      ("シルバー・銀 (SI=F)", "SI=F"),
+      ("ドル円 (USD/JPY)", "USDJPY=X"),
+  ]
+
+  if "selected_asset_index" not in st.session_state:
+    st.session_state.selected_asset_index = 0
+
+  @st.cache_data(ttl=15)
+  def fetch_market_data(symbol):
+    df = yf.download(symbol, period="5d", interval="5m", progress=False)
+    if df.empty:
+      return None
+    if isinstance(df.columns, pd.MultiIndex):
+      df.columns = df.columns.get_level_values(0)
+    return df["Close"]
+
+  selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
+  ticker_symbol = selected_asset_tuple[1]
+
+  with st.spinner(f"{selected_asset_tuple[0]} のマーケットデータを高精度解析中..."):
+    try:
+      closes = fetch_market_data(ticker_symbol)
+      if closes is None or len(closes) == 0:
+        st.error("データの取得に失敗しました。")
+      else:
+        def calc_rsi(series, period):
+          delta = series.diff()
+          gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+          loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+          rs = gain / loss
+          return 100 - (100 / (1 + rs))
+
+        rsi_short = calc_rsi(closes, 5).iloc[-1]
+        rsi_mid = calc_rsi(closes, 14).iloc[-1]
+        rsi_long = calc_rsi(closes, 26).iloc[-1]
+
+        valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
+        avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
+
+        if avg_rsi < 25:
+          std_signal = "【極限底打ち】強力買いシグナル発動"
+          std_color = "blue"
+        elif avg_rsi > 75:
+          std_signal = "【極限天井】強力売りシグナル発動"
+          std_color = "red"
+        else:
+          std_signal = "見送り待機（フィルター監視中）"
+          std_color = "green"
+
+        if rsi_short < 18:
+          quick_signal = "【超短期底打ち】HIGH激熱エントリー"
+          quick_color = "blue"
+        elif rsi_short > 82:
+          quick_signal = "【超短期天井】LOW激熱エントリー"
+          quick_color = "red"
+        else:
+          quick_signal = "様子見（ノイズ・フィルター通過せず）"
+          quick_color = "green"
+
+        st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
+        
+        active_payout = "green"
+        if std_color == "blue" or quick_color == "blue":
+          active_payout = "blue"
+        elif std_color == "red" or quick_color == "red":
+          active_payout = "red"
+
+        # 演出エリアを描画
+        render_pachinko_演出(active_payout, sound_on)
+
+        st.markdown("---")
+
+        # 🎯 スマホスワイプ ＆ PCキーボード（矢印キー）対応の直感スワイプゲートUI
+        total_assets = len(assets_list)
+        current_idx = st.session_state.selected_asset_index
+
+        swipe_html = f"""
+        <div id="swipe-gate" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #1a1a1a, #2a2a2a); border: 1px solid #444; border-radius: 10px; text-align: center; color: #fff; cursor: grab; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+            <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">📱 スマホは指で左右にスワイプ / 💻 PCはキーボードの [←] [→] 矢印キーで切替</div>
+            <div style="font-size: 18px; font-weight: bold; color: #ffcc00; letter-spacing: 1px;">
+                📊 選択中 ({current_idx + 1} / {total_assets}): {selected_asset_tuple[0]}
+            </div>
+            <div style="font-size: 11px; color: #888; margin-top: 4px;">（左右にスワイプまたはキーボード操作で瞬時切替）</div>
+        </div>
+
+        <script>
+        let touchstartX = 0;
+        let touchendX = 0;
+        const gate = document.getElementById('swipe-gate');
+
+        gate.addEventListener('touchstart', e => {
+            touchstartX = e.changedTouches[0].screenX;
+        }, false);
+
+        gate.addEventListener('touchend', e => {
+            touchendX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, false);
+
+        function handleSwipe() {
+            if (touchendX < touchstartX - 40) {
+                // 左スワイプ ➔ 次の銘柄
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'next'}, '*');
+            }
+            if (touchendX > touchstartX + 40) {
+                // 右スワイプ ➔ 前の銘柄
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'prev'}, '*');
+            }
+        }
+
+        // キーボードの左右矢印キー検知
+        window.parent.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') {
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'next'}, '*');
+            } else if (e.key === 'ArrowLeft') {
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'prev'}, '*');
+            }
+        });
+        </script>
+        """
+
+        # スワイプゲートコンポーネントの表示
+        swipe_val = components.html(swipe_html, height=100)
+
+        # Python側で左右ボタンも補助として配置
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+          if st.button("◀ 前の銘柄へスライド", use_container_width=True):
+            st.session_state.selected_asset_index = (st.session_state.selected_asset_index - 1) % len(assets_list)
+            st.rerun()
+        with col_btn2:
+          if st.button("次の銘柄へスライド ▶", use_container_width=True):
+            st.session_state.selected_asset_index = (st.session_state.selected_asset_index + 1) % len(assets_list)
+            st.rerun()
+
+        st.markdown("---")
+
+        col_res1, col_res2 = st.columns(2)
+
+        msg_std = (
+            f"**標準モード:** {selected_asset_tuple[0]} ➔ **{std_signal}**"
+            f" (RSI:{rsi_mid:.1f})"
+        )
+        msg_quick = (
+            f"**クイックモード:** {selected_asset_tuple[0]} ➔ **{quick_signal}**"
+            f" (RSI:{rsi_short:.1f})"
+        )
+
+        with col_res1:
+          if std_color == "blue":
+            st.info(msg_std)
+          elif std_color == "red":
+            st.error(msg_std)
+          else:
+            st.success(msg_std)
+
+        with col_res2:
+          if quick_color == "blue":
+            st.info(msg_quick)
+          elif quick_color == "red":
+            st.error(msg_quick)
+          else:
+            st.success(msg_quick)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
+        col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
+        col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
+        col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
+
+        if client:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          prompt_analysis = f"""
+                    対象銘柄: {selected_asset_tuple[0]} ({ticker_symbol})
+                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
+                    標準判定: {std_signal}
+                    クイック判定: {quick_signal}
+                    
+                    勝率99%領域を目指す高精度クオンツ解析として、現在の市場歪みと極限の心理バイアスに基づく徹底的な分析レポートを構築してください。
+                    """
+          with st.spinner("AIクオンツアーキテクトが極限領域を演算中..."):
+            res_text = generate_with_retry(
+                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
+            )
+            st.markdown("### 🤖 クオンツAI主席アナリストの極限予測レポート")
+            st.markdown(res_text)
+
+    except Exception as e:
+      st.error(f"データ取得または分析エラー: {e}")
+
+  time.sleep(15)
+  st.rerun()
+
+elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
+  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
+  st.subheader(
+      f"🚤 公営競技・統計的期待値最適化エンジン ({jst_now_str})"
+  )
+
+  race_type_auto = st.selectbox(
+      "競技選択",
+      ["競艇（ボートレース）", "競輪（KEIRIN）", "オートレース", "競馬"],
+  )
+
+  if client:
+    with st.spinner(f"日本時間 ({jst_now_str}) の {race_type_auto} を解析中..."):
+      try:
+        dyn_inst = get_dynamic_learning_instruction(
+            "クイック", st.session_state.quick_total, quick_win_rate
+        )
+        prompt_f = (
+            f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを極限まで分析し、99%の期待値が狙える厳選買い目を出力してください。"
+        )
+        res_text = generate_with_retry(
+            client, "gemini-2.5-flash", [dyn_inst, prompt_f]
+        )
+        st.markdown(f"### 🚤 {race_type_auto} 期待値予測レポート")
+        render_pachinko_演出("blue", sound_on)
+        st.info(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
+  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
+  st.subheader(
+      f"🎰 板橋区・豊島区ホール 期待値最適化抽出 ({jst_now_str})"
+  )
+
+  hall_auto = st.selectbox(
+      "対象ホール選択",
+      [
+          "やすだ東池袋店",
+          "やすだ大山店",
+          "やすだ板橋店",
+          "やすだ巣鴨店",
+          "池袋・板橋エリア総合特選ホール",
+      ],
+  )
+  budget_type = st.radio(
+      "軍資金・投資リミット",
+      [
+          "1万円勝負（短期決戦・期待値重視）",
+          "1.5万円勝負（粘り打ち・ボーダー狙い）",
+      ],
+  )
+
+  if client:
+    with st.spinner(f"{hall_auto} のデータを解析中..."):
+      try:
+        dyn_inst = get_dynamic_learning_instruction(
+            "標準", st.session_state.std_total, std_win_rate
+        )
+        full_ap_prompt = (
+            f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。極限の期待値台選定戦略をレポートしてください。"
+        )
+        res_text = generate_with_retry(
+            client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
+        )
+        st.markdown(f"### 🎰 {hall_auto} 期待値分析レポート")
+        render_pachinko_演出("red", sound_on)
+        st.success(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "💬 AIプロチャット＆画像解析":
+  st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
+
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+  for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+      st.markdown(m["content"])
+
+  uploaded_file = st.file_uploader(
+      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
+  )
+  prompt = st.chat_input("質問や分析指示を入力してください...")
+
+  if (prompt or uploaded_file) and client:
+    user_content = []
+    if prompt:
+      user_content.append(prompt)
+
+    img = None
+    if uploaded_file:
+      img = Image.open(uploaded_file)
+      user_content.append(img)
+      st.image(img, caption="アップロードされた画像", width=300)
+
+    if prompt:
+      st.session_state.messages.append({"role": "user", "content": prompt})
+      with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+      with st.spinner("クオンツAI思考エンジンで高度分析中..."):
+        try:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          full_contents = [dyn_inst] + user_content
+          response_text = generate_with_retry(
+              client, "gemini-2.5-flash", full_contents
+          )
+          st.markdown(response_text)
+          st.session_state.messages.append
