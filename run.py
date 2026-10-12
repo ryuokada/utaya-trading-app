@@ -358,8 +358,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       df.columns = df.columns.get_level_values(0)
     return df["Close"]
 
-  # 演出エリア（仮のプレースホルダーまたは直近の状態を先に表示）
-  # まずマーケットデータを計算してAI判定を行う
+  # 先にデータを計算してAI判定を行う
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
 
@@ -411,27 +410,25 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         elif std_color == "red" or quick_color == "red":
           active_payout = "red"
 
-        # 演出エリアを先に描画
+        # 演出エリアを描画
         render_pachinko_演出(active_payout, sound_on)
 
         st.markdown("---")
 
-        # 🎯 マウスホイールやドラッグでサクサク直感的に切り替えられるスライダー・数値セレクターに変更
-        # スライダーにマウスを合わせてホイールを回すだけで瞬時に銘柄が切り替わります
-        asset_names = [item[0] for item in assets_list]
-        selected_name = st.select_slider(
-            "🎯 分析対象アセット（マウスホイールを回して瞬時切替）",
-            options=asset_names,
-            value=asset_names[st.session_state.selected_asset_index],
-            key="asset_slider_key"
-        )
-        # 選択された名前からインデックスを逆引き
-        for idx, item in enumerate(assets_list):
-          if item[0] == selected_name:
-            st.session_state.selected_asset_index = idx
-            selected_asset_tuple = item
-            ticker_symbol = item[1]
-            break
+        # 🎯 スマホ・PC両対応のクイック切り替えボタン（左・現在地・右）
+        col_btn1, col_btn_mid, col_btn2 = st.columns([1, 2, 1])
+        with col_btn1:
+          if st.button("◀ 前の銘柄", use_container_width=True):
+            st.session_state.selected_asset_index = (st.session_state.selected_asset_index - 1) % len(assets_list)
+            st.rerun()
+        with col_btn_mid:
+          st.markdown(f"<div style='text-align:center; font-weight:bold; font-size:16px; padding-top:6px;'>📊 選択中: {selected_asset_tuple[0]}</div>", unsafe_allow_html=True)
+        with col_btn2:
+          if st.button("次の銘柄 ▶", use_container_width=True):
+            st.session_state.selected_asset_index = (st.session_state.selected_asset_index + 1) % len(assets_list)
+            st.rerun()
+
+        st.markdown("---")
 
         col_res1, col_res2 = st.columns(2)
 
