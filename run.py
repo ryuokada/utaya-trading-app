@@ -72,21 +72,19 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パトランプアニメーションと効果音（買い:青、売り:赤）を挿入する関数（2秒で自動消滅＆毎回発動）
+# パトランプとキュイン音（プログラムの露出を防ぐため st.components.v1.html を使用）
 def render_pato_lamp(signal_type):
   if signal_type in ["blue", "red"]:
-    # 買いは青ランプ、売りは赤ランプ
     lamp_icon = "🌀" if signal_type == "blue" else "🚨"
     theme_color = "#0080ff" if signal_type == "blue" else "#ff3333"
     glow_color = "rgba(0,128,255,0.8)" if signal_type == "blue" else "rgba(255,0,0,0.8)"
     action_text = "買いシグナル発動！！（青ランプ）" if signal_type == "blue" else "売りシグナル発動！！（赤ランプ）"
     
-    # 周波数を買いと売りで変化させるWeb Audio APIスクリプト
     base_freq = 600 if signal_type == "blue" else 900
     peak_freq = 2000 if signal_type == "blue" else 2600
 
-    sound_html = f"""
-        <div id="pato-container" style="text-align: center; margin: 15px 0; transition: opacity 0.5s ease;">
+    html_content = f"""
+        <div id="pato-container" style="text-align: center; margin: 10px 0; transition: opacity 0.5s ease; background: transparent;">
             <div style="
                 display: inline-block;
                 font-size: 55px;
@@ -141,7 +139,8 @@ def render_pato_lamp(signal_type):
         }}
         </style>
         """
-    st.markdown(sound_html, unsafe_allow_html=True)
+    import streamlit.components.v1 as components
+    components.html(html_content, height=120)
 
 
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
@@ -333,8 +332,8 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🚨 【クオンツAI予測】リアルタイム判定速報")
         
-        # 毎回判定時にユニークなキーを生成して確実にアニメーションを再実行させる
-        active_color = "green"
+        # 売りまたは買いシグナルが出ている場合のみランプを起動（見送り・様子見の場合は光らない）
+        active_color = None
         if std_color in ["blue", "red"]:
           active_color = std_color
         elif quick_color in ["blue", "red"]:
