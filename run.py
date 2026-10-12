@@ -101,7 +101,7 @@ def generate_with_retry(client, model, contents, max_retries=3):
   wait_time = 3
   for i in range(max_retries):
     try:
-      res = client.models.generate_content(model="gemini-3.8-flash", contents=contents)
+      res = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
       return res.text if hasattr(res, "text") else str(res)
     except Exception as e:
       if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
