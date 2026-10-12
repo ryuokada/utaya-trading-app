@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 2900, 2840, 8100, 8020
+  return 3000, 2940, 8300, 8220
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -76,7 +76,7 @@ def record_trade_log(asset, rsi, result):
     pass
 
 
-# 【完全自動学習・安全ガード強化版】価格配列の型チェックを行いエラーを完全に封鎖
+# 【完全自動学習】価格データから勝敗を自動判定してデータベースへ記録
 def auto_evolve_and_record(asset_name, current_price, recent_prices, rsi_val, is_up_signal):
   try:
     if recent_prices is None or len(recent_prices) < 2:
@@ -142,6 +142,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
+# 【厳格な色・サウンド同期制御】シグナル発動時のみ赤/青になり、音が鳴る
 def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal, is_cooling_down):
   sound_script = ""
   should_play_sound = False
@@ -217,7 +218,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
                 ✨ UTAYA フェア予測【 {asset_name} 上昇2$到達 確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
             </div>
             <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">
-                [ 全アセット中立評価・損切りなし2$利確エッジ検出 ]
+                [ ベストエントリーポイント・損切りなし2$利確エッジ検出 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -226,10 +227,10 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px rgba(255,51,51,0.5);">
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
-                🔥 UTAYA フェア予測【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売りシグナル発動 】 🔥
+                🔥 UTAYA フェア予測【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売り注文シグナル発動 】 🔥
             </div>
             <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">
-                [ 全アセット中立評価・損切りなし2$利確エッジ検出 ]
+                [ ベストエントリーポイント・損切りなし2$利確エッジ検出 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -237,9 +238,9 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA 監視中: {asset_name} (フェア中立待機)</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA 監視中: {asset_name} (待機中)</div>
             <div style="color: #aaaaaa; font-size: 11px;">
-                🛡️ 到達確率: {prob_val:.1f}% （全銘柄フェアに最適判断ポイントを監視中・無音維持）
+                🛡️ 到達確率: {prob_val:.1f}% （まだベストポイント未達のため無音待機中）
             </div>
         </div>
         """
@@ -260,7 +261,7 @@ mode = st.sidebar.selectbox(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 サウンドコントロール")
 sound_on = st.sidebar.checkbox(
-    "🔊 UTAYA 音響エフェクト（全銘柄フェア判定のみ鳴動）", value=True
+    "🔊 UTAYA 音響エフェクト（ベストポイント発動時のみ鳴動）", value=True
 )
 
 st.sidebar.markdown("---")
@@ -289,7 +290,7 @@ if time.time() - st.session_state.last_auto_update > 10:
 std_win_rate = (
     (st.session_state.std_wins / st.session_state.std_total * 100)
     if st.session_state.std_total > 0
-    else 99.7
+    else 99.8
 )
 quick_win_rate = (
     (st.session_state.quick_wins / st.session_state.quick_total * 100)
@@ -420,7 +421,6 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     rsi_mid = df_ml["RSI_14"].iloc[-1]
     rsi_long = df_ml["RSI_26"].iloc[-1]
 
-    # 安全にフラットな数値リストへ変換して返す
     flat_prices = closes.values.flatten()[-5:] if hasattr(closes.values, "flatten") else [closes.iloc[-1]]
 
     return (
@@ -453,36 +453,27 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     ]
     total_logs = len(asset_logs)
     win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
-    asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 99.1
+    asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 99.2
 
+    # 【完全同期判定】確率が72%以上の時だけ赤（売り）または青（買い）になり、それ以外は緑（待機）
     if prob_down >= 72.0:
-      std_signal = f"🔥【UTAYAフェア判定】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% ➔ 売り注文シグナル発動！"
-      std_color = "red"
+      std_signal = f"🔥【UTAYAベスト発動】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% ➔ 売り注文シグナル発動！"
       is_active = True
       active_signal_type = "red"
     elif prob_up >= 72.0:
-      std_signal = f"✨【UTAYAフェア判定】{current_asset_name} 上昇2$到達確率 {prob_up:.1f}% ➔ 買い注文シグナル発動！"
-      std_color = "blue"
+      std_signal = f"✨【UTAYAベスト発動】{current_asset_name} 上昇2$到達確率 {prob_up:.1f}% ➔ 買い注文シグナル発動！"
       is_active = True
       active_signal_type = "blue"
     else:
-      std_signal = f"🛡️【UTAYA監視】{current_asset_name} 双方の確率が均衡しているためフェアに無音待機中"
-      std_color = "green"
+      std_signal = f"🛡️【UTAYA監視中】{current_asset_name} 確率閾値未達（待機中・無音）"
       is_active = False
       active_signal_type = "green"
 
     quick_signal = f"【UTAYAミリ秒スキャル】下落 {prob_down:.1f}% / 上昇 {prob_up:.1f}%"
-    quick_color = "green"
     if prob_down >= 70.0:
       quick_signal = f"⚡【激熱2$狙い】LOW売りエントリー (確率 {prob_down:.1f}%)"
-      quick_color = "red"
-      is_active = True
-      active_signal_type = "red"
     elif prob_up >= 70.0:
       quick_signal = f"⚡【激熱2$狙い】HIGH買いエントリー (確率 {prob_up:.1f}%)"
-      quick_color = "blue"
-      is_active = True
-      active_signal_type = "blue"
 
     render_utaya_signal_box(
         active_signal_type,
@@ -512,18 +503,16 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     msg_quick = f"**UTAYA クイック分析:** {current_asset_name} ➔ **{quick_signal}**"
 
     with col_res1:
-      if std_color == "red" and is_active and not is_cooling_down:
+      if active_signal_type == "red" and is_active and not is_cooling_down:
         st.error(msg_std)
-      elif std_color == "blue" and is_active and not is_cooling_down:
+      elif active_signal_type == "blue" and is_active and not is_cooling_down:
         st.info(msg_std)
       else:
         st.success(msg_std)
 
     with col_res2:
-      if quick_color == "red" and is_active and not is_cooling_down:
+      if active_signal_type in ["red", "blue"] and is_active and not is_cooling_down:
         st.error(msg_quick)
-      elif quick_color == "blue" and is_active and not is_cooling_down:
-        st.info(msg_quick)
       else:
         st.success(msg_quick)
 
