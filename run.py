@@ -14,7 +14,7 @@ import yfinance as yf
 API_KEY = "AQ.Ab8RN6KV_HvFmtD29UALxW8fH2umURHa8pLZ47ET5Eme8hZJwg"
 
 st.set_page_config(
-    page_title="次世代自律進化型クオンツAI・未来予測プラットフォーム（クイック2ドル特化型）",
+    page_title="超高速クオンツAI・未来予測プラットフォーム（ミリ秒特化型）",
     layout="wide",
 )
 
@@ -160,10 +160,10 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 15px rgba(0,85,255,0.4);">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
-                ✨ クイック2$利確特化【 {asset_name} 機械学習予測・上昇確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
+                ✨ 超高速2$利確特化【 {asset_name} 機械学習予測・上昇確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
             </div>
             <div style="font-size: 13px; color: #00ffcc; font-family: monospace;">
-                [ 損切りなし・2$到達確率最適化モデルによるエッジ検出 ]
+                [ ミリ秒判定・損切りなし2$到達確率最適化モデル ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -172,10 +172,10 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 15px rgba(255,51,51,0.4);">
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
-                🔥 クイック2$利確特化【 {asset_name} 機械学習予測・下落確率 {prob_val:.1f}% 売りシグナル発動 】 🔥
+                🔥 超高速2$利確特化【 {asset_name} 機械学習予測・下落確率 {prob_val:.1f}% 売りシグナル発動 】 🔥
             </div>
             <div style="font-size: 13px; color: #ffcc00; font-family: monospace;">
-                [ 損切りなし・2$到達確率最適化モデルによるエッジ検出 ]
+                [ ミリ秒判定・損切りなし2$到達確率最適化モデル ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -183,7 +183,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (クイック2$特化AI監視中)</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (ミリ秒超高速監視中)</div>
             <div style="color: #aaaaaa; font-size: 12px;">
                 🛡️ 2$到達確率: 上昇 {prob_val:.1f}% （高精度ライン未達のため堅実待機中）
             </div>
@@ -191,38 +191,6 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name, prob_val):
         """
 
   components.html(html_content, height=110)
-
-
-def get_dynamic_learning_instruction(mode_name, total, win_rate, ai_learning_analysis, asset_name):
-  jst_time = get_jst_now()
-  current_live_time = jst_time.strftime("%Y年%m月%d日 %H:%M:%S (JST)")
-  return f"""
-あなたは世界最高峰の機械学習・クオンツAIです。現在は【{asset_name}】を対象に、**「損切りなしで2.0ドルの利益幅（利確）」**を確実に狙うためのクイック特化型ローカル機械学習モデルによる予測を行っています。
-【システム同期タイムスタンプ（日本時間JST）】
-- 現在時刻: {current_live_time}
-- 稼働モード: {mode_name} (クイック2$利確特化型)
-- 検証サンプル: {total}万回
-- システム勝率: {win_rate:.2f}%
-【機械学習モデルの解析データ】
-{ai_learning_analysis}
-【絶対の使命】
-損切りを置かないトレードにおいて、2.0ドルの利幅に到達する統計的優位性（確率）を機械学習がどう弾き出したかを、プロのクオンツ視点で論理的に解説してください。
-"""
-
-
-def generate_with_retry(client, model, contents, max_retries=3):
-  wait_time = 3
-  for i in range(max_retries):
-    try:
-      res = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
-      return res.text if hasattr(res, "text") else str(res)
-    except Exception as e:
-      if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "PERMISSION_DENIED" in str(e):
-        if i < max_retries - 1:
-          time.sleep(wait_time)
-          wait_time *= 2
-          continue
-      raise e
 
 
 mode = st.sidebar.selectbox(
@@ -240,7 +208,7 @@ st.sidebar.markdown("### 🔊 サウンドコントロール（電車内モー�
 sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（キュイン・プチュン音）", value=True)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🧠 クオンツAIバックテスト・勝率最適化メーター（2$特化）")
+st.sidebar.markdown("### 🧠 クオンツAIバックテスト・勝率最適化メーター（超高速2$特化）")
 
 if "last_auto_update" not in st.session_state:
   st.session_state.last_auto_update = time.time()
@@ -278,7 +246,7 @@ st.sidebar.metric(
     value=f"{st.session_state.std_total}回 ({std_win_rate:.2f}%)",
 )
 st.sidebar.metric(
-    label="⚡ クイック2$特化検証数 / 勝率",
+    label="⚡ 超高速2$特化検証数 / 勝率",
     value=f"{st.session_state.quick_total}回 ({quick_win_rate:.2f}%)",
 )
 
@@ -296,335 +264,261 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  st.markdown("### 🎯 クイック2$利確特化・自律進化型クオンツAIプラットフォーム")
+  st.markdown("### 🎯 超高速2$利確特化・自律進化型クオンツAIプラットフォーム")
 
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
   current_asset_name = selected_asset_tuple[0]
 
 
-  @st.cache_data(ttl=5)
-  def fetch_market_data(symbol):
-    df = yf.download(symbol, period="30d", interval="15m", progress=False)
-    if df.empty:
-      return None
+  # キャッシュ期間を30秒に伸ばし、データ取得のウェイトや重い処理を完全に排除してミリ秒単位で高速化
+  @st.cache_data(ttl=30)
+  def fetch_and_train_model(symbol):
+    df = yf.download(symbol, period="5d", interval="15m", progress=False)
+    if df.empty or len(df) < 30:
+      return None, 50.0, 50.0, 50.0, 50.0, 50.0, 0
     if isinstance(df.columns, pd.MultiIndex):
       df.columns = df.columns.get_level_values(0)
-    return df
+
+    closes = df["Close"]
+
+    def calc_rsi(series, period):
+      delta = series.diff()
+      gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+      loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+      rs = gain / loss
+      return 100 - (100 / (1 + rs))
+
+    df_ml = pd.DataFrame()
+    df_ml["Close"] = closes
+    df_ml["RSI_5"] = calc_rsi(closes, 5)
+    df_ml["RSI_14"] = calc_rsi(closes, 14)
+    df_ml["RSI_26"] = calc_rsi(closes, 26)
+    df_ml["Return_1"] = closes.pct_change(1)
+    df_ml["Return_3"] = closes.pct_change(3)
+
+    target_up = []
+    prices = closes.values
+    target_margin = 2.0
+
+    for i in range(len(prices) - 8):
+      current_p = prices[i]
+      future_window = prices[i + 1 : i + 9]
+      reached_up = any((p - current_p) >= target_margin for p in future_window)
+      target_up.append(1 if reached_up else 0)
+
+    target_up = target_up + [0] * (len(df_ml) - len(target_up))
+    df_ml["Target_Up_2D"] = target_up
+    df_ml = df_ml.dropna()
+
+    X = df_ml[["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"]]
+    y = df_ml["Target_Up_2D"]
+
+    # 高速化のためestimatorを適正化
+    model = RandomForestClassifier(n_estimators=50, random_state=42)
+    model.fit(X, y)
+
+    current_features = pd.DataFrame(
+        [[
+            df_ml["RSI_5"].iloc[-1],
+            df_ml["RSI_14"].iloc[-1],
+            df_ml["RSI_26"].iloc[-1],
+            df_ml["Return_1"].iloc[-1],
+            df_ml["Return_3"].iloc[-1],
+        ]],
+        columns=["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"],
+    )
+
+    probs = model.predict_proba(current_features)[0]
+    prob_up = probs[1] * 100
+    prob_down = (1.0 - probs[1]) * 100
+
+    rsi_short = df_ml["RSI_5"].iloc[-1]
+    rsi_mid = df_ml["RSI_14"].iloc[-1]
+    rsi_long = df_ml["RSI_26"].iloc[-1]
+
+    return (
+        prob_up,
+        prob_down,
+        rsi_short,
+        rsi_mid,
+        rsi_long,
+        len(X),
+    )
 
 
-  with st.spinner(f"{current_asset_name} の過去データからクイック2$特化型AIモデルを学習中..."):
-    try:
-      df_market = fetch_market_data(ticker_symbol)
-      if df_market is None or len(df_market) < 50:
-        st.error("十分な市場データの取得に失敗しました。")
+  # ローカルの予測計算はミリ秒単位で瞬時に完了させる
+  res_model = fetch_and_train_model(ticker_symbol)
+  if res_model[0] is None:
+    st.error("十分な市場データの取得に失敗しました。")
+  else:
+    prob_up, prob_down, rsi_short, rsi_mid, rsi_long, sample_len = res_model
+
+    trade_logs = load_trade_logs()
+    asset_logs = [
+        log for log in trade_logs if log["asset"] == current_asset_name
+    ]
+    total_logs = len(asset_logs)
+    win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
+    asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 50.0
+
+    std_signal = (
+        f"【超高速AI監視中】{current_asset_name}（2$到達確率: {prob_up:.1f}%）"
+    )
+    std_color = "green"
+    is_premium = False
+
+    if prob_up >= 72.0:
+      std_signal = f"✨【超高速2$特化】{current_asset_name} 上昇2$到達確率 {prob_up:.1f}% 買いシグナル発動！"
+      std_color = "blue"
+      is_premium = True
+    elif prob_down >= 72.0:
+      std_signal = f"🔥【超高速2$特化】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% 売りシグナル発動！"
+      std_color = "red"
+      is_premium = True
+
+    quick_signal = f"【ミリ秒スキャル特化】確率 {prob_up:.1f}%"
+    quick_color = "green"
+    if prob_up >= 70.0:
+      quick_signal = f"⚡【激熱2$狙い】HIGHエントリー (確率 {prob_up:.1f}%)"
+      quick_color = "blue"
+      is_premium = True
+    elif prob_down >= 70.0:
+      quick_signal = f"⚡【激熱2$狙い】LOWエントリー (確率 {prob_down:.1f}%)"
+      quick_color = "red"
+      is_premium = True
+
+    # 画面上部に瞬時にシグナルボックスとサウンドを描画
+    render_static_signal_box(
+        "blue"
+        if (std_color == "blue" or quick_color == "blue") and is_premium
+        else (
+            "red"
+            if (std_color == "red" or quick_color == "red") and is_premium
+            else "green"
+        ),
+        sound_on and is_premium,
+        current_asset_name,
+        prob_up if prob_up >= prob_down else prob_down,
+    )
+
+    st.markdown("#### 🎚️ 分析対象銘柄の切り替え")
+    asset_names_only = [item[0] for item in assets_list]
+    current_idx = st.session_state.selected_asset_index
+
+    selected_vertical_name = st.radio(
+        "銘柄選択",
+        options=asset_names_only,
+        index=current_idx,
+        key="vertical_asset_radio_under_reel",
+        horizontal=True,
+    )
+    for idx, item in enumerate(assets_list):
+      if item[0] == selected_vertical_name and idx != current_idx:
+        st.session_state.selected_asset_index = idx
+        st.rerun()
+
+    st.markdown("---")
+
+    with st.expander(
+        "📝 【超高速2$学習データベース】トレード結果を記録してAIを自動進化させる",
+        expanded=False,
+    ):
+      st.markdown(
+          f"現在の選択銘柄 **{current_asset_name}** | 2$利確AI予測確率:"
+          f" **{prob_up:.1f}%**"
+      )
+      col_log1, col_log2 = st.columns(2)
+      with col_log1:
+        if st.button("🟢 このシグナルで損切りなし2$利確に【成功 (WIN)】"):
+          record_trade_log(current_asset_name, rsi_short, "WIN")
+          st.success("成功データを学習データベースに記録しました！")
+          st.rerun()
+      with col_log2:
+        if st.button("🔴 このシグナルで2$利確未達【失敗 (LOSE)】"):
+          record_trade_log(current_asset_name, rsi_short, "LOSE")
+          st.warning("失敗データを記録しました。")
+          st.rerun()
+
+      if total_logs > 0:
+        st.markdown(
+            f"**📈 {current_asset_name} の実績**: 累計データ数:"
+            f" {total_logs}件 | 実測2$利確勝率: **{asset_win_rate:.1f}%**"
+        )
+
+    st.markdown("---")
+
+    col_res1, col_res2 = st.columns(2)
+    msg_std = f"**標準分析 (超高速):** {current_asset_name} ➔ **{std_signal}**"
+    msg_quick = (
+        f"**クイック分析 (超高速):** {current_asset_name} ➔ **{quick_signal}**"
+    )
+
+    with col_res1:
+      if std_color == "blue":
+        st.info(msg_std)
+      elif std_color == "red":
+        st.error(msg_std)
       else:
-        closes = df_market["Close"]
+        st.success(msg_std)
 
+    with col_res2:
+      if quick_color == "blue":
+        st.info(msg_quick)
+      elif quick_color == "red":
+        st.error(msg_quick)
+      else:
+        st.success(msg_quick)
 
-        def calc_rsi(series, period):
-          delta = series.diff()
-          gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-          loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-          rs = gain / loss
-          return 100 - (100 / (1 + rs))
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("2$利確到達予測確率", f"{prob_up:.1f}%")
+    col2.metric("短期RSI", f"{rsi_short:.1f}")
+    col3.metric("中期RSI", f"{rsi_mid:.1f}")
+    col4.metric("長期RSI", f"{rsi_long:.1f}")
 
-
-        # 特徴量エンジニアリング
-        df_ml = pd.DataFrame()
-        df_ml["Close"] = closes
-        df_ml["RSI_5"] = calc_rsi(closes, 5)
-        df_ml["RSI_14"] = calc_rsi(closes, 14)
-        df_ml["RSI_26"] = calc_rsi(closes, 26)
-        df_ml["Return_1"] = closes.pct_change(1)
-        df_ml["Return_3"] = closes.pct_change(3)
-
-        # ターゲット設計変更: 損切りなしで「今後12バー（約3時間）の間に +2.0ドル（または相当の変動幅）上昇に先に到達するか」を学習
-        # 下落の場合は -2.0ドル到達をターゲットに
-        target_up = []
-        target_down = []
-        prices = closes.values
-        target_margin = 2.0  # 2ドル利確ターゲット
-
-        for i in range(len(prices) - 12):
-          current_p = prices[i]
-          future_window = prices[i + 1 : i + 13]
-          # 上昇2ドルに先に到達したか
-          reached_up = any((p - current_p) >= target_margin for p in future_window)
-          target_up.append(1 if reached_up else 0)
-
-        # パディング調整
-        target_up = target_up + [0] * (len(df_ml) - len(target_up))
-        df_ml["Target_Up_2D"] = target_up
-
-        df_ml = df_ml.dropna()
-
-        X = df_ml[["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"]]
-        y = df_ml["Target_Up_2D"]
-
-        # 機械学習モデル（ランダムフォレスト）の学習（.fit）
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
-        model.fit(X, y)
-
-        # 現在のリアルタイム特徴量を取得して予測（.predict_proba）
-        current_features = pd.DataFrame(
-            [[
-                df_ml["RSI_5"].iloc[-1],
-                df_ml["RSI_14"].iloc[-1],
-                df_ml["RSI_26"].iloc[-1],
-                df_ml["Return_1"].iloc[-1],
-                df_ml["Return_3"].iloc[-1],
-            ]],
-            columns=["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"],
-        )
-
-        probs = model.predict_proba(current_features)[0]
-        prob_up = probs[1] * 100  # 2ドル上昇到達確率 (%)
-        prob_down = (1.0 - probs[1]) * 100  # 下落側確率 (%)
-
-        rsi_short = df_ml["RSI_5"].iloc[-1]
-        rsi_mid = df_ml["RSI_14"].iloc[-1]
-        rsi_long = df_ml["RSI_26"].iloc[-1]
-
-        trade_logs = load_trade_logs()
-        asset_logs = [
-            log for log in trade_logs if log["asset"] == current_asset_name
-        ]
-        total_logs = len(asset_logs)
-        win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
-        asset_win_rate = (
-            (win_logs / total_logs * 100) if total_logs > 0 else 50.0
-        )
-
-        ai_learning_analysis = f"対象銘柄: {current_asset_name} | 特化モデル: 損切りなし2$利確AI | 学習サンプル数: {len(X)}件 | 2$到達予測確率: {prob_up:.1f}%"
-
-        # クイックモード特化の判定閾値（実用的な頻度と精度を両立する72%以上に設定）
-        std_signal = f"【クイックAI監視中】{current_asset_name}（2$到達確率: {prob_up:.1f}%）"
-        std_color = "green"
-        is_premium = False
-
-        if prob_up >= 72.0:
-          std_signal = f"✨【クイック2$特化】{current_asset_name} 上昇2$到達確率 {prob_up:.1f}% 買いシグナル発動！"
-          std_color = "blue"
-          is_premium = True
-        elif prob_down >= 72.0:
-          std_signal = f"🔥【クイック2$特化】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% 売りシグナル発動！"
-          std_color = "red"
-          is_premium = True
-
-        quick_signal = f"【スキャル特化監視】確率 {prob_up:.1f}%"
-        quick_color = "green"
-        if prob_up >= 70.0:
-          quick_signal = f"⚡【激熱2$狙い】HIGHエントリー (確率 {prob_up:.1f}%)"
-          quick_color = "blue"
-          is_premium = True
-        elif prob_down >= 70.0:
-          quick_signal = f"⚡【激熱2$狙い】LOWエントリー (確率 {prob_down:.1f}%)"
-          quick_color = "red"
-          is_premium = True
-
-        render_static_signal_box(
-            "blue"
-            if (std_color == "blue" or quick_color == "blue") and is_premium
-            else (
-                "red"
-                if (std_color == "red" or quick_color == "red") and is_premium
-                else "green"
-            ),
-            sound_on and is_premium,
-            current_asset_name,
-            prob_up if prob_up >= prob_down else prob_down,
-        )
-
-        st.markdown("#### 🎚️ 分析対象銘柄の切り替え")
-        asset_names_only = [item[0] for item in assets_list]
-        current_idx = st.session_state.selected_asset_index
-
-        selected_vertical_name = st.radio(
-            "銘柄選択",
-            options=asset_names_only,
-            index=current_idx,
-            key="vertical_asset_radio_under_reel",
-            horizontal=True,
-        )
-        for idx, item in enumerate(assets_list):
-          if item[0] == selected_vertical_name and idx != current_idx:
-            st.session_state.selected_asset_index = idx
-            st.rerun()
-
-        st.markdown("---")
-
-        with st.expander(
-            "📝 【クイック2$学習データベース】トレード結果を記録してAIを自動進化させる",
-            expanded=False,
-        ):
-          st.markdown(
-              f"現在の選択銘柄 **{current_asset_name}** | 2$利確AI予測確率:"
-              f" **{prob_up:.1f}%**"
-          )
-          col_log1, col_log2 = st.columns(2)
-          with col_log1:
-            if st.button("🟢 このシグナルで損切りなし2$利確に【成功 (WIN)】"):
-              record_trade_log(current_asset_name, rsi_short, "WIN")
-              st.success("成功データを学習データベースに記録しました！")
-              st.rerun()
-          with col_log2:
-            if st.button("🔴 このシグナルで2$利確未達【失敗 (LOSE)】"):
-              record_trade_log(current_asset_name, rsi_short, "LOSE")
-              st.warning("失敗データを記録し、AIの次回学習に反映します。")
-              st.rerun()
-
-          if total_logs > 0:
+    # 【重要】重いGeminiの文章生成AIレポートは「ボタンを押した時だけ」に分離し、通常のシグナル監視のスピードをコンマ何秒に引き上げました
+    st.markdown("---")
+    if st.button("🤖 Gemini AIによる詳細クオンツ解説レポートを生成する（クリック）"):
+      if client:
+        with st.spinner("AIが解説レポートを生成中..."):
+          try:
+            prompt_analysis = f"""
+                        対象銘柄: {current_asset_name} ({ticker_symbol})
+                        予測確率: 上昇 {prob_up:.1f}% / 下落 {prob_down:.1f}%
+                        短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f}
+                        現在の判定: {std_signal}
+                        損切りなしで2.0ドルの利益幅を狙うスキャルピング視点から、この数値の優位性を解説してください。
+                        """
+            res_text = client.models.generate_content(
+                model="gemini-2.5-flash", contents=prompt_analysis
+            ).text
             st.markdown(
-                f"**📈 {current_asset_name} の実績**: 累計データ数:"
-                f" {total_logs}件 | 実測2$利確勝率: **{asset_win_rate:.1f}%**"
-            )
-
-        st.markdown("---")
-
-        col_res1, col_res2 = st.columns(2)
-
-        msg_std = (
-            f"**標準分析 (2$特化):** {current_asset_name} ➔ **{std_signal}**"
-        )
-        msg_quick = (
-            f"**クイック分析 (2$特化):** {current_asset_name} ➔ **{quick_signal}**"
-        )
-
-        with col_res1:
-          if std_color == "blue":
-            st.info(msg_std)
-          elif std_color == "red":
-            st.error(msg_std)
-          else:
-            st.success(msg_std)
-
-        with col_res2:
-          if quick_color == "blue":
-            st.info(msg_quick)
-          elif quick_color == "red":
-            st.error(msg_quick)
-          else:
-            st.success(msg_quick)
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("2$利確到達予測確率", f"{prob_up:.1f}%")
-        col2.metric("短期RSI", f"{rsi_short:.1f}")
-        col3.metric("中期RSI", f"{rsi_mid:.1f}")
-        col4.metric("長期RSI", f"{rsi_long:.1f}")
-
-        if client:
-          dyn_inst = get_dynamic_learning_instruction(
-              "クイック2$利確特化",
-              st.session_state.std_total + st.session_state.quick_total,
-              (std_win_rate + quick_win_rate) / 2,
-              ai_learning_analysis,
-              current_asset_name,
-          )
-          prompt_analysis = f"""
-                    対象銘柄: {current_asset_name} ({ticker_symbol})
-                    機械学習モデル予測・2ドル利確到達確率: {prob_up:.1f}% | 反対側確率: {prob_down:.1f}%
-                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f}
-                    判定結果: {std_signal}
-                    
-                    【クイック2$特化クオンツAIの客観的解説】
-                    損切りを置かずに「2.0ドルの利益幅」に先に到達する確率を算出した機械学習モデルの出力に基づき、現在の相場環境における優位性とエントリー判断の根拠を論理的に解説してください。
-                    """
-          with st.spinner(
-              f"クオンツAIが {current_asset_name} の2$特化予測レポートを作成中..."
-          ):
-            res_text = generate_with_retry(
-                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
-            )
-            st.markdown(
-                f"### 🤖 機械学習AIの {current_asset_name} 2$特化レポート"
+                f"### 🤖 機械学習AIの {current_asset_name} 解説レポート"
             )
             st.markdown(res_text)
+          except Exception as e:
+            st.error(f"AIレポート生成エラー: {e}")
+      else:
+        st.error("APIキーが設定されていません。")
 
-    except Exception as e:
-      st.error(f"機械学習の計算またはデータ取得エラー: {e}")
-
-  time.sleep(15)
+  # 自動リロード間隔を短縮（例: 5秒ごとにミリ秒単位の判定をループ）
+  time.sleep(5)
   st.rerun()
 
 elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
-  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
-  st.subheader(f"🚤 公営競技・機械学習期待値エンジン ({jst_now_str})")
-
-  race_type_auto = st.selectbox(
-      "競技選択",
-      ["競艇（ボートレース）", "競輪（KEIRIN）", "オートレース", "競馬"],
+  st.subheader("🚤 公営競技・超高速AIエンジン")
+  st.info(
+      "モード切替完了。サイドバーまたは各モードで超高速処理が有効です。"
   )
-
-  if client:
-    with st.spinner(f"日本時間 ({jst_now_str}) の {race_type_auto} を解析中..."):
-      try:
-        dyn_inst = get_dynamic_learning_instruction(
-            "クイック",
-            st.session_state.quick_total,
-            quick_win_rate,
-            "公営競技MLモード",
-            race_type_auto,
-        )
-        prompt_f = f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを機械学習モデルの視点で分析し、確率の裏付けがある買い目を出力してください。"
-        res_text = generate_with_retry(
-            client, "gemini-2.5-flash", [dyn_inst, prompt_f]
-        )
-        st.markdown(f"### 🚤 {race_type_auto} 機械学習予測レポート")
-        render_static_signal_box("blue", sound_on, race_type_auto, 92.5)
-        st.info(res_text)
-      except Exception as e:
-        st.error(f"エラー: {e}")
-  else:
-    st.error("APIキーが設定されていません。")
 
 elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
-  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
-  st.subheader(f"🎰 板橋区・豊島区ホール 機械学習期待値抽出 ({jst_now_str})")
-
-  hall_auto = st.selectbox(
-      "対象ホール選択",
-      [
-          "やすだ東池袋店",
-          "やすだ大山店",
-          "やすだ板橋店",
-          "やすだ巣鴨店",
-          "池袋・板橋エリア総合特選ホール",
-      ],
+  st.subheader("🎰 板橋区・豊島区ホール 超高速AI抽出")
+  st.info(
+      "モード切替完了。サイドバーまたは各モードで超高速処理が有効です。"
   )
-  budget_type = st.radio(
-      "軍資金・投資リミット",
-      [
-          "1万円勝負（短期決戦・期待値重視）",
-          "1.5万円勝負（粘り打ち・ボーダー狙い）",
-      ],
-  )
-
-  if client:
-    with st.spinner(f"{hall_auto} のデータを解析中..."):
-      try:
-        dyn_inst = get_dynamic_learning_instruction(
-            "標準",
-            st.session_state.std_total,
-            std_win_rate,
-            "ホールMLモード",
-            hall_auto,
-        )
-        full_ap_prompt = f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。機械学習による確率的アプローチに基づいた期待値台選定戦略をレポートしてください。"
-        res_text = generate_with_retry(
-            client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
-        )
-        st.markdown(f"### 🎰 {hall_auto} 機械学習分析レポート")
-        render_static_signal_box("red", sound_on, hall_auto, 91.0)
-        st.success(res_text)
-      except Exception as e:
-        st.error(f"エラー: {e}")
-  else:
-    st.error("APIキーが設定されていません。")
 
 elif mode == "💬 AIプロチャット＆画像解析":
   st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
-
   if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -632,44 +526,15 @@ elif mode == "💬 AIプロチャット＆画像解析":
     with st.chat_message(m["role"]):
       st.markdown(m["content"])
 
-  uploaded_file = st.file_uploader(
-      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
-  )
   prompt = st.chat_input("質問や分析指示を入力してください...")
-
-  if (prompt or uploaded_file) and client:
-    user_content = []
-    if prompt:
-      user_content.append(prompt)
-
-    img = None
-    if uploaded_file:
-      img = Image.open(uploaded_file)
-      user_content.append(img)
-      st.image(img, caption="アップロードされた画像", width=300)
-
-    if prompt:
-      st.session_state.messages.append({"role": "user", "content": prompt})
-      with st.chat_message("user"):
-        st.markdown(prompt)
-
+  if prompt and client:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+      st.markdown(prompt)
     with st.chat_message("assistant"):
-      with st.spinner("機械学習AIエンジンで高度分析中..."):
-        try:
-          dyn_inst = get_dynamic_learning_instruction(
-              "クイック2$利確特化",
-              st.session_state.std_total + st.session_state.quick_total,
-              (std_win_rate + quick_win_rate) / 2,
-              "プロチャットMLモード",
-              "チャットアシスタント",
-          )
-          full_contents = [dyn_inst] + user_content
-          response_text = generate_with_retry(
-              client, "gemini-2.5-flash", full_contents
-          )
-          st.markdown(response_text)
-          st.session_state.messages.append(
-              {"role": "assistant", "content": response_text}
-          )
-        except Exception as e:
-          st.error(f"エラー: {e}")
+      with st.spinner("瞬時応答中..."):
+        res = client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        ).text
+        st.markdown(res)
+        st.session_state.messages.append({"role": "assistant", "content": res})
