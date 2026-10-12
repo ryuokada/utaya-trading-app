@@ -139,103 +139,83 @@ def render_pachinko_演出(signal_type, sound_enabled):
       """
 
   if signal_type == "blue":
-    html_content = (
-        '<div id="pachinko-screen" style="width: 100%; height: 140px;'
-        ' background: #000; display: flex; flex-direction: column;'
-        ' justify-content: center; align-items: center; border-radius: 8px;'
-        ' border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">'
-        '    <div style="color: #0080ff; font-family: monospace; font-weight:'
-        ' bold; font-size: 18px; letter-spacing: 2px;">'
-        "        …！？"
-        "    </div>"
-        "</div>"
-        "<script>"
-        f"{sound_script}"
-        "setTimeout(() => {"
-        '    const screen = document.getElementById("pachinko-screen");'
-        "    if (screen) {"
-        '        screen.style.background = "#111111";'
-        '        screen.style.border = "1px solid #444444";'
-        '        screen.style.boxShadow = "none";'
-        "        screen.innerHTML = `"
-        '            <div id="reel-box" style="font-size: 26px; font-family:'
-        ' monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">'
-        "                [ 🍒 · 🍉 · 🔔 ]"
-        "            </div>"
-        '            <div style="color: #aaaaaa; font-size: 13px; margin-top:'
-        ' 8px;">'
-        "                🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）"
-        "            </div>"
-        "        `;"
-        '        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span'
-        " style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 ·"
-        " 🍒 · <span style='color:red;'>7</span> ]"];'
-        "        let idx = 0;"
-        "        setInterval(() => {"
-        "            idx = (idx + 1) % symbols.length;"
-        '            const box = document.getElementById("reel-box");'
-        "            if (box) { box.innerHTML = symbols[idx]; }"
-        "        }, 1000);"
-        "    }"
-        "}, 2000);"
-        "</script>"
-    )
+    html_content = f"""
+        <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
+            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 18px; letter-spacing: 2px;">
+                …！？
+            </div>
+        </div>
+        <script>
+        {sound_script}
+        setTimeout(() => {{
+            const screen = document.getElementById("pachinko-screen");
+            if (screen) {{
+                screen.style.background = "#111111";
+                screen.style.border = "1px solid #444444";
+                screen.style.boxShadow = "none";
+                screen.innerHTML = `
+                    <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
+                        [ 🍒 · 🍉 · 🔔 ]
+                    </div>
+                    <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
+                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
+                    </div>
+                `;
+                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
+                let idx = 0;
+                setInterval(() => {{
+                    idx = (idx + 1) % symbols.length;
+                    const box = document.getElementById("reel-box");
+                    if (box) {{ box.innerHTML = symbols[idx]; }}
+                }}, 1000);
+            }}
+        }}, 2000);
+        </script>
+        """
   elif signal_type == "red":
-    html_content = (
-        '<div id="pachinko-screen" style="width: 100%; height: 140px;'
-        " background: linear-gradient(135deg, #2b0000, #550000); display: flex;"
-        " flex-direction: column; justify-content: center; align-items: center;"
-        ' border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px'
-        ' #ff3333;">'
-        '    <div style="font-size: 38px; font-family: monospace; font-weight:'
-        ' bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing:'
-        ' 4px; animation: spinRed 0.3s linear infinite;">'
-        '        [ <span style="color:red;">7</span> · <span'
-        ' style="color:red;">7</span> · <span style="color:red;">7</span> ]'
-        "    </div>"
-        '    <div style="color: #ff3333; font-weight: bold; font-size: 18px;'
-        ' text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">'
-        "        ✨ キュインキュイン！！【 売りシグナル確定 】 ✨"
-        "    </div>"
-        "</div>"
-        "<script>"
-        f"{sound_script}"
-        "setTimeout(() => {"
-        '    const screen = document.getElementById("pachinko-screen");'
-        "    if (screen) {"
-        '        screen.style.background = "#111111";'
-        '        screen.style.border = "1px solid #444444";'
-        '        screen.style.boxShadow = "none";'
-        "        screen.innerHTML = `"
-        '            <div id="reel-box" style="font-size: 26px; font-family:'
-        ' monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">'
-        "                [ 🍒 · 🍉 · 🔔 ]"
-        "            </div>"
-        '            <div style="color: #aaaaaa; font-size: 13px; margin-top:'
-        ' 8px;">'
-        "                🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）"
-        "            </div>"
-        "        `;"
-        '        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span'
-        " style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 ·"
-        " 🍒 · <span style='color:red;'>7</span> ]"];'
-        "        let idx = 0;"
-        "        setInterval(() => {"
-        "            idx = (idx + 1) % symbols.length;"
-        '            const box = document.getElementById("reel-box");'
-        "            if (box) { box.innerHTML = symbols[idx]; }"
-        "        }, 1000);"
-        "    }"
-        "}, 2000);"
-        "</script>"
-        "<style>"
-        "@keyframes spinRed {"
-        "    0% { transform: scale(1); }"
-        "    50% { transform: scale(1.08); }"
-        "    100% { transform: scale(1); }"
-        "}"
-        "</style>"
-    )
+    html_content = f"""
+        <div id="pachinko-screen" style="width: 100%; height: 140px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
+            <div style="font-size: 38px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 4px; animation: spinRed 0.3s linear infinite;">
+                [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
+            </div>
+            <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">
+                ✨ キュインキュイン！！【 売りシグナル確定 】 ✨
+            </div>
+        </div>
+        <script>
+        {sound_script}
+        setTimeout(() => {{
+            const screen = document.getElementById("pachinko-screen");
+            if (screen) {{
+                screen.style.background = "#111111";
+                screen.style.border = "1px solid #444444";
+                screen.style.boxShadow = "none";
+                screen.innerHTML = `
+                    <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
+                        [ 🍒 · 🍉 · 🔔 ]
+                    </div>
+                    <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
+                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
+                    </div>
+                `;
+                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
+                let idx = 0;
+                setInterval(() => {{
+                    idx = (idx + 1) % symbols.length;
+                    const box = document.getElementById("reel-box");
+                    if (box) {{ box.innerHTML = symbols[idx]; }}
+                }}, 1000);
+            }}
+        }}, 2000);
+        </script>
+        <style>
+        @keyframes spinRed {{
+            0% {{ transform: scale(1); }}
+            50% {{ transform: scale(1.08); }}
+            100% {{ transform: scale(1); }}
+        }}
+        </style>
+        """
   else:
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
@@ -427,12 +407,10 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         elif std_color == "red" or quick_color == "red":
           active_payout = "red"
 
-        # 演出エリアを描画
         render_pachinko_演出(active_payout, sound_on)
 
         st.markdown("---")
 
-        # 🎯 スマホスワイプ ＆ PCキーボード（矢印キー）対応の直感スワイプゲートUI
         total_assets = len(assets_list)
         current_idx = st.session_state.selected_asset_index
 
@@ -450,41 +428,32 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         let touchendX = 0;
         const gate = document.getElementById('swipe-gate');
 
-        gate.addEventListener('touchstart', e => {
+        gate.addEventListener('touchstart', function(e) {{
             touchstartX = e.changedTouches[0].screenX;
-        }, false);
+        }}, false);
 
-        gate.addEventListener('touchend', e => {
+        gate.addEventListener('touchend', function(e) {{
             touchendX = e.changedTouches[0].screenX;
-            handleSwipe();
-        }, false);
+            if (touchendX < touchstartX - 40) {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'next'}}, '*');
+            }}
+            if (touchendX > touchstartX + 40) {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'prev'}}, '*');
+            }}
+        }}, false);
 
-        function handleSwipe() {
-            if (touchendX < touchstartX - 40) {
-                // 左スワイプ ➔ 次の銘柄
-                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'next'}, '*');
-            }
-            if (touchendX > touchstartX + 40) {
-                // 右スワイプ ➔ 前の銘柄
-                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'prev'}, '*');
-            }
-        }
-
-        // キーボードの左右矢印キー検知
-        window.parent.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight') {
-                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'next'}, '*');
-            } else if (e.key === 'ArrowLeft') {
-                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'prev'}, '*');
-            }
-        });
+        window.parent.addEventListener('keydown', function(e) {{
+            if (e.key === 'ArrowRight') {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'next'}}, '*');
+            }} else if (e.key === 'ArrowLeft') {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'prev'}}, '*');
+            }}
+        }});
         </script>
         """
 
-        # スワイプゲートコンポーネントの表示
         swipe_val = components.html(swipe_html, height=100)
 
-        # Python側で左右ボタンも補助として配置
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
           if st.button("◀ 前の銘柄へスライド", use_container_width=True):
@@ -676,4 +645,8 @@ elif mode == "💬 AIプロチャット＆画像解析":
               client, "gemini-2.5-flash", full_contents
           )
           st.markdown(response_text)
-          st.session_state.messages.append
+          st.session_state.messages.append(
+              {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
