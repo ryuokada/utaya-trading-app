@@ -413,11 +413,11 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
-        # 判定に応じた演出分岐
+        # 修正：標準またはクイックのどちらかに買い/売りが含まれていれば確実に演出を起動
         active_payout = "green"
-        if std_color == "blue" or quick_color == "blue":
+        if "買い" in std_signal or "HIGH" in quick_signal or std_color == "blue" or quick_color == "blue":
           active_payout = "blue"
-        elif std_color == "red" or quick_color == "red":
+        elif "売り" in std_signal or "LOW" in quick_signal or std_color == "red" or quick_color == "red":
           active_payout = "red"
 
         render_pachinko_演出(active_payout)
