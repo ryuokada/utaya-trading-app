@@ -73,7 +73,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（回転せず、選択中の銘柄名を正確に表示）
+# パチンコ演出コンポーネント（選択中の銘柄名を正確に反映）
 def render_pachinko_演出(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
@@ -200,7 +200,7 @@ def generate_with_retry(client, model, contents, max_retries=3):
       res = client.models.generate_content(model="gemini-2.5-flash", contents=contents)
       return res.text if hasattr(res, "text") else str(res)
     except Exception as e:
-      if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+      if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "PERMISSION_DENIED" in str(e):
         if i < max_retries - 1:
           time.sleep(wait_time)
           wait_time *= 2
@@ -279,150 +279,147 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  # 🖥️ 1画面でスッキリ見渡せるよう、右側に縦型銘柄選択メニューを配置
-  col_main, col_sub = st.columns([3, 1])
+  st.markdown("### 🎯 天才クオンツAI・勝率99%完璧エントリー監視プラットフォーム")
 
-  with col_sub:
-    st.markdown("### 🎚️ 銘柄選択（縦型メニュー）")
-    asset_names_only = [item[0] for item in assets_list]
-    current_idx = st.session_state.selected_asset_index
-    
-    selected_vertical_name = st.radio(
-        "分析対象銘柄",
-        options=asset_names_only,
-        index=current_idx,
-        key="vertical_asset_radio"
-    )
-    for idx, item in enumerate(assets_list):
-      if item[0] == selected_vertical_name and idx != current_idx:
-        st.session_state.selected_asset_index = idx
-        st.rerun()
+  selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
+  ticker_symbol = selected_asset_tuple[1]
+  current_asset_name = selected_asset_tuple[0]
 
-  with col_main:
-    st.markdown("### 🎯 天才クオンツAI・勝率99%完璧エントリー監視プラットフォーム")
+  @st.cache_data(ttl=5)
+  def fetch_market_data(symbol):
+    df = yf.download(symbol, period="5d", interval="5m", progress=False)
+    if df.empty:
+      return None
+    if isinstance(df.columns, pd.MultiIndex):
+      df.columns = df.columns.get_level_values(0)
+    return df["Close"]
 
-    selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
-    ticker_symbol = selected_asset_tuple[1]
-    current_asset_name = selected_asset_tuple[0]
+  with st.spinner(f"{current_asset_name} のリアルタイム板情報とチャートを厳密解析中..."):
+    try:
+      closes = fetch_market_data(ticker_symbol)
+      if closes is None or len(closes) == 0:
+        st.error("データの取得に失敗しました。")
+      else:
+        def calc_rsi(series, period):
+          delta = series.diff()
+          gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+          loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+          rs = gain / loss
+          return 100 - (100 / (1 + rs))
 
-    @st.cache_data(ttl=5)
-    def fetch_market_data(symbol):
-      df = yf.download(symbol, period="5d", interval="5m", progress=False)
-      if df.empty:
-        return None
-      if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-      return df["Close"]
+        rsi_short = calc_rsi(closes, 5).iloc[-1]
+        rsi_mid = calc_rsi(closes, 14).iloc[-1]
+        rsi_long = calc_rsi(closes, 26).iloc[-1]
 
-    with st.spinner(f"{current_asset_name} のリアルタイム板情報とチャートを厳密解析中..."):
-      try:
-        closes = fetch_market_data(ticker_symbol)
-        if closes is None or len(closes) == 0:
-          st.error("データの取得に失敗しました。")
-        else:
-          def calc_rsi(series, period):
-            delta = series.diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-            rs = gain / loss
-            return 100 - (100 / (1 + rs))
+        valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
+        avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-          rsi_short = calc_rsi(closes, 5).iloc[-1]
-          rsi_mid = calc_rsi(closes, 14).iloc[-1]
-          rsi_long = calc_rsi(closes, 26).iloc[-1]
+        # 【勝率99%極限フィルター：タイミングが少しでもずれていれば絶対に見送り】
+        std_signal = f"【完全見送り】{current_asset_name}はタイミング不一致（待機中）"
+        std_color = "green"
+        if rsi_short < 15 and avg_rsi < 22 and rsi_short == min(valid_rsis):
+          std_signal = f"✨【標準モード】{current_asset_name} 勝率99%極限の底打ち買いシグナル！"
+          std_color = "blue"
+        elif rsi_short > 85 and avg_rsi > 78 and rsi_short == max(valid_rsis):
+          std_signal = f"🔥【標準モード】{current_asset_name} 勝率99%極限の天井売りシグナル！"
+          std_color = "red"
 
-          valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
-          avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
+        quick_signal = f"【様子見】{current_asset_name}の短期ノイズをフィルタリング中"
+        quick_color = "green"
+        if rsi_short < 10:
+          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGH激熱エントリー！"
+          quick_color = "blue"
+        elif rsi_short > 90:
+          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
+          quick_color = "red"
 
-          # 【勝率99%極限フィルター：タイミングが少しでもずれていれば絶対に見送り】
-          std_signal = f"【完全見送り】{current_asset_name}はタイミング不一致（待機中）"
-          std_color = "green"
-          if rsi_short < 15 and avg_rsi < 22 and rsi_short == min(valid_rsis):
-            std_signal = f"✨【標準モード】{current_asset_name} 勝率99%極限の底打ち買いシグナル！"
-            std_color = "blue"
-          elif rsi_short > 85 and avg_rsi > 78 and rsi_short == max(valid_rsis):
-            std_signal = f"🔥【標準モード】{current_asset_name} 勝率99%極限の天井売りシグナル！"
-            std_color = "red"
+        st.markdown(f"### 🎰 【パチンコ型クオンツ予測】{current_asset_name} リアルタイム判定速報")
+        
+        active_payout = "green"
+        if std_color == "blue" or quick_color == "blue":
+          active_payout = "blue"
+        elif std_color == "red" or quick_color == "red":
+          active_payout = "red"
 
-          quick_signal = f"【様子見】{current_asset_name}の短期ノイズをフィルタリング中"
-          quick_color = "green"
-          if rsi_short < 10:
-            quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGH激熱エントリー！"
-            quick_color = "blue"
-          elif rsi_short > 90:
-            quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
-            quick_color = "red"
+        # 1. リール画面（演出部分）を最上部に表示
+        render_pachinko_演出(active_payout, sound_on, current_asset_name)
 
-          st.markdown(f"### 🎰 【パチンコ型クオンツ予測】{current_asset_name} リアルタイム判定速報")
-          
-          active_payout = "green"
-          if std_color == "blue" or quick_color == "blue":
-            active_payout = "blue"
-          elif std_color == "red" or quick_color == "red":
-            active_payout = "red"
+        # 2. そのすぐ直下に銘柄選択メニュー（縦型バー）を配置！
+        st.markdown("#### 🎚️ 分析対象銘柄の切り替え（リール直下）")
+        asset_names_only = [item[0] for item in assets_list]
+        current_idx = st.session_state.selected_asset_index
 
-          # 選択中の銘柄名を正確に反映した演出発動
-          render_pachinko_演出(active_payout, sound_on, current_asset_name)
+        selected_vertical_name = st.radio(
+            "銘柄選択",
+            options=asset_names_only,
+            index=current_idx,
+            key="vertical_asset_radio_under_reel",
+            horizontal=True
+        )
+        for idx, item in enumerate(assets_list):
+          if item[0] == selected_vertical_name and idx != current_idx:
+            st.session_state.selected_asset_index = idx
+            st.rerun()
 
-          st.markdown("---")
+        st.markdown("---")
 
-          col_res1, col_res2 = st.columns(2)
+        col_res1, col_res2 = st.columns(2)
 
-          msg_std = (
-              f"**標準分析:** {current_asset_name} ➔ **{std_signal}**"
-              f" (RSI:{rsi_mid:.1f})"
+        msg_std = (
+            f"**標準分析:** {current_asset_name} ➔ **{std_signal}**"
+            f" (RSI:{rsi_mid:.1f})"
+        )
+        msg_quick = (
+            f"**クイック分析:** {current_asset_name} ➔ **{quick_signal}**"
+            f" (RSI:{rsi_short:.1f})"
+        )
+
+        with col_res1:
+          if std_color == "blue":
+            st.info(msg_std)
+          elif std_color == "red":
+            st.error(msg_std)
+          else:
+            st.success(msg_std)
+
+        with col_res2:
+          if quick_color == "blue":
+            st.info(msg_quick)
+          elif quick_color == "red":
+            st.error(msg_quick)
+          else:
+            st.success(msg_quick)
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
+        col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
+        col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
+        col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
+
+        if client:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
           )
-          msg_quick = (
-              f"**クイック分析:** {current_asset_name} ➔ **{quick_signal}**"
-              f" (RSI:{rsi_short:.1f})"
-          )
-
-          with col_res1:
-            if std_color == "blue":
-              st.info(msg_std)
-            elif std_color == "red":
-              st.error(msg_std)
-            else:
-              st.success(msg_std)
-
-          with col_res2:
-            if quick_color == "blue":
-              st.info(msg_quick)
-            elif quick_color == "red":
-              st.error(msg_quick)
-            else:
-              st.success(msg_quick)
-
-          col1, col2, col3, col4 = st.columns(4)
-          col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
-          col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
-          col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
-          col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
-
-          if client:
-            dyn_inst = get_dynamic_learning_instruction(
-                "標準＆クイック",
-                st.session_state.std_total + st.session_state.quick_total,
-                (std_win_rate + quick_win_rate) / 2,
+          prompt_analysis = f"""
+                    対象銘柄: {current_asset_name} ({ticker_symbol})
+                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
+                    標準判定: {std_signal}
+                    クイック判定: {quick_signal}
+                    
+                    【初心者にもわかりやすい天才AIの勝率99%検証解説】
+                    現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
+                    """
+          with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
+            res_text = generate_with_retry(
+                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
             )
-            prompt_analysis = f"""
-                      対象銘柄: {current_asset_name} ({ticker_symbol})
-                      短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
-                      標準判定: {std_signal}
-                      クイック判定: {quick_signal}
-                      
-                      【初心者にもわかりやすい天才AIの勝率99%検証解説】
-                      現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
-                      """
-            with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
-              res_text = generate_with_retry(
-                  client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
-              )
-              st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
-              st.markdown(res_text)
+            st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
+            st.markdown(res_text)
 
-      except Exception as e:
-        st.error(f"データ取得または分析エラー: {e}")
+    except Exception as e:
+      st.error(f"データ取得または分析エラー: {e}")
 
   time.sleep(15)
   st.rerun()
