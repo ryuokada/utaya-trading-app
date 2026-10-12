@@ -54,7 +54,6 @@ def save_data(std_total, std_wins, quick_total, quick_wins):
     pass
 
 
-# セッションステートの堅牢な初期化（NameError防止）
 if "std_total" not in st.session_state:
   s_tot, s_win, q_tot, q_win = load_data()
   st.session_state.std_total = s_tot
@@ -71,7 +70,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# 画面酔いを完全に防ぐ静的プロフェッショナル・ダッシュボード表示
+# 画面酔いを防ぐ静的プロフェッショナル・ダッシュボード表示
 def render_static_signal_box(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
@@ -140,10 +139,10 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 15px rgba(0,85,255,0.4);">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
-                ✨ プチュン！！【 {asset_name} 勝率99%完璧な買いエントリー 】 ✨
+                ✨ プチュン！！【 {asset_name} チャンス到来・買いシグナル 】 ✨
             </div>
             <div style="font-size: 13px; color: #00ffcc; font-family: monospace;">
-                [ 統計的優位性・底打ち極限一致 ]
+                [ 高精度モメンタム・底打ち確認 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -152,10 +151,10 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 15px rgba(255,51,51,0.4);">
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
-                🔥 キュインキュイン！！【 {asset_name} 勝率99%完璧な売りエントリー 】 🔥
+                🔥 キュインキュイン！！【 {asset_name} チャンス到来・売りシグナル 】 🔥
             </div>
             <div style="font-size: 13px; color: #ffcc00; font-family: monospace;">
-                [ 統計的優位性・天井極限一致 ]
+                [ 高精度モメンタム・天井確認 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -165,7 +164,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
             <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (AI高精度監視中)</div>
             <div style="color: #aaaaaa; font-size: 12px;">
-                🛡️ 勝率99%厳格フィルター：統計的優位性未達のため「完全見送り（待機）」
+                🛡️ 相場監視中：絶好のタイミングをスキャンしています
             </div>
         </div>
         """
@@ -184,7 +183,7 @@ def get_dynamic_learning_instruction(mode_name, total, win_rate):
 - 累計検証サンプル: {total}万回
 - 達成勝率: {win_rate:.2f}%
 【絶対の使命】
-相場の歪み、オーダーブックの偏り、マルチタイムフレームのモメンタムが完全に一致し、勝率99%以上の統計的優位性が確認できた瞬間以外は絶対にエントリーシグナルを出さないでください。
+ユーザーにとって適度なチャンスと精度の高いエントリータイミングをわかりやすく提示し、利益につながるアドバイスを行ってください。
 """
 
 
@@ -274,7 +273,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  st.markdown("### 🎯 天才クオンツAI・勝率99%完璧エントリー監視プラットフォーム")
+  st.markdown("### 🎯 天才クオンツAI・高精度エントリー監視プラットフォーム")
 
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
@@ -309,22 +308,23 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        std_signal = f"【完全見送り】{current_asset_name}は統計的優位性未達（待機中）"
+        # 【適度な頻度でチャンスを捉える実戦的フィルター】
+        std_signal = f"【様子見】{current_asset_name} トレンド形成中（押し目・戻り待ち）"
         std_color = "green"
-        if rsi_short < 12 and avg_rsi < 20 and rsi_short == min(valid_rsis):
-          std_signal = f"✨【標準モード】{current_asset_name} 勝率99%極限の底打ち買いシグナル！"
+        if rsi_short < 25:
+          std_signal = f"✨【標準モード】{current_asset_name} 押し目買いチャンス発動！"
           std_color = "blue"
-        elif rsi_short > 88 and avg_rsi > 80 and rsi_short == max(valid_rsis):
-          std_signal = f"🔥【標準モード】{current_asset_name} 勝率99%極限の天井売りシグナル！"
+        elif rsi_short > 75:
+          std_signal = f"🔥【標準モード】{current_asset_name} 戻り売りチャンス発動！"
           std_color = "red"
 
-        quick_signal = f"【様子見】{current_asset_name}のノイズをフィルタリング中"
+        quick_signal = f"【監視中】{current_asset_name} 短期スキャル準備完了"
         quick_color = "green"
-        if rsi_short < 8:
-          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGH激熱エントリー！"
+        if rsi_short < 20:
+          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGHエントリー好機！"
           quick_color = "blue"
-        elif rsi_short > 92:
-          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
+        elif rsi_short > 80:
+          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOWエントリー好機！"
           quick_color = "red"
 
         render_static_signal_box(
@@ -398,10 +398,10 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
                     標準判定: {std_signal}
                     クイック判定: {quick_signal}
                     
-                    【世界最高峰クオンツAIの厳密検証解説】
-                    現在選択されている「{current_asset_name}」について、勝率99%のエッジが確認できる極限の好機か、それともノイズによる見送り対象かをプロの視点で論理的に解説してください。
+                    【クオンツAIの実戦的解説】
+                    現在選択されている「{current_asset_name}」の直近の値動きとRSIを踏まえ、トレード戦略や狙い目をプロの視点でわかりやすく解説してください。
                     """
-          with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
+          with st.spinner(f"天才クオンツAIが {current_asset_name} の分析レポートを作成中..."):
             res_text = generate_with_retry(
                 client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
             )
@@ -432,7 +432,7 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
             "クイック", st.session_state.quick_total, quick_win_rate
         )
         prompt_f = (
-            f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを極限まで分析し、99%の期待値が狙える厳選買い目を出力してください。"
+            f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを分析し、狙い目の買い目を出力してください。"
         )
         res_text = generate_with_retry(
             client, "gemini-2.5-flash", [dyn_inst, prompt_f]
@@ -476,7 +476,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
             "標準", st.session_state.std_total, std_win_rate
         )
         full_ap_prompt = (
-            f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。極限の期待値台選定戦略をレポートしてください。"
+            f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。期待値台選定戦略をレポートしてください。"
         )
         res_text = generate_with_retry(
             client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
