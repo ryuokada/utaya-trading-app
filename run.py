@@ -36,7 +36,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3300, 3240, 9200, 9120
+  return 3400, 3340, 9400, 9320
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -129,7 +129,7 @@ if "last_played_signal" not in st.session_state:
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
-# 一斉監視用サウンド＆アラート発動コンポーネント
+# サウンド＆アラート発動コンポーネント
 def render_global_sound_trigger(has_alert, alert_type):
   if not has_alert:
     return
@@ -252,18 +252,24 @@ if mode == "⚡ UTAYA 全銘柄一斉監視・未来予測エンジン":
       ("ビットコイン", "BTC-USD"),
   ]
 
+  # 📱 スマホ対応のトップヘッダー ＆ 手動更新ボタン
+  col_head1, col_head2 = st.columns([3, 1])
+  with col_head1:
+    st.markdown("### 📈 UTAYA - 全銘柄一斉監視ダッシュボード")
+  with col_head2:
+    if st.button("🔄 最新データに更新"):
+      st.cache_data.clear()
+      st.rerun()
+
   st.markdown(
-      "### 📈 UTAYA (ウタヤ) - 全銘柄一斉フェア監視・自動予測ダッシュボード"
-  )
-  st.markdown(
-      "🛡️ **全7銘柄がひとつの画面で同時稼働中**: ページを再読み込み・更新するだけで、すべての対象アセットの確率・RSI・エントリー判定を一度に一覧監視できます。"
+      "🛡️ **全7銘柄を一画面で同時監視中**: スマホでも見やすいカード形式で一覧表示されています。「最新データに更新」ボタンを押すか、自動更新でいつでも最新の確率を確認できます。"
   )
   st.markdown("---")
 
   global_has_alert = False
   global_alert_type = "green"
 
-  # キャッシュ付き一括データ＆AI分析関数
+
   @st.cache_data(ttl=30)
   def analyze_all_assets():
     results = {}
@@ -351,9 +357,10 @@ if mode == "⚡ UTAYA 全銘柄一斉監視・未来予測エンジン":
         pass
     return results
 
+
   all_data = analyze_all_assets()
 
-  # 一覧カード形式で全7銘柄を綺麗に並べて表示
+  # スマホ対応のレスポンシブなカードデザインで全銘柄を表示
   for name, symbol in assets_list:
     if name not in all_data:
       continue
@@ -372,7 +379,6 @@ if mode == "⚡ UTAYA 全銘柄一斉監視・未来予測エンジン":
         p_up >= p_down,
     )
 
-    # 判定とスタイリング
     if p_down >= 72.0:
       card_bg = "linear-gradient(135deg, #2b0000, #4d0000)"
       border_color = "#ff3333"
@@ -390,17 +396,17 @@ if mode == "⚡ UTAYA 全銘柄一斉監視・未来予測エンジン":
       border_color = "#333333"
       status_text = f"🛡️ 監視中 (下落:{p_down:.1f}% / 上昇:{p_up:.1f}%)"
 
-    # 1行ごとのカード表示
     st.markdown(
         f"""
-        <div style="width: 100%; padding: 14px 18px; background: {card_bg}; border: 2px solid {border_color}; border-radius: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
-            <div>
-                <div style="color: #ffffff; font-size: 16px; font-weight: bold; margin-bottom: 4px;">📊 {name}</div>
-                <div style="color: #00ffcc; font-size: 13px; font-family: monospace;">{status_text}</div>
-            </div>
-            <div style="text-align: right; font-family: monospace; font-size: 13px; color: #cccccc;">
-                <div>短期RSI: <span style="color: #ffffff; font-weight: bold;">{r_short:.1f}</span> | 長期RSI: <span style="color: #ffffff; font-weight: bold;">{r_long:.1f}</span></div>
-                <div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">目標: 損切りなし2ドル利確エッジ</div>
+        <div style="width: 100%; padding: 16px; background: {card_bg}; border: 2px solid {border_color}; border-radius: 10px; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <div style="color: #ffffff; font-size: 17px; font-weight: bold; margin-bottom: 4px;">📊 {name}</div>
+                    <div style="color: #00ffcc; font-size: 13px; font-family: monospace;">{status_text}</div>
+                </div>
+                <div style="font-family: monospace; font-size: 13px; color: #cccccc;">
+                    <div>短期RSI: <span style="color: #ffffff; font-weight: bold;">{r_short:.1f}</span> | 長期RSI: <span style="color: #ffffff; font-weight: bold;">{r_long:.1f}</span></div>
+                </div>
             </div>
         </div>
         """,
@@ -418,7 +424,7 @@ if mode == "⚡ UTAYA 全銘柄一斉監視・未来予測エンジン":
     local_reflection = generate_local_reflection()
     st.markdown(local_reflection)
     st.info(
-        "💡 **完全一斉フェア稼働中**: すべての銘柄が同一画面内で同時にスキャンされ、条件を満たした瞬間に視覚とサウンドで一斉にお知らせします。"
+        "💡 **完全一斉フェア稼働中**: スマホでもPCでも、ボタン一つで最新データに更新でき、全銘柄を同時に監視できます。"
     )
 
 elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
