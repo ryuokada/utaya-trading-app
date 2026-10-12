@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3500, 3440, 9300, 9220
+  return 3600, 3540, 9500, 9420
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -124,24 +124,29 @@ if "std_total" not in st.session_state:
   st.session_state.quick_total = q_tot
   st.session_state.quick_wins = q_win
 
-if "last_played_signal" not in st.session_state:
-  st.session_state.last_played_signal = "none"
+if "last_played_key" not in st.session_state:
+  st.session_state.last_played_key = ""
+
+if "switch_lock" not in st.session_state:
+  st.session_state.switch_lock = time.time()
 
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
-# 【超即時同期・クールダウン完全撤廃版】条件合致で即座に赤/青＆サウンド発動
-def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal):
+# 【完璧なサウンド＆カラー同期制御】切替直後のノイズ音を完全に防ぎ、真のベスト発動時のみ鳴動
+def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal, is_switching):
   sound_script = ""
   should_play_sound = False
-  if sound_enabled and is_active_signal:
-    current_key = f"{asset_name}_{signal_type}_{prob_val:.1f}"
-    if st.session_state.last_played_signal != current_key:
+
+  # 切替直後（1.5秒以内）またはアクティブでない場合は絶対に音を鳴らさない
+  if sound_enabled and is_active_signal and not is_switching:
+    current_key = f"{asset_name}_{signal_type}"
+    if st.session_state.last_played_key != current_key:
       should_play_sound = True
-      st.session_state.last_played_signal = current_key
-  else:
-    if not is_active_signal:
-      st.session_state.last_played_signal = "none"
+      st.session_state.last_played_key = current_key
+  elif not is_active_signal:
+    # 待機状態に戻ったらキーをリセットし、次に条件を満たした時に再度鳴るようにする
+    st.session_state.last_played_key = ""
 
   if should_play_sound:
     if signal_type == "blue":
@@ -190,7 +195,14 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
         osc.stop(now + 0.5);
       """
 
-  if signal_type == "blue" and is_active_signal:
+  if is_switching:
+    html_content = f"""
+        <div style="width: 100%; padding: 14px; background: #1a1a00; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #cca300;">
+            <div style="color: #ffcc00; font-size: 14px; font-weight: bold; margin-bottom: 2px;">⏳ UTAYA 銘柄同期中: {asset_name}</div>
+            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 無音セーフティガード作動中</div>
+        </div>
+        """
+  elif signal_type == "blue" and is_active_signal:
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 20px rgba(0,85,255,0.5);">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
@@ -234,7 +246,7 @@ mode = st.sidebar.selectbox(
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔊 サウンドコントロール")
 sound_on = st.sidebar.checkbox(
-    "🔊 UTAYA 音響エフェクト（即時発動）", value=True
+    "🔊 UTAYA 音響エフェクト（ベストポイント発動時のみ鳴動）", value=True
 )
 
 st.sidebar.markdown("---")
@@ -312,12 +324,15 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
   for idx, item in enumerate(assets_list):
     if item[0] == selected_vertical_name and idx != current_idx:
       st.session_state.selected_asset_index = idx
-      st.session_state.last_played_signal = "none"
+      st.session_state.switch_lock = time.time()  # 切替時に無音ロックをかける
+      st.session_state.last_played_key = ""
       st.rerun()
 
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
   current_asset_name = selected_asset_tuple[0]
+
+  is_switching = (time.time() - st.session_state.switch_lock) < 1.5
 
 
   @st.cache_data(ttl=15)
@@ -423,7 +438,6 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
     asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 99.2
 
-    # 【超即時同期判定】確率が70%を超えた瞬間、クールダウンなしで赤/青へ直結
     if prob_down >= 70.0:
       std_signal = f"🔥【UTAYAベスト発動】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% ➔ 売り注文シグナル発動！"
       is_active = True
@@ -449,6 +463,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
         current_asset_name,
         prob_down if prob_down >= prob_up else prob_up,
         is_active_signal=is_active,
+        is_switching=is_switching,
     )
 
     st.markdown("---")
@@ -470,15 +485,15 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     msg_quick = f"**UTAYA クイック分析:** {current_asset_name} ➔ **{quick_signal}**"
 
     with col_res1:
-      if active_signal_type == "red" and is_active:
+      if active_signal_type == "red" and is_active and not is_switching:
         st.error(msg_std)
-      elif active_signal_type == "blue" and is_active:
+      elif active_signal_type == "blue" and is_active and not is_switching:
         st.info(msg_std)
       else:
         st.success(msg_std)
 
     with col_res2:
-      if active_signal_type in ["red", "blue"] and is_active:
+      if active_signal_type in ["red", "blue"] and is_active and not is_switching:
         st.error(msg_quick)
       else:
         st.success(msg_quick)
@@ -505,16 +520,16 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
 
 elif mode == "💬 UTAYA AIメタ認知・思考プロチャット":
   st.subheader("💬 UTAYA AIメタ認知・思考プロチャットアシスタント")
-  if "chat_messages" not in st.session_state:
-    st.session_state.chat_messages = []
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-  for m in st.session_state.chat_messages:
+  for m in st.session_state.messages:
     with st.chat_message(m["role"]):
       st.markdown(m["content"])
 
   prompt = st.chat_input("UTAYAの全銘柄フェアな脳内思考について質問してください...")
   if prompt:
-    st.session_state.chat_messages.append({"role": "user", "content": prompt})
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
       st.markdown(prompt)
     with st.chat_message("assistant"):
@@ -524,6 +539,6 @@ elif mode == "💬 UTAYA AIメタ認知・思考プロチャット":
           "ビットコインを含むすべての対象アセットをフェアな基準で機械学習し、市場エッジに応じて自律判定を下します。"
       )
       st.markdown(local_ans)
-      st.session_state.chat_messages.append(
+      st.session_state.messages.append(
           {"role": "assistant", "content": local_ans}
       )
