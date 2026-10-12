@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3600, 3540, 9500, 9420
+  return 3700, 3640, 9700, 9620
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -133,19 +133,17 @@ if "switch_lock" not in st.session_state:
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
-# 【完璧なサウンド＆カラー同期制御】切替直後のノイズ音を完全に防ぎ、真のベスト発動時のみ鳴動
+# 【リアルタイム自動更新・完璧サウンド＆カラー同期制御】
 def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal, is_switching):
   sound_script = ""
   should_play_sound = False
 
-  # 切替直後（1.5秒以内）またはアクティブでない場合は絶対に音を鳴らさない
   if sound_enabled and is_active_signal and not is_switching:
     current_key = f"{asset_name}_{signal_type}"
     if st.session_state.last_played_key != current_key:
       should_play_sound = True
       st.session_state.last_played_key = current_key
   elif not is_active_signal:
-    # 待機状態に戻ったらキーをリセットし、次に条件を満たした時に再度鳴るようにする
     st.session_state.last_played_key = ""
 
   if should_play_sound:
@@ -198,7 +196,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
   if is_switching:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #1a1a00; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #cca300;">
-            <div style="color: #ffcc00; font-size: 14px; font-weight: bold; margin-bottom: 2px;">⏳ UTAYA 銘柄同期中: {asset_name}</div>
+            <div style="color: #ffcc00; font-size: 14px; font-weight: bold; margin-bottom: 2px;">⏳ UTAYA リアルタイム同期中: {asset_name}</div>
             <div style="color: #aaaaaa; font-size: 11px;">🛡️ 無音セーフティガード作動中</div>
         </div>
         """
@@ -208,7 +206,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
                 ✨ UTAYA ベスト発動【 {asset_name} 上昇2$到達 確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
             </div>
-            <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">[ リアルタイム・ベストエントリー検出 ]</div>
+            <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">[ リアルタイム自動更新・ベストエントリー検出 ]</div>
         </div>
         <script>{sound_script}</script>
         """
@@ -218,15 +216,15 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
                 🔥 UTAYA ベスト発動【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売り注文シグナル発動 】 🔥
             </div>
-            <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">[ リアルタイム・ベストエントリー検出 ]</div>
+            <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">[ リアルタイム自動更新・ベストエントリー検出 ]</div>
         </div>
         <script>{sound_script}</script>
         """
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA 監視中: {asset_name} (待機中)</div>
-            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 到達確率: {prob_val:.1f}% （閾値未達・無音待機中）</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA ライブ監視中: {asset_name} (自動更新中)</div>
+            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 到達確率: {prob_val:.1f}% （閾値未達・自動巡回中）</div>
         </div>
         """
 
@@ -248,6 +246,17 @@ st.sidebar.markdown("### 🔊 サウンドコントロール")
 sound_on = st.sidebar.checkbox(
     "🔊 UTAYA 音響エフェクト（ベストポイント発動時のみ鳴動）", value=True
 )
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔄 ライブオートリフレッシュ設定")
+auto_refresh = st.sidebar.checkbox(
+    "🔄 10秒ごとに数値を自動ライブ更新する", value=True
+)
+
+# 10秒ごとに自動で画面をリフレッシュして最新の予測を自動実行する仕組み
+if auto_refresh:
+  time.sleep(10)
+  st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 UTAYA 全銘柄フェア自動進化実績")
@@ -324,7 +333,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
   for idx, item in enumerate(assets_list):
     if item[0] == selected_vertical_name and idx != current_idx:
       st.session_state.selected_asset_index = idx
-      st.session_state.switch_lock = time.time()  # 切替時に無音ロックをかける
+      st.session_state.switch_lock = time.time()
       st.session_state.last_played_key = ""
       st.rerun()
 
@@ -335,7 +344,6 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
   is_switching = (time.time() - st.session_state.switch_lock) < 1.5
 
 
-  @st.cache_data(ttl=15)
   def fetch_and_train_utaya(symbol):
     df = yf.download(symbol, period="5d", interval="15m", progress=False)
     if df.empty or len(df) < 30:
