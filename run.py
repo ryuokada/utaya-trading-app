@@ -286,7 +286,6 @@ sound_on = st.sidebar.checkbox("🔊 演出サウンドを有効にする（キ�
 
 st.sidebar.markdown("---")
 
-# 📊 銘柄クイック選択バーをサイドバー（右側）に配置
 assets_list = [
     ("WTI原油 / 石油 (CL=F)", "CL=F"),
     ("日経平均株価 (^N225)", "^N225"),
@@ -397,7 +396,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 【勝率99%極限フィルター：タイミングが少しでもずれていれば絶対に見送り】
         std_signal = f"【完全見送り】{current_asset_name}はタイミング不一致（待機中）"
         std_color = "green"
         if rsi_short < 15 and avg_rsi < 22 and rsi_short == min(valid_rsis):
@@ -471,4 +469,145 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
                     対象銘柄: {current_asset_name} ({ticker_symbol})
                     短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
                     標準判定: {std_signal}
-                    クイック
+                    クイック判定: {quick_signal}
+                    
+                    【初心者にもわかりやすい天才AIの勝率99%検証解説】
+                    現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
+                    """
+          with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
+            res_text = generate_with_retry(
+                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
+            )
+            st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
+            st.markdown(res_text)
+
+    except Exception as e:
+      st.error(f"データ取得または分析エラー: {e}")
+
+  time.sleep(15)
+  st.rerun()
+
+elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
+  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
+  st.subheader(
+      f"🚤 公営競技・統計的期待値最適化エンジン ({jst_now_str})"
+  )
+
+  race_type_auto = st.selectbox(
+      "競技選択",
+      ["競艇（ボートレース）", "競輪（KEIRIN）", "オートレース", "競馬"],
+  )
+
+  if client:
+    with st.spinner(f"日本時間 ({jst_now_str}) の {race_type_auto} を解析中..."):
+      try:
+        dyn_inst = get_dynamic_learning_instruction(
+            "クイック", st.session_state.quick_total, quick_win_rate
+        )
+        prompt_f = (
+            f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを極限まで分析し、99%の期待値が狙える厳選買い目を出力してください。"
+        )
+        res_text = generate_with_retry(
+            client, "gemini-2.5-flash", [dyn_inst, prompt_f]
+        )
+        st.markdown(f"### 🚤 {race_type_auto} 期待値予測レポート")
+        render_pachinko_演出("blue", sound_on, race_type_auto)
+        st.info(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
+  jst_now_str = get_jst_now().strftime("%Y年%m月%d日 %H時%M分 (JST)")
+  st.subheader(
+      f"🎰 板橋区・豊島区ホール 期待値最適化抽出 ({jst_now_str})"
+  )
+
+  hall_auto = st.selectbox(
+      "対象ホール選択",
+      [
+          "やすだ東池袋店",
+          "やすだ大山店",
+          "やすだ板橋店",
+          "やすだ巣鴨店",
+          "池袋・板橋エリア総合特選ホール",
+      ],
+  )
+  budget_type = st.radio(
+      "軍資金・投資リミット",
+      [
+          "1万円勝負（短期決戦・期待値重視）",
+          "1.5万円勝負（粘り打ち・ボーダー狙い）",
+      ],
+  )
+
+  if client:
+    with st.spinner(f"{hall_auto} のデータを解析中..."):
+      try:
+        dyn_inst = get_dynamic_learning_instruction(
+            "標準", st.session_state.std_total, std_win_rate
+        )
+        full_ap_prompt = (
+            f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。極限の期待値台選定戦略をレポートしてください。"
+        )
+        res_text = generate_with_retry(
+            client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
+        )
+        st.markdown(f"### 🎰 {hall_auto} 期待値分析レポート")
+        render_pachinko_演出("red", sound_on, hall_auto)
+        st.success(res_text)
+      except Exception as e:
+        st.error(f"エラー: {e}")
+  else:
+    st.error("APIキーが設定されていません。")
+
+elif mode == "💬 AIプロチャット＆画像解析":
+  st.subheader("💬 クオンツAIプロチャット ＆ 画像解析アシスタント")
+
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+  for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+      st.markdown(m["content"])
+
+  uploaded_file = st.file_uploader(
+      "画像ファイル（PNG, JPG）をアップロード", type=["png", "jpg", "jpeg"]
+  )
+  prompt = st.chat_input("質問や分析指示を入力してください...")
+
+  if (prompt or uploaded_file) and client:
+    user_content = []
+    if prompt:
+      user_content.append(prompt)
+
+    img = None
+    if uploaded_file:
+      img = Image.open(uploaded_file)
+      user_content.append(img)
+      st.image(img, caption="アップロードされた画像", width=300)
+
+    if prompt:
+      st.session_state.messages.append({"role": "user", "content": prompt})
+      with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant"):
+      with st.spinner("クオンツAI思考エンジンで高度分析中..."):
+        try:
+          dyn_inst = get_dynamic_learning_instruction(
+              "標準＆クイック",
+              st.session_state.std_total + st.session_state.quick_total,
+              (std_win_rate + quick_win_rate) / 2,
+          )
+          full_contents = [dyn_inst] + user_content
+          response_text = generate_with_retry(
+              client, "gemini-2.5-flash", full_contents
+          )
+          st.markdown(response_text)
+          st.session_state.messages.append(
+              {"role": "assistant", "content": response_text}
+          )
+        except Exception as e:
+          st.error(f"エラー: {e}")
