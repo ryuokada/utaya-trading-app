@@ -1,7 +1,7 @@
 streamlit
-google-genai
-pillow
+yfinance
 pandas
 numpy
-yfinance
-plyer
+scikit-learn
+google-genai
+Pillow
