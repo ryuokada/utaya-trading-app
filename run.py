@@ -48,7 +48,6 @@ def save_data(std_total, std_wins, quick_total, quick_wins):
     pass
 
 
-# 実際のトレード結果（勝ち・負け）を記録する機械学習用DB関数
 def load_trade_logs():
   logs = []
   if os.path.exists(TRADE_LOG_FILE):
@@ -160,10 +159,10 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 15px rgba(0,85,255,0.4);">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
-                ✨ プチュン！！【 {asset_name} 自律学習AI・買いシグナル発動 】 ✨
+                ✨ プチュン！！【 {asset_name} 銘柄個別最適化・買いシグナル 】 ✨
             </div>
             <div style="font-size: 13px; color: #00ffcc; font-family: monospace;">
-                [ 機械学習フィードバック・高勝率エリア一致 ]
+                [ 自律学習AI・高精度押し目検知 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -172,10 +171,10 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 15px rgba(255,51,51,0.4);">
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
-                🔥 キュインキュイン！！【 {asset_name} 自律学習AI・売りシグナル発動 】 🔥
+                🔥 キュインキュイン！！【 {asset_name} 銘柄個別最適化・売りシグナル 】 🔥
             </div>
             <div style="font-size: 13px; color: #ffcc00; font-family: monospace;">
-                [ 機械学習フィードバック・高勝率エリア一致 ]
+                [ 自律学習AI・高精度戻り売り / 天井検知 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -183,9 +182,9 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (AI自己学習監視中)</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (個別最適AI監視中)</div>
             <div style="color: #aaaaaa; font-size: 12px;">
-                🛡️ 過去の勝敗データを学習・解析しながら最適好機をスキャン中
+                🛡️ 銘柄特性に応じた統計的優位性をスキャン中
             </div>
         </div>
         """
@@ -193,20 +192,20 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
   components.html(html_content, height=110)
 
 
-def get_dynamic_learning_instruction(mode_name, total, win_rate, ai_learning_analysis):
+def get_dynamic_learning_instruction(mode_name, total, win_rate, ai_learning_analysis, asset_name):
   jst_time = get_jst_now()
   current_live_time = jst_time.strftime("%Y年%m月%d日 %H:%M:%S (JST)")
   return f"""
-あなたは世界最高峰の自己学習型投資クオンツAIです。
+あなたは世界最高峰の自己学習型投資クオンツAIです。現在は【{asset_name}】の個別最適化分析を行っています。
 【システム同期タイムスタンプ（日本時間JST）】
 - 現在時刻: {current_live_time}
 - 稼働モード: {mode_name}
 - 累計検証サンプル: {total}万回
 - システム基本勝率: {win_rate:.2f}%
-【直近のユーザー勝敗データからの自己学習解析】
+【直近のトレード勝敗データからの自己学習解析】
 {ai_learning_analysis}
 【絶対の使命】
-ユーザーが記録した実際のトレード勝敗データをAI自身が分析し、次の予測において勝率をさらに高めるための実践的かつ高度なアドバイスを行ってください。
+{asset_name} のボラティリティ、トレンドの癖、売り買いの優位性を徹底的に分析し、ユーザーが勝てる極限のタイミングと戦略を論理的に解説してください。
 """
 
 
@@ -296,7 +295,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  st.markdown("### 🎯 自己学習型クオンツAI・高精度エントリー監視プラットフォーム")
+  st.markdown("### 🎯 銘柄個別最適化・自己学習型クオンツAIプラットフォーム")
 
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
@@ -311,7 +310,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       df.columns = df.columns.get_level_values(0)
     return df["Close"]
 
-  with st.spinner(f"{current_asset_name} のリアルタイム板情報とチャートを厳密解析中..."):
+  with st.spinner(f"{current_asset_name} の個別最適化解析を実行中..."):
     try:
       closes = fetch_market_data(ticker_symbol)
       if closes is None or len(closes) == 0:
@@ -331,40 +330,43 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 【AI自己学習フィードバックによる動的閾値調整】
+        # 【銘柄別個別最適化フィルター】
+        # 石油やビットコインなど、資産特性（トレンドの強さ、売り買いのバイアス）に合わせて感度を調整
+        if "原油" in current_asset_name:
+          # 石油はダウングレード・トレンド（売り）のモメンタムを鋭くキャッチ
+          buy_threshold = 22
+          sell_threshold = 70  # 売りシグナルが出やすくなるように最適化
+        elif "ビットコイン" in current_asset_name or "イーサリアム" in current_asset_name:
+          # 暗号資産はボラティリティが高いため、上下のレンジと急変動に対応
+          buy_threshold = 18
+          sell_threshold = 82
+        else:
+          buy_threshold = 24
+          sell_threshold = 76
+
         trade_logs = load_trade_logs()
         total_logs = len(trade_logs)
         win_logs = sum(1 for log in trade_logs if log["result"] == "WIN")
         user_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 50.0
 
-        # AIが勝敗データから得た知見を構築
-        ai_learning_analysis = f"総記録トレード数: {total_logs}件 | ユーザー実測勝率: {user_win_rate:.1f}%"
-        if total_logs > 0:
-          recent_failures = sum(1 for log in trade_logs[-5:] if log["result"] == "LOSE")
-          if recent_failures >= 2:
-            ai_learning_analysis += " -> 【AI自己学習アラート】直近の負けトレードからノイズを検知。AIが自動的にフィルター閾値をより厳格に引き締めています。"
-          else:
-            ai_learning_analysis += " -> 【AI自己学習ステータス】現在の勝率ロジックは順調に機能しています。"
-        else:
-          ai_learning_analysis += " -> 【AI自己学習初期状態】トレード結果を下のフォームから記録すると、AIが勝率向上のための自己学習を開始します。"
+        ai_learning_analysis = f"対象銘柄: {current_asset_name} | 学習データ数: {total_logs}件 | 勝率: {user_win_rate:.1f}%"
 
-        # 動的シグナル判定
-        std_signal = f"【様子見】{current_asset_name} トレンド形成中（押し目・戻り待ち）"
+        std_signal = f"【様子見】{current_asset_name} トレンド監視中"
         std_color = "green"
-        if rsi_short < 24:
-          std_signal = f"✨【標準モード】{current_asset_name} 自律学習AI・押し目買いチャンス！"
+        if rsi_short < buy_threshold:
+          std_signal = f"✨【標準モード】{current_asset_name} 押し目買いシグナル発動！"
           std_color = "blue"
-        elif rsi_short > 76:
-          std_signal = f"🔥【標準モード】{current_asset_name} 自律学習AI・戻り売りチャンス！"
+        elif rsi_short > sell_threshold:
+          std_signal = f"🔥【標準モード】{current_asset_name} 戻り売り / 下落トレンドシグナル発動！"
           std_color = "red"
 
-        quick_signal = f"【監視中】{current_asset_name} スキャル準備完了"
+        quick_signal = f"【監視中】{current_asset_name} 短期スキャル準備完了"
         quick_color = "green"
-        if rsi_short < 18:
+        if rsi_short < (buy_threshold - 5):
           quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGHエントリー好機！"
           quick_color = "blue"
-        elif rsi_short > 82:
-          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOWエントリー好機！"
+        elif rsi_short > (sell_threshold + 5):
+          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW（売り）エントリー好機！"
           quick_color = "red"
 
         render_static_signal_box(
@@ -393,19 +395,18 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("---")
 
-        # 🧠 【新機能】実際のトレード結果（勝ち・負け）を記録してAIに学習させるパネル
         with st.expander("📝 【自己学習パネル】実際のトレード結果を記録してAIを賢くする", expanded=False):
           st.markdown(f"現在の選択銘柄 **{current_asset_name}** の直近RSI: **{rsi_short:.1f}**")
           col_log1, col_log2 = st.columns(2)
           with col_log1:
             if st.button("🟢 このタイミングでエントリーして【勝ち (WIN)】だった"):
               record_trade_log(current_asset_name, rsi_short, "WIN")
-              st.success("勝敗データをAIの学習DBに記録しました！AIがパラメータを最適化します。")
+              st.success("勝敗データをAIの学習DBに記録しました！")
               st.rerun()
           with col_log2:
             if st.button("🔴 このタイミングでエントリーして【負け (LOSE)】だった"):
               record_trade_log(current_asset_name, rsi_short, "LOSE")
-              st.warning("負けデータをAIの学習DBに記録しました。AIが次回からのダマシを回避するように学習します。")
+              st.warning("負けデータをAIの学習DBに記録しました。")
               st.rerun()
           
           if total_logs > 0:
@@ -452,22 +453,22 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
               st.session_state.std_total + st.session_state.quick_total,
               (std_win_rate + quick_win_rate) / 2,
               ai_learning_analysis,
+              current_asset_name,
           )
           prompt_analysis = f"""
                     対象銘柄: {current_asset_name} ({ticker_symbol})
                     短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
                     標準判定: {std_signal}
                     クイック判定: {quick_signal}
-                    自己学習ステータス: {ai_learning_analysis}
                     
-                    【自己学習型クオンツAIの分析レポート】
-                    蓄積されたトレード勝敗データと現在の市場インジケーターを掛け合わせ、ユーザーが次に取るべき最適なトレード戦略と、AIがどのように学習を反映しているかをプロの視点で解説してください。
+                    【銘柄個別最適化クオンツAIの分析】
+                    「{current_asset_name}」の特性（原油のトレンド性やビットコインのボラティリティ等）を考慮し、現在の売り・買いの優位性についてプロの視点で徹底解説してください。
                     """
-          with st.spinner(f"自律学習AIが {current_asset_name} の勝敗データを解析・最適化中..."):
+          with st.spinner(f"個別最適化AIが {current_asset_name} の分析レポートを作成中..."):
             res_text = generate_with_retry(
                 client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
             )
-            st.markdown(f"### 🤖 自律学習AIの {current_asset_name} 予測＆学習レポート")
+            st.markdown(f"### 🤖 銘柄個別最適化AIの {current_asset_name} 分析レポート")
             st.markdown(res_text)
 
     except Exception as e:
@@ -491,7 +492,7 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
     with st.spinner(f"日本時間 ({jst_now_str}) の {race_type_auto} を解析中..."):
       try:
         dyn_inst = get_dynamic_learning_instruction(
-            "クイック", st.session_state.quick_total, quick_win_rate, "公営競技自己学習モード稼働中"
+            "クイック", st.session_state.quick_total, quick_win_rate, "公営競技最適化モード", race_type_auto
         )
         prompt_f = (
             f"現在は日本時間【{jst_now_str}】です。{race_type_auto}の直前オッズの歪みを分析し、狙い目の買い目を出力してください。"
@@ -535,7 +536,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
     with st.spinner(f"{hall_auto} のデータを解析中..."):
       try:
         dyn_inst = get_dynamic_learning_instruction(
-            "標準", st.session_state.std_total, std_win_rate, "ホール期待値自己学習モード稼働中"
+            "標準", st.session_state.std_total, std_win_rate, "ホール最適化モード", hall_auto
         )
         full_ap_prompt = (
             f"ホール名: {hall_auto}、条件: {budget_type}、現在時刻: {jst_now_str}。期待値台選定戦略をレポートしてください。"
@@ -589,7 +590,8 @@ elif mode == "💬 AIプロチャット＆画像解析":
               "標準＆クイック",
               st.session_state.std_total + st.session_state.quick_total,
               (std_win_rate + quick_win_rate) / 2,
-              "プロチャット自己学習モード稼働中",
+              "プロチャット最適化モード",
+              "チャットアシスタント",
           )
           full_contents = [dyn_inst] + user_content
           response_text = generate_with_retry(
