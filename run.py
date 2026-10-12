@@ -73,8 +73,8 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（勝率99%の完璧な一致時のみ発動）
-def render_pachinko_演出(signal_type, sound_enabled, asset_name):
+# 画面酔いを防ぐため、アニメーションを完全に廃止し静的なプロフェッショナル表示に変更
+def render_static_signal_box(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
     if signal_type == "blue":
@@ -140,42 +140,39 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
 
   if signal_type == "blue":
     html_content = f"""
-        <div style="width: 100%; height: 130px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 20px #0055ff;">
-            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 15px; margin-bottom: 4px;">
+        <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 15px rgba(0,85,255,0.4);">
+            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
                 ✨ プチュン！！【 {asset_name} 勝率99%完璧な買いエントリー 】 ✨
             </div>
-            <div style="font-size: 20px; color: #ffcc00; font-family: monospace; font-weight: bold;">
-                [ 🍒 · <span style="color:red;">7</span> · 🍒 ]
+            <div style="font-size: 13px; color: #00ffcc; font-family: monospace;">
+                [ 統計的優位性・底打ち極限一致 ]
             </div>
         </div>
         <script>{sound_script}</script>
         """
   elif signal_type == "red":
     html_content = f"""
-        <div style="width: 100%; height: 130px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
-            <div style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 12px #ff0000; margin-bottom: 4px;">
-                [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
-            </div>
-            <div style="color: #ff3333; font-weight: bold; font-size: 14px; text-shadow: 0 0 8px rgba(255,0,0,0.8);">
+        <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 15px rgba(255,51,51,0.4);">
+            <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
                 🔥 キュインキュイン！！【 {asset_name} 勝率99%完璧な売りエントリー 】 🔥
+            </div>
+            <div style="font-size: 13px; color: #ffcc00; font-family: monospace;">
+                [ 統計的優位性・天井極限一致 ]
             </div>
         </div>
         <script>{sound_script}</script>
         """
   else:
     html_content = f"""
-        <div style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択中銘柄: {asset_name} (AI高精度監視中)</div>
-            <div style="font-size: 22px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 3px;">
-                [ 🍒 · 🍉 · 🔔 ]
-            </div>
-            <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
+        <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (AI高精度監視中)</div>
+            <div style="color: #aaaaaa; font-size: 12px;">
                 🛡️ 勝率99%厳格フィルター：統計的優位性未達のため「完全見送り（待機）」
             </div>
         </div>
         """
 
-  components.html(html_content, height=130)
+  components.html(html_content, height=110)
 
 
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
@@ -314,8 +311,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 【本物の勝率99%厳格フィルタリングロジック】
-        # 単なる値ではなく、短中長期のモメンタム極限収束（ボラティリティ歪み）が完全に一致した瞬間のみ発動
+        # 【勝率99%厳格フィルタリングロジック】
         std_signal = f"【完全見送り】{current_asset_name}は統計的優位性未達（待機中）"
         std_color = "green"
         if rsi_short < 12 and avg_rsi < 20 and rsi_short == min(valid_rsis):
@@ -334,16 +330,14 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
           quick_color = "red"
 
-        st.markdown(f"### 🎰 【パチンコ型クオンツ予測】{current_asset_name} リアルタイム判定速報")
-        
-        active_payout = "green"
-        if std_color == "blue" or quick_color == "blue":
-          active_payout = "blue"
-        elif std_color == "red" or quick_color == "red":
-          active_payout = "red"
-
-        # 1. 最上部に演出リール画面を表示
-        render_pachinko_演出(active_payout, sound_on, current_asset_name)
+        # 1. 最上部に画面酔いしない「静的でクリアなステータス表示ボックス」を配置
+        render_static_signal_box(
+            "blue"
+            if (std_color == "blue" or quick_color == "blue")
+            else ("red" if (std_color == "red" or quick_color == "red") else "green"),
+            sound_on,
+            current_asset_name,
+        )
 
         # 2. すぐ直下に銘柄切り替えメニューを配置
         st.markdown("#### 🎚️ 分析対象銘柄の切り替え")
@@ -355,7 +349,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
             options=asset_names_only,
             index=current_idx,
             key="vertical_asset_radio_under_reel",
-            horizontal=True
+            horizontal=True,
         )
         for idx, item in enumerate(assets_list):
           if item[0] == selected_vertical_name and idx != current_idx:
@@ -449,7 +443,7 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
             client, "gemini-2.5-flash", [dyn_inst, prompt_f]
         )
         st.markdown(f"### 🚤 {race_type_auto} 期待値予測レポート")
-        render_pachinko_演出("blue", sound_on, race_type_auto)
+        render_static_signal_box("blue", sound_on, race_type_auto)
         st.info(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
@@ -493,7 +487,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
             client, "gemini-2.5-flash", [dyn_inst, full_ap_prompt]
         )
         st.markdown(f"### 🎰 {hall_auto} 期待値分析レポート")
-        render_pachinko_演出("red", sound_on, hall_auto)
+        render_static_signal_box("red", sound_on, hall_auto)
         st.success(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
