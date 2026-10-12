@@ -73,15 +73,14 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（準備フェーズのリール変動 ＆ 売り「キュイン（赤7）」／買い「プチュン（ブラックアウト）」）
+# パチンコ演出コンポーネント（2秒後に自動で準備フェーズのリール変動へ復帰する仕様）
 def render_pachinko_演出(signal_type):
-  # signal_type: "blue" (買い / プチュン演出), "red" (売り / キュイン赤7停止), "green" (見送り / 準備フェーズ・リール回転)
+  # signal_type: "blue" (買い / プチュン), "red" (売り / 数字の赤色7), "green" (見送り / 準備フェーズ)
   
   if signal_type == "blue":
-    # 買い：プチュン（ブラックアウト）演出 2秒
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0080ff; box-shadow: 0 0 20px #0080ff;">
-            <div id="blackout-text" style="color: #0080ff; font-weight: bold; font-size: 22px; text-shadow: 0 0 10px #0080ff; animation: flashText 0.2s alternate infinite;">
+            <div style="color: #0080ff; font-weight: bold; font-size: 22px; text-shadow: 0 0 10px #0080ff; animation: flashText 0.2s alternate infinite;">
                 💥 プチュンッ…！？ 激熱ブラックアウト発動！！ 💥
             </div>
             <div style="color: #ffffff; font-size: 14px; margin-top: 8px;">【 AI判断：買いシグナル 】</div>
@@ -103,6 +102,24 @@ def render_pachinko_演出(signal_type):
             osc.stop(now + 1.0);
         }
         playPuchun();
+
+        // 2秒後に準備フェーズ（リール回転画面）へ自動切替
+        setTimeout(() => {
+            const screen = document.getElementById("pachinko-screen");
+            if (screen) {
+                screen.style.background = "#111111";
+                screen.style.border = "1px solid #444444";
+                screen.style.boxShadow = "none";
+                screen.innerHTML = `
+                    <div style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
+                        [ 🍒 · 🍉 · 🔔 ]
+                    </div>
+                    <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
+                        🎰 クオンツAI 準備フェーズ（見送り中・ハズレ目変動）
+                    </div>
+                `;
+            }
+        }, 2000);
         </script>
         <style>
         @keyframes flashText {
@@ -112,14 +129,13 @@ def render_pachinko_演出(signal_type):
         </style>
         """
   elif signal_type == "red":
-    # 売り：赤7停止＆キュインキュイン 2秒
     html_content = """
         <div id="pachinko-screen" style="width: 100%; height: 140px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
-            <div style="font-size: 40px; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; animation: spinRed 0.3s linear infinite;">
-                🔴 [ 赤７・赤７・赤７ ] 🔴
+            <div style="font-size: 38px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 4px; animation: spinRed 0.3s linear infinite;">
+                [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
             </div>
             <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">
-                ✨ キュインキュイン！！【 売りシグナル確定 】 ✨
+                ✨ キュインキュイン！！【 数字の赤色7・売り確定 】 ✨
             </div>
         </div>
         <script>
@@ -142,11 +158,29 @@ def render_pachinko_演出(signal_type):
         }
         playKyuin();
         setTimeout(playKyuin, 700);
+
+        // 2秒後に準備フェーズ（リール回転画面）へ自動切替
+        setTimeout(() => {
+            const screen = document.getElementById("pachinko-screen");
+            if (screen) {
+                screen.style.background = "#111111";
+                screen.style.border = "1px solid #444444";
+                screen.style.boxShadow = "none";
+                screen.innerHTML = `
+                    <div style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px;">
+                        [ 🍒 · 🍉 · 🔔 ]
+                    </div>
+                    <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
+                        🎰 クオンツAI 準備フェーズ（見送り中・ハズレ目変動）
+                    </div>
+                `;
+            }
+        }, 2000);
         </script>
         <style>
         @keyframes spinRed {
             0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            50% { transform: scale(1.08); }
             100% { transform: scale(1); }
         }
         </style>
@@ -163,12 +197,12 @@ def render_pachinko_演出(signal_type):
             </div>
         </div>
         <script>
-        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · 7️⃣ · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · 7️⃣ ]"];
+        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
         let idx = 0;
         setInterval(() => {
             idx = (idx + 1) % symbols.length;
             const box = document.getElementById("reel-box");
-            if (box) { box.innerText = symbols[idx]; }
+            if (box) { box.innerHTML = symbols[idx]; }
         }, 1000);
         </script>
         <style>
@@ -372,7 +406,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
-        # 判定に応じた演出分岐（買い＝blue/プチュン、売り＝red/赤7キュイン、見送り＝green/準備リール回転）
+        # 判定に応じた演出分岐
         active_payout = "green"
         if std_color == "blue" or quick_color == "blue":
           active_payout = "blue"
@@ -523,7 +557,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
             "標準", st.session_state.std_total, std_win_rate
         )
         full_ap_prompt = (
-            f"ホール名: {hall_auto}\n条件: {budget_type}、現在時刻: {jst_now_str}\n現在この時間帯における{hall_auto}の出玉推移・客層の心理的傾向を統計的にシミュレートし、{budget_type.split('（')[0]}で最もプラス期待値を叩き出せる台の選定基準と立ち回り戦略をレポートしてください。"
+            f"ホール名: {hall_auto}\n条件: {budget_type}、現在時刻: {jst_now_str}\n現在この時間帯における{hall_auto}の出玉推移・客層の心理的傾向を統計的にシミュレートし、{budget_type.split('(')[0]}で最もプラス期待値を叩き出せる台の選定基準と立ち回り戦略をレポートしてください。"
         )
         res_text = generate_with_retry(
             client, "gemini-3.8-flash", [dyn_inst, full_ap_prompt]
