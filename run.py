@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 import streamlit as st
+import streamlit.components.v1 as components
 import yfinance as yf
 
 API_KEY = "AQ.Ab8RN6KV_HvFmtD29UALxW8fH2umURHa8pLZ47ET5Eme8hZJwg"
@@ -72,75 +73,114 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パトランプとキュイン音（プログラムの露出を防ぐため st.components.v1.html を使用）
-def render_pato_lamp(signal_type):
-  if signal_type in ["blue", "red"]:
-    lamp_icon = "🌀" if signal_type == "blue" else "🚨"
-    theme_color = "#0080ff" if signal_type == "blue" else "#ff3333"
-    glow_color = "rgba(0,128,255,0.8)" if signal_type == "blue" else "rgba(255,0,0,0.8)"
-    action_text = "買いシグナル発動！！（青ランプ）" if signal_type == "blue" else "売りシグナル発動！！（赤ランプ）"
-    
-    base_freq = 600 if signal_type == "blue" else 900
-    peak_freq = 2000 if signal_type == "blue" else 2600
-
-    html_content = f"""
-        <div id="pato-container" style="text-align: center; margin: 10px 0; transition: opacity 0.5s ease; background: transparent;">
-            <div style="
-                display: inline-block;
-                font-size: 55px;
-                animation: spinPato 0.35s linear infinite;
-                filter: drop-shadow(0 0 18px {theme_color});
-            ">{lamp_icon}</div>
-            <div style="color: {theme_color}; font-weight: bold; font-size: 19px; text-shadow: 0 0 10px {glow_color}; animation: flashText 0.25s alternate infinite;">
-                ✨ 激熱！キュインキュイン！【 {action_text} 】 ✨
+# パチンコ演出コンポーネント（準備フェーズのリール変動 ＆ 売り「キュイン（赤7）」／買い「プチュン（ブラックアウト）」）
+def render_pachinko_演出(signal_type):
+  # signal_type: "blue" (買い / プチュン演出), "red" (売り / キュイン赤7停止), "green" (見送り / 準備フェーズ・リール回転)
+  
+  if signal_type == "blue":
+    # 買い：プチュン（ブラックアウト）演出 2秒
+    html_content = """
+        <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0080ff; box-shadow: 0 0 20px #0080ff;">
+            <div id="blackout-text" style="color: #0080ff; font-weight: bold; font-size: 22px; text-shadow: 0 0 10px #0080ff; animation: flashText 0.2s alternate infinite;">
+                💥 プチュンッ…！？ 激熱ブラックアウト発動！！ 💥
+            </div>
+            <div style="color: #ffffff; font-size: 14px; margin-top: 8px;">【 AI判断：買いシグナル 】</div>
+        </div>
+        <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playPuchun() {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = 'sine';
+            let now = audioCtx.currentTime;
+            osc.frequency.setValueAtTime(150, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.8);
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.linearRampToValueAtTime(0, now + 1.0);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 1.0);
+        }
+        playPuchun();
+        </script>
+        <style>
+        @keyframes flashText {
+            from { opacity: 0.2; }
+            to { opacity: 1; }
+        }
+        </style>
+        """
+  elif signal_type == "red":
+    # 売り：赤7停止＆キュインキュイン 2秒
+    html_content = """
+        <div id="pachinko-screen" style="width: 100%; height: 140px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
+            <div style="font-size: 40px; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; animation: spinRed 0.3s linear infinite;">
+                🔴 [ 赤７・赤７・赤７ ] 🔴
+            </div>
+            <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">
+                ✨ キュインキュイン！！【 売りシグナル確定 】 ✨
             </div>
         </div>
         <script>
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playKyuin() {{
+        function playKyuin() {
             let osc = audioCtx.createOscillator();
             let gain = audioCtx.createGain();
             osc.type = 'sawtooth';
             let now = audioCtx.currentTime;
-            osc.frequency.setValueAtTime({base_freq}, now);
-            osc.frequency.exponentialRampToValueAtTime({peak_freq}, now + 0.12);
-            osc.frequency.exponentialRampToValueAtTime({base_freq}, now + 0.24);
-            osc.frequency.exponentialRampToValueAtTime({peak_freq}, now + 0.36);
-            
-            gain.gain.setValueAtTime(0.35, now);
-            gain.gain.linearRampToValueAtTime(0, now + 0.5);
-            
+            osc.frequency.setValueAtTime(900, now);
+            osc.frequency.exponentialRampToValueAtTime(2600, now + 0.15);
+            osc.frequency.exponentialRampToValueAtTime(900, now + 0.3);
+            osc.frequency.exponentialRampToValueAtTime(2600, now + 0.45);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.6);
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(now);
-            osc.stop(now + 0.5);
-        }}
+            osc.stop(now + 0.6);
+        }
         playKyuin();
-        setTimeout(playKyuin, 550);
-
-        // 2秒後（2000ms）にパトランプを自動で消去する
-        setTimeout(() => {{
-            const el = document.getElementById("pato-container");
-            if (el) {{
-                el.style.opacity = "0";
-                setTimeout(() => el.remove(), 500);
-            }}
-        }}, 2000);
+        setTimeout(playKyuin, 700);
         </script>
         <style>
-        @keyframes spinPato {{
-            0% {{ transform: rotate(0deg) scale(1); }}
-            50% {{ transform: scale(1.35); }}
-            100% {{ transform: rotate(360deg) scale(1); }}
-        }}
-        @keyframes flashText {{
-            from {{ opacity: 0.3; }}
-            to {{ opacity: 1; }}
-        }}
+        @keyframes spinRed {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
         </style>
         """
-    import streamlit.components.v1 as components
-    components.html(html_content, height=120)
+  else:
+    # 見送り：準備フェーズ（1秒おきにリールが変動しハズレ目が停止）
+    html_content = """
+        <div id="pachinko-screen" style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
+            <div id="reel-box" style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 5px; animation: reelSpin 1s steps(4) infinite;">
+                [ 🍒 · 🍉 · 🔔 ]
+            </div>
+            <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
+                🎰 クオンツAI 準備フェーズ（見送り中・ハズレ目変動）
+            </div>
+        </div>
+        <script>
+        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · 7️⃣ · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · 7️⃣ ]"];
+        let idx = 0;
+        setInterval(() => {
+            idx = (idx + 1) % symbols.length;
+            const box = document.getElementById("reel-box");
+            if (box) { box.innerText = symbols[idx]; }
+        }, 1000);
+        </script>
+        <style>
+        @keyframes reelSpin {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        </style>
+        """
+
+  components.html(html_content, height=140)
 
 
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
@@ -330,17 +370,16 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = "様子見（ノイズ領域・見送り推奨）"
           quick_color = "green"
 
-        st.markdown("### 🚨 【クオンツAI予測】リアルタイム判定速報")
+        st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
-        # 売りまたは買いシグナルが出ている場合のみランプを起動（見送り・様子見の場合は光らない）
-        active_color = None
-        if std_color in ["blue", "red"]:
-          active_color = std_color
-        elif quick_color in ["blue", "red"]:
-          active_color = quick_color
+        # 判定に応じた演出分岐（買い＝blue/プチュン、売り＝red/赤7キュイン、見送り＝green/準備リール回転）
+        active_payout = "green"
+        if std_color == "blue" or quick_color == "blue":
+          active_payout = "blue"
+        elif std_color == "red" or quick_color == "red":
+          active_payout = "red"
 
-        if active_color in ["blue", "red"]:
-          render_pato_lamp(active_color)
+        render_pachinko_演出(active_payout)
 
         col_res1, col_res2 = st.columns(2)
 
@@ -444,7 +483,7 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
         st.markdown(
             f"### 🚤 {race_type_auto} ({jst_now_str}) クオンツ予測レポート"
         )
-        render_pato_lamp("blue")
+        render_pachinko_演出("blue")
         st.info(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
@@ -492,7 +531,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
         st.markdown(
             f"### 🎰 {hall_auto} ({jst_now_str}) クオンツ期待値分析"
         )
-        render_pato_lamp("red")
+        render_pachinko_演出("red")
         st.success(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
@@ -540,7 +579,7 @@ elif mode == "💬 AIプロチャット＆画像解析":
           )
           full_contents = [dyn_inst] + user_content
           response_text = generate_with_retry(
-              client, "gemini-3.8-flash", full_contents
+              client, "gemini-2.5-flash", full_contents
           )
           st.markdown(response_text)
           st.session_state.messages.append(
