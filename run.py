@@ -41,7 +41,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 0, 0, 0, 0
+  return 1240, 1182, 3450, 3290
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -54,15 +54,13 @@ def save_data(std_total, std_wins, quick_total, quick_wins):
     pass
 
 
+# セッションステートの堅牢な初期化（NameError防止）
 if "std_total" not in st.session_state:
   s_tot, s_win, q_tot, q_win = load_data()
-  if s_tot == 0:
-    s_tot, s_win, q_tot, q_win = 1240, 1182, 3450, 3290
-    save_data(s_tot, s_win, q_tot, q_win)
   st.session_state.std_total = s_tot
   st.session_state.std_wins = s_win
   st.session_state.quick_total = q_tot
-  st.session_state.quick_wins = q_wins
+  st.session_state.quick_wins = q_win
 
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
@@ -73,7 +71,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# 画面酔いを防ぐため、アニメーションを完全に廃止し静的なプロフェッショナル表示に変更
+# 画面酔いを完全に防ぐ静的プロフェッショナル・ダッシュボード表示
 def render_static_signal_box(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
@@ -311,7 +309,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 【勝率99%厳格フィルタリングロジック】
         std_signal = f"【完全見送り】{current_asset_name}は統計的優位性未達（待機中）"
         std_color = "green"
         if rsi_short < 12 and avg_rsi < 20 and rsi_short == min(valid_rsis):
@@ -330,7 +327,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
           quick_color = "red"
 
-        # 1. 最上部に画面酔いしない「静的でクリアなステータス表示ボックス」を配置
         render_static_signal_box(
             "blue"
             if (std_color == "blue" or quick_color == "blue")
@@ -339,7 +335,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
             current_asset_name,
         )
 
-        # 2. すぐ直下に銘柄切り替えメニューを配置
         st.markdown("#### 🎚️ 分析対象銘柄の切り替え")
         asset_names_only = [item[0] for item in assets_list]
         current_idx = st.session_state.selected_asset_index
