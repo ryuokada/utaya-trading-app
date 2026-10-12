@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3300, 3240, 8900, 8820
+  return 3400, 3340, 9100, 9020
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -438,11 +438,12 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
     asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 99.2
 
-    if prob_down >= 72.0:
+    # 【完全同期判定】確率が70%以上の時、確実に赤（売り）または青（買い）のシグナルが発動するように修正
+    if prob_down >= 70.0:
       std_signal = f"🔥【UTAYAベスト発動】{current_asset_name} 下落2$到達確率 {prob_down:.1f}% ➔ 売り注文シグナル発動！"
       is_active = True
       active_signal_type = "red"
-    elif prob_up >= 72.0:
+    elif prob_up >= 70.0:
       std_signal = f"✨【UTAYAベスト発動】{current_asset_name} 上昇2$到達確率 {prob_up:.1f}% ➔ 買い注文シグナル発動！"
       is_active = True
       active_signal_type = "blue"
