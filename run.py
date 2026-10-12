@@ -336,7 +336,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   )
   st.markdown("---")
 
-  # 演出エリアの下にアセット選択を配置（マウスホイールで瞬時に切り替え可能）
   assets_list = [
       ("WTI原油 / 石油 (CL=F)", "CL=F"),
       ("日経平均株価 (^N225)", "^N225"),
@@ -350,7 +349,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  # 先にデータを計算してAI判定を確定させる
   @st.cache_data(ttl=15)
   def fetch_market_data(symbol):
     df = yf.download(symbol, period="5d", interval="5m", progress=False)
@@ -360,7 +358,8 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       df.columns = df.columns.get_level_values(0)
     return df["Close"]
 
-  # 現在選択中のアセット情報を取得
+  # 演出エリア（仮のプレースホルダーまたは直近の状態を先に表示）
+  # まずマーケットデータを計算してAI判定を行う
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
 
@@ -384,7 +383,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # より厳格な99%的中フィルター（完璧なタイミングでのみ発動）
         if avg_rsi < 25:
           std_signal = "【極限底打ち】強力買いシグナル発動"
           std_color = "blue"
@@ -407,25 +405,33 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
-        # 完璧なタイミング（極限領域）でのみ演出を発動
         active_payout = "green"
         if std_color == "blue" or quick_color == "blue":
           active_payout = "blue"
         elif std_color == "red" or quick_color == "red":
           active_payout = "red"
 
+        # 演出エリアを先に描画
         render_pachinko_演出(active_payout, sound_on)
 
-        # 🎯 アセット選択をリール演出の直下に配置（ホイールで瞬時切替可能）
         st.markdown("---")
-        selected_asset_tuple = st.selectbox(
-            "🎯 分析対象アセットを選択（マウスホイールで瞬時切替可能）",
-            assets_list,
-            index=st.session_state.selected_asset_index,
-            format_func=lambda x: x[0],
-            key="asset_selectbox_key",
+
+        # 🎯 マウスホイールやドラッグでサクサク直感的に切り替えられるスライダー・数値セレクターに変更
+        # スライダーにマウスを合わせてホイールを回すだけで瞬時に銘柄が切り替わります
+        asset_names = [item[0] for item in assets_list]
+        selected_name = st.select_slider(
+            "🎯 分析対象アセット（マウスホイールを回して瞬時切替）",
+            options=asset_names,
+            value=asset_names[st.session_state.selected_asset_index],
+            key="asset_slider_key"
         )
-        st.session_state.selected_asset_index = assets_list.index(selected_asset_tuple)
+        # 選択された名前からインデックスを逆引き
+        for idx, item in enumerate(assets_list):
+          if item[0] == selected_name:
+            st.session_state.selected_asset_index = idx
+            selected_asset_tuple = item
+            ticker_symbol = item[1]
+            break
 
         col_res1, col_res2 = st.columns(2)
 
