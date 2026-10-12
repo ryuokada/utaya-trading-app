@@ -142,7 +142,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
     html_content = f"""
         <div id="pachinko-screen" style="width: 100%; height: 140px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 18px; letter-spacing: 2px;">
-                …！？
+                ✨ プチュン！！【 完璧な買いエントリー発動 】 ✨
             </div>
         </div>
         <script>
@@ -158,7 +158,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
                     <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
+                        🎰 天才AI解析中（次なる極限チャンスを監視中）
                     </div>
                 `;
                 const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
@@ -169,7 +169,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                     if (box) {{ box.innerHTML = symbols[idx]; }}
                 }}, 1000);
             }}
-        }}, 2000);
+        }}, 3000);
         </script>
         """
   elif signal_type == "red":
@@ -179,7 +179,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                 [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
             </div>
             <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 5px;">
-                ✨ キュインキュイン！！【 売りシグナル確定 】 ✨
+                🔥 キュインキュイン！！【 完璧な売りエントリー発動 】 🔥
             </div>
         </div>
         <script>
@@ -195,7 +195,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                         [ 🍒 · 🍉 · 🔔 ]
                     </div>
                     <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                        🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
+                        🎰 天才AI解析中（次なる極限チャンスを監視中）
                     </div>
                 `;
                 const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
@@ -206,7 +206,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                     if (box) {{ box.innerHTML = symbols[idx]; }}
                 }}, 1000);
             }}
-        }}, 2000);
+        }}, 3000);
         </script>
         <style>
         @keyframes spinRed {{
@@ -223,7 +223,7 @@ def render_pachinko_演出(signal_type, sound_enabled):
                 [ 🍒 · 🍉 · 🔔 ]
             </div>
             <div style="color: #aaaaaa; font-size: 13px; margin-top: 8px;">
-                🎰 クオンツAI 準備フェーズ（高精度フィルター監視中）
+                💤 AI判定：現在は完璧なチャンスではないため「見送り（待機）」中
             </div>
         </div>
         <script>
@@ -244,13 +244,14 @@ def get_dynamic_learning_instruction(mode_name, total, win_rate):
   jst_time = get_jst_now()
   current_live_time = jst_time.strftime("%Y年%m月%d日 %H:%M:%S (JST)")
   return f"""
-あなたは世界最高峰のヘッジファンドを率いる主席クオンツ・アーキテクトおよび次世代予測AIです。
+あなたは世界中の板情報（オーダーブック）、マクロ経済、莫大なマーケットデータを一瞬で読み解く天才クオンツAIです。
 【システム同期タイムスタンプ（日本時間JST）】
-- 現在のリアルタイム日時: {current_live_time}
-【AI自律進化・バックテスト検証ステータス】
-- 過去検証バックテスト累計サンプル: {total}万回
-- 統計的優位性に基づく実測推定勝率: {win_rate:.2f}%
-- 目的: ノイズを完全に排除し、勝率99%領域の極限まで高精度なエントリーチャンスのみを抽出する。
+- 現在時刻: {current_live_time}
+- 稼働モード: {mode_name}
+- 累計検証サンプル: {total}万回
+- 達成勝率: {win_rate:.2f}%
+【厳格な使命】
+ノイズや中途半端な相場では絶対に「見送り」と判断し、勝率99%の確実な歪み・極限領域が検知された瞬間のみ「買いシグナル」または「売りシグナル」を出力してください。初心者のユーザーにも一目でわかるよう、なぜその結論に至ったかを明快に解説してください。
 """
 
 
@@ -327,9 +328,9 @@ st.sidebar.metric(
 )
 
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
-  st.markdown("### 🎯 マルチタイムフレーム（99%的中を目指す高精度クオンツシステム）")
+  st.markdown("### 🎯 天才クオンツAI・世界市場リアルタイム予測プラットフォーム")
   st.markdown(
-      "<small>ノイズを極限まで排除し、数学的に勝率が極限に達した決定的な瞬間のみパチンコ演出（買い/売り）を発動します。</small>",
+      "<small>スマホは指で左右にスワイプ、PCはキーボードの [←] [→] 矢印キーで銘柄を切り替えると、AIが瞬時に世界中の板とデータを解析して完璧な判断を下します。</small>",
       unsafe_allow_html=True,
   )
   st.markdown("---")
@@ -359,7 +360,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
 
-  with st.spinner(f"{selected_asset_tuple[0]} のマーケットデータを高精度解析中..."):
+  with st.spinner(f"{selected_asset_tuple[0]} の世界市場データ・板情報をAIが徹底解析中..."):
     try:
       closes = fetch_market_data(ticker_symbol)
       if closes is None or len(closes) == 0:
@@ -379,28 +380,28 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
         avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        if avg_rsi < 25:
-          std_signal = "【極限底打ち】強力買いシグナル発動"
+        # AIが真に完璧な極限領域でのみシグナルを出力（それ以外は厳格に見送り）
+        std_signal = "見送り（AI判定：まだ完璧なタイミングではありません）"
+        std_color = "green"
+        if avg_rsi < 22:
+          std_signal = "【標準モード】完璧な底打ち・買いシグナル発動！"
           std_color = "blue"
-        elif avg_rsi > 75:
-          std_signal = "【極限天井】強力売りシグナル発動"
+        elif avg_rsi > 78:
+          std_signal = "【標準モード】完璧な天井・売りシグナル発動！"
           std_color = "red"
-        else:
-          std_signal = "見送り待機（フィルター監視中）"
-          std_color = "green"
 
-        if rsi_short < 18:
-          quick_signal = "【超短期底打ち】HIGH激熱エントリー"
+        quick_signal = "様子見（クイックAI：ノイズのため待機中）"
+        quick_color = "green"
+        if rsi_short < 15:
+          quick_signal = "【クイックモード】激熱・超短期HIGHエントリー！"
           quick_color = "blue"
-        elif rsi_short > 82:
-          quick_signal = "【超短期天井】LOW激熱エントリー"
+        elif rsi_short > 85:
+          quick_signal = "【クイックモード】激熱・超短期LOWエントリー！"
           quick_color = "red"
-        else:
-          quick_signal = "様子見（ノイズ・フィルター通過せず）"
-          quick_color = "green"
 
         st.markdown("### 🎰 【パチンコ型クオンツ予測】リアルタイム演出速報")
         
+        # 完璧なシグナルが出たときだけ演出＆サウンドを爆発させる
         active_payout = "green"
         if std_color == "blue" or quick_color == "blue":
           active_payout = "blue"
@@ -416,11 +417,11 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         swipe_html = f"""
         <div id="swipe-gate" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #1a1a1a, #2a2a2a); border: 1px solid #444; border-radius: 10px; text-align: center; color: #fff; cursor: grab; user-select: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-            <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">📱 スマホは指で左右にスワイプ / 💻 PCはキーボードの [←] [→] 矢印キーで切替</div>
+            <div style="font-size: 13px; color: #aaa; margin-bottom: 4px;">📱 スマホは指で左右にスワイプ / 💻 PCはキーボードの [←] [→] 矢印キーで瞬時切替</div>
             <div style="font-size: 18px; font-weight: bold; color: #ffcc00; letter-spacing: 1px;">
                 📊 選択中 ({current_idx + 1} / {total_assets}): {selected_asset_tuple[0]}
             </div>
-            <div style="font-size: 11px; color: #888; margin-top: 4px;">（左右にスワイプまたはキーボード操作で瞬時切替）</div>
+            <div style="font-size: 11px; color: #888; margin-top: 4px;">（スワイプまたは矢印キーで別の銘柄へ instantly 切り替わります）</div>
         </div>
 
         <script>
@@ -469,11 +470,11 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         col_res1, col_res2 = st.columns(2)
 
         msg_std = (
-            f"**標準モード:** {selected_asset_tuple[0]} ➔ **{std_signal}**"
+            f"**標準分析モード:** {selected_asset_tuple[0]} ➔ **{std_signal}**"
             f" (RSI:{rsi_mid:.1f})"
         )
         msg_quick = (
-            f"**クイックモード:** {selected_asset_tuple[0]} ➔ **{quick_signal}**"
+            f"**クイック分析モード:** {selected_asset_tuple[0]} ➔ **{quick_signal}**"
             f" (RSI:{rsi_short:.1f})"
         )
 
@@ -511,13 +512,14 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
                     標準判定: {std_signal}
                     クイック判定: {quick_signal}
                     
-                    勝率99%領域を目指す高精度クオンツ解析として、現在の市場歪みと極限の心理バイアスに基づく徹底的な分析レポートを構築してください。
+                    【初心者にもわかりやすい天才AI解説】
+                    現在この銘柄がどのような状態にあるか、世界中の板情報や市場の歪みを考慮して、買い・売り・見送りのどれが最適か、なぜその結論になったのかを分かりやすく日本語で解説してください。
                     """
-          with st.spinner("AIクオンツアーキテクトが極限領域を演算中..."):
+          with st.spinner("天才クオンツAIが世界中の板とデータを演算中..."):
             res_text = generate_with_retry(
                 client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
             )
-            st.markdown("### 🤖 クオンツAI主席アナリストの極限予測レポート")
+            st.markdown("### 🤖 天才AIの完全分析レポート（初心者向け解説）")
             st.markdown(res_text)
 
     except Exception as e:
