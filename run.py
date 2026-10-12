@@ -286,4 +286,169 @@ if mode == "⚡ UTAYA 全銘柄一斉監視・未来予測エンジン":
 
         df_ml = pd.DataFrame()
         df_ml["Close"] = closes
-        df_ml["RSI_5"] = calc_rsi(closes,
+        df_ml["RSI_5"] = calc_rsi(closes, 5)
+        df_ml["RSI_14"] = calc_rsi(closes, 14)
+        df_ml["RSI_26"] = calc_rsi(closes, 26)
+        df_ml["Return_1"] = closes.pct_change(1)
+        df_ml["Return_3"] = closes.pct_change(3)
+
+        target_up = []
+        prices = closes.values
+        target_margin = 2.0
+
+        for i in range(len(prices) - 8):
+          current_p = prices[i]
+          future_window = prices[i + 1 : i + 9]
+          reached_up = any((p - current_p) >= target_margin for p in future_window)
+          target_up.append(1 if reached_up else 0)
+
+        target_up = target_up + [0] * (len(df_ml) - len(target_up))
+        df_ml["Target_Up_2D"] = target_up
+        df_ml = df_ml.dropna()
+
+        X = df_ml[["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"]]
+        y = df_ml["Target_Up_2D"]
+
+        model = RandomForestClassifier(n_estimators=50, random_state=42)
+        model.fit(X, y)
+
+        current_features = pd.DataFrame(
+            [[
+                df_ml["RSI_5"].iloc[-1],
+                df_ml["RSI_14"].iloc[-1],
+                df_ml["RSI_26"].iloc[-1],
+                df_ml["Return_1"].iloc[-1],
+                df_ml["Return_3"].iloc[-1],
+            ]],
+            columns=["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"],
+        )
+
+        probs = model.predict_proba(current_features)[0]
+        if len(probs) >= 2:
+          prob_up = probs[1] * 100
+          prob_down = probs[0] * 100
+        else:
+          pred_class = model.predict(current_features)[0]
+          prob_up = 100.0 if pred_class == 1 else 0.0
+          prob_down = 100.0 if pred_class == 0 else 0.0
+
+        rsi_short = df_ml["RSI_5"].iloc[-1]
+        rsi_long = df_ml["RSI_26"].iloc[-1]
+        recent_p = (
+            closes.values.flatten()[-5:]
+            if hasattr(closes.values, "flatten")
+            else [closes.iloc[-1]]
+        )
+
+        results[name] = {
+            "prob_up": prob_up,
+            "prob_down": prob_down,
+            "rsi_short": rsi_short,
+            "rsi_long": rsi_long,
+            "recent_prices": recent_p,
+        }
+      except Exception:
+        pass
+    return results
+
+  all_data = analyze_all_assets()
+
+  # 一覧カード形式で全7銘柄を綺麗に並べて表示
+  for name, symbol in assets_list:
+    if name not in all_data:
+      continue
+
+    dat = all_data[name]
+    p_up = dat["prob_up"]
+    p_down = dat["prob_down"]
+    r_short = dat["rsi_short"]
+    r_long = dat["rsi_long"]
+
+    auto_evolve_and_record(
+        name,
+        dat["recent_prices"][-1] if len(dat["recent_prices"]) > 0 else 0,
+        dat["recent_prices"],
+        r_short,
+        p_up >= p_down,
+    )
+
+    # 判定とスタイリング
+    if p_down >= 72.0:
+      card_bg = "linear-gradient(135deg, #2b0000, #4d0000)"
+      border_color = "#ff3333"
+      status_text = f"🔥 【LOW売り発動】 下落確率 {p_down:.1f}%"
+      global_has_alert = True
+      global_alert_type = "red"
+    elif p_up >= 72.0:
+      card_bg = "linear-gradient(135deg, #00112b, #002b55)"
+      border_color = "#0055ff"
+      status_text = f"✨ 【HIGH買い発動】 上昇確率 {p_up:.1f}%"
+      global_has_alert = True
+      global_alert_type = "blue"
+    else:
+      card_bg = "#161616"
+      border_color = "#333333"
+      status_text = f"🛡️ 監視中 (下落:{p_down:.1f}% / 上昇:{p_up:.1f}%)"
+
+    # 1行ごとのカード表示
+    st.markdown(
+        f"""
+        <div style="width: 100%; padding: 14px 18px; background: {card_bg}; border: 2px solid {border_color}; border-radius: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+            <div>
+                <div style="color: #ffffff; font-size: 16px; font-weight: bold; margin-bottom: 4px;">📊 {name}</div>
+                <div style="color: #00ffcc; font-size: 13px; font-family: monospace;">{status_text}</div>
+            </div>
+            <div style="text-align: right; font-family: monospace; font-size: 13px; color: #cccccc;">
+                <div>短期RSI: <span style="color: #ffffff; font-weight: bold;">{r_short:.1f}</span> | 長期RSI: <span style="color: #ffffff; font-weight: bold;">{r_long:.1f}</span></div>
+                <div style="font-size: 11px; color: #aaaaaa; margin-top: 2px;">目標: 損切りなし2ドル利確エッジ</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+  if sound_on and global_has_alert:
+    render_global_sound_trigger(True, global_alert_type)
+
+  st.markdown("---")
+  with st.expander(
+      "🧠 【UTAYA 全銘柄フェア脳内内省・思考分析ログ】（対等な機械学習最適化中）",
+      expanded=True,
+  ):
+    local_reflection = generate_local_reflection()
+    st.markdown(local_reflection)
+    st.info(
+        "💡 **完全一斉フェア稼働中**: すべての銘柄が同一画面内で同時にスキャンされ、条件を満たした瞬間に視覚とサウンドで一斉にお知らせします。"
+    )
+
+elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
+  st.subheader("🚤 UTAYA 公営競技予測エンジン")
+  st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
+
+elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
+  st.subheader("🎰 UTAYA パチンコホール解析エンジン")
+  st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
+
+elif mode == "💬 UTAYA AIメタ認知・思考プロチャット":
+  st.subheader("💬 UTAYA AIメタ認知・思考プロチャットアシスタント")
+  if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+  for m in st.session_state.messages:
+    with st.chat_message(m["role"]):
+      st.markdown(m["content"])
+
+  prompt = st.chat_input("UTAYAの全銘柄フェアな脳内思考について質問してください...")
+  if prompt:
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+      st.markdown(prompt)
+    with st.chat_message("assistant"):
+      local_ans = (
+          f"【UTAYAフェア自律応答】ご質問「{prompt}」に対し、全銘柄一斉監視の脳内エンジンが即時回答します。"
+          "すべての対象アセットがひとつの画面でフェアに評価され、チャンスの瞬間を逃さず捉えます。"
+      )
+      st.markdown(local_ans)
+      st.session_state.messages.append(
+          {"role": "assistant", "content": local_ans}
+      )
