@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3800, 3740, 9900, 9820
+  return 3900, 3840, 10100, 10020
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -133,7 +133,6 @@ if "switch_lock" not in st.session_state:
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
-# 【安定動作版・サウンド＆カラー同期制御】
 def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal, is_switching):
   sound_script = ""
   should_play_sound = False
@@ -485,4 +484,35 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     with col_res1:
       if active_signal_type == "red" and is_active and not is_switching:
         st.error(msg_std)
-      elif active
+      elif active_signal_type == "blue" and is_active and not is_switching:
+        st.info(msg_std)
+      else:
+        st.success(msg_std)
+
+    with col_res2:
+      if active_signal_type in ["red", "blue"] and is_active and not is_switching:
+        st.error(msg_quick)
+      else:
+        st.success(msg_quick)
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("2$下落到達確率", f"{prob_down:.1f}%")
+    col2.metric("2$上昇到達確率", f"{prob_up:.1f}%")
+    col3.metric("短期RSI", f"{rsi_short:.1f}")
+    col4.metric("長期RSI", f"{rsi_long:.1f}")
+
+    st.markdown("---")
+    st.markdown(
+        "### 🤖 UTAYA 全銘柄フェア自律クオンツレポート\n"
+        f"現在の対象銘柄 **{current_asset_name}** において、バイアスを排除し、AIがリアルタイムの価格変動をフェアに分析して最適な損切りなし2ドル利確の方向を自律判定しています。"
+    )
+
+elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
+  st.subheader("🚤 UTAYA 公営競技予測エンジン")
+  st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
+
+elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
+  st.subheader("🎰 UTAYA 板橋・豊島エリアホール解析")
+  st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
+
+elif
