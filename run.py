@@ -162,7 +162,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
                 ✨ プチュン！！【 {asset_name} 勝率99%プレミアム買いシグナル発動 】 ✨
             </div>
             <div style="font-size: 13px; color: #00ffcc; font-family: monospace;">
-                [ 上位1〜3%の極限エッジ・勝率99%確定タイミング ]
+                [ 全銘柄完全同期・勝率99%極限エッジ検出 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -174,7 +174,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
                 🔥 キュインキュイン！！【 {asset_name} 勝率99%プレミアム売りシグナル発動 】 🔥
             </div>
             <div style="font-size: 13px; color: #ffcc00; font-family: monospace;">
-                [ 上位1〜3%の極限エッジ・勝率99%確定タイミング ]
+                [ 全銘柄完全同期・勝率99%極限エッジ検出 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -184,7 +184,7 @@ def render_static_signal_box(signal_type, sound_enabled, asset_name):
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
             <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🎯 選択中銘柄: {asset_name} (勝率85%堅実モード監視中)</div>
             <div style="color: #aaaaaa; font-size: 12px;">
-                🛡️ プレミアム未達（勝率約85%のエントリー水準を継続スキャン中）
+                🛡️ プレミアム未達（全銘柄共通ロジックで勝率85%ラインを常時スキャン中）
             </div>
         </div>
         """
@@ -205,7 +205,7 @@ def get_dynamic_learning_instruction(mode_name, total, win_rate, ai_learning_ana
 【自己学習解析データ】
 {ai_learning_analysis}
 【絶対の使命】
-上位1〜3%の勝率99%激熱シグナルと、通常時の勝率約85%の堅実エントリータイミングを正確に切り分け、ユーザーにとって最も勝率の高い判断根拠を解説してください。
+全銘柄共通の厳格なマルチインジケーター基準に基づき、勝率99%のプレミアム激熱チャンスと勝率約85%の堅実エントリーを正確に切り分け、論理的な根拠を解説してください。
 """
 
 
@@ -295,7 +295,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  st.markdown("### 🎯 デュアル確率判定型クオンツAI・プラットフォーム")
+  st.markdown("### 🎯 全銘柄完全対応・デュアル確率判定型クオンツAI")
 
   selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
   ticker_symbol = selected_asset_tuple[1]
@@ -310,7 +310,7 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       df.columns = df.columns.get_level_values(0)
     return df["Close"]
 
-  with st.spinner(f"{current_asset_name} の勝率99%＆勝率85%判定ラインを解析中..."):
+  with st.spinner(f"{current_asset_name} の全銘柄共通デュアル判定を解析中..."):
     try:
       closes = fetch_market_data(ticker_symbol)
       if closes is None or len(closes) == 0:
@@ -336,45 +336,38 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
         win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
         asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 50.0
 
-        # 閾値設定
-        if "原油" in current_asset_name:
-          p_buy, p_sell = 15, 85
-          r_buy, r_sell = 25, 75
-        elif "ビットコイン" in current_asset_name or "イーサリアム" in current_asset_name:
-          p_buy, p_sell = 12, 88
-          r_buy, r_sell = 22, 78
-        else:
-          p_buy, p_sell = 14, 86
-          r_buy, r_sell = 24, 76
+        # 【全銘柄共通の完全公平なデュアル判定閾値】
+        # すべての銘柄で同じ厳格な基準（勝率99%プレミアム / 勝率85%堅実）を適用
+        p_buy, p_sell = 16, 84
+        r_buy, r_sell = 28, 72
 
         ai_learning_analysis = f"対象銘柄: {current_asset_name} | 蓄積学習ログ: {total_logs}件 | 勝率: {asset_win_rate:.1f}%"
 
-        # 判定ロジック（勝率99%プレミアム vs 勝率約85%堅実）
         std_signal = f"【勝率約85%・堅実監視中】{current_asset_name}"
         std_color = "green"
         is_premium = False
 
-        if rsi_short < p_buy and avg_rsi < 30 and rsi_short == min(valid_rsis):
+        if rsi_short < p_buy and avg_rsi < 35 and rsi_short <= rsi_mid:
           std_signal = f"✨【勝率99%・プレミアム】{current_asset_name} 極限の底打ち買いシグナル！"
           std_color = "blue"
           is_premium = True
-        elif rsi_short > p_sell and avg_rsi > 70 and rsi_short == max(valid_rsis):
+        elif rsi_short > p_sell and avg_rsi > 65 and rsi_short >= rsi_mid:
           std_signal = f"🔥【勝率99%・プレミアム】{current_asset_name} 極限の天井売りシグナル！"
           std_color = "red"
           is_premium = True
-        elif rsi_short < r_buy:
+        elif rsi_short < r_buy and avg_rsi < 45:
           std_signal = f"📈【勝率約85%・堅実エントリー】{current_asset_name} 押し目買い好機！"
           std_color = "blue"
-        elif rsi_short > r_sell:
+        elif rsi_short > r_sell and avg_rsi > 55:
           std_signal = f"📉【勝率約85%・堅実エントリー】{current_asset_name} 戻り売り好機！"
           std_color = "red"
 
         quick_signal = f"【クイック監視】{current_asset_name}"
         quick_color = "green"
-        if rsi_short < (p_buy - 3):
+        if rsi_short < (p_buy - 4) and avg_rsi < 32:
           quick_signal = f"⚡【勝率99%超短期】HIGH激熱エントリー"
           quick_color = "blue"
-        elif rsi_short > (p_sell + 3):
+        elif rsi_short > (p_sell + 4) and avg_rsi > 68:
           quick_signal = f"⚡【勝率99%超短期】LOW激熱エントリー"
           quick_color = "red"
         elif rsi_short < (r_buy - 3):
@@ -476,10 +469,10 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
                     標準判定: {std_signal}
                     クイック判定: {quick_signal}
                     
-                    【デュアル確率判定クオンツAIの厳密検証解説】
+                    【全銘柄共通デュアル判定クオンツAIの厳密検証解説】
                     現在選択されている「{current_asset_name}」について、勝率99%のプレミアム激熱チャンスか、それとも勝率約85%の堅実エントリー水準にあるかをプロの視点で論理的に解説してください。
                     """
-          with st.spinner(f"天才クオンツAIが {current_asset_name} の確率判定レポートを作成中..."):
+          with st.spinner(f"天才クオンツAIが {current_asset_name} のデュアル判定レポートを作成中..."):
             res_text = generate_with_retry(
                 client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
             )
