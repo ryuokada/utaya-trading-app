@@ -72,6 +72,65 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
+# パトランプアニメーションと効果音（キュイン音）を挿入する関数
+def render_pato_lamp(is_active):
+  if is_active:
+    # キュインキュイン効果音（Web Audio APIによる合成音）＋回転パトランプのHTML/CSS
+    sound_html = """
+        <audio autoplay>
+          <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU..." type="audio/wav">
+        </audio>
+        <script>
+        // Web Audio APIでパチンコのキュイン音をブラウザ上で動的生成して鳴らす
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playKyuin() {
+            let osc = audioCtx.createOscillator();
+            let gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            // キュインキュインと高低を繰り返す周波数変化
+            let now = audioCtx.currentTime;
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(2400, now + 0.15);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+            osc.frequency.exponentialRampToValueAtTime(2400, now + 0.45);
+            
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.6);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.6);
+        }
+        playKyuin();
+        setTimeout(playKyuin, 700);
+        </script>
+        <div style="text-align: center; margin: 10px 0;">
+            <div style="
+                display: inline-block;
+                font-size: 50px;
+                animation: spinPato 0.4s linear infinite;
+                filter: drop-shadow(0 0 15px red);
+            ">🚨</div>
+            <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); animation: flashText 0.3s alternate infinite;">
+                ✨ 激熱！キュインキュイン発動！！ ✨
+            </div>
+        </div>
+        <style>
+        @keyframes spinPato {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+        @keyframes flashText {
+            from { opacity: 0.4; }
+            to { opacity: 1; }
+        }
+        </style>
+        """
+    st.markdown(sound_html, unsafe_allow_html=True)
+
+
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
   jst_time = get_jst_now()
   current_live_time = jst_time.strftime("%Y年%m月%d日 %H:%M:%S (JST)")
@@ -260,6 +319,11 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
           quick_color = "green"
 
         st.markdown("### 🚨 【クオンツAI予測】リアルタイム判定速報")
+        
+        # 売りまたは買いシグナル（青または赤）が出ている場合にパトランプ演出を発動
+        is_signal_active = (std_color in ["blue", "red"]) or (quick_color in ["blue", "red"])
+        render_pato_lamp(is_signal_active)
+
         col_res1, col_res2 = st.columns(2)
 
         msg_std = (
@@ -362,6 +426,8 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
         st.markdown(
             f"### 🚤 {race_type_auto} ({jst_now_str}) クオンツ予測レポート"
         )
+        # 公営競技モードでも熱い予想が出た想定でパトランプ演出を連動
+        render_pato_lamp(True)
         st.info(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
@@ -409,6 +475,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
         st.markdown(
             f"### 🎰 {hall_auto} ({jst_now_str}) クオンツ期待値分析"
         )
+        render_pato_lamp(True)
         st.success(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
