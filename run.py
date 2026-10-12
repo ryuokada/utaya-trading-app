@@ -72,60 +72,73 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パトランプアニメーションと効果音（キュイン音）を挿入する関数
-def render_pato_lamp(is_active):
-  if is_active:
-    # キュインキュイン効果音（Web Audio APIによる合成音）＋回転パトランプのHTML/CSS
-    sound_html = """
-        <audio autoplay>
-          <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU..." type="audio/wav">
-        </audio>
+# パトランプアニメーションと効果音（買い:青、売り:赤）を挿入する関数（2秒で自動消滅＆毎回発動）
+def render_pato_lamp(signal_type):
+  if signal_type in ["blue", "red"]:
+    # 買いは青ランプ、売りは赤ランプ
+    lamp_icon = "🌀" if signal_type == "blue" else "🚨"
+    theme_color = "#0080ff" if signal_type == "blue" else "#ff3333"
+    glow_color = "rgba(0,128,255,0.8)" if signal_type == "blue" else "rgba(255,0,0,0.8)"
+    action_text = "買いシグナル発動！！（青ランプ）" if signal_type == "blue" else "売りシグナル発動！！（赤ランプ）"
+    
+    # 周波数を買いと売りで変化させるWeb Audio APIスクリプト
+    base_freq = 600 if signal_type == "blue" else 900
+    peak_freq = 2000 if signal_type == "blue" else 2600
+
+    sound_html = f"""
+        <div id="pato-container" style="text-align: center; margin: 15px 0; transition: opacity 0.5s ease;">
+            <div style="
+                display: inline-block;
+                font-size: 55px;
+                animation: spinPato 0.35s linear infinite;
+                filter: drop-shadow(0 0 18px {theme_color});
+            ">{lamp_icon}</div>
+            <div style="color: {theme_color}; font-weight: bold; font-size: 19px; text-shadow: 0 0 10px {glow_color}; animation: flashText 0.25s alternate infinite;">
+                ✨ 激熱！キュインキュイン！【 {action_text} 】 ✨
+            </div>
+        </div>
         <script>
-        // Web Audio APIでパチンコのキュイン音をブラウザ上で動的生成して鳴らす
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playKyuin() {
+        function playKyuin() {{
             let osc = audioCtx.createOscillator();
             let gain = audioCtx.createGain();
             osc.type = 'sawtooth';
-            // キュインキュインと高低を繰り返す周波数変化
             let now = audioCtx.currentTime;
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(2400, now + 0.15);
-            osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
-            osc.frequency.exponentialRampToValueAtTime(2400, now + 0.45);
+            osc.frequency.setValueAtTime({base_freq}, now);
+            osc.frequency.exponentialRampToValueAtTime({peak_freq}, now + 0.12);
+            osc.frequency.exponentialRampToValueAtTime({base_freq}, now + 0.24);
+            osc.frequency.exponentialRampToValueAtTime({peak_freq}, now + 0.36);
             
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.linearRampToValueAtTime(0, now + 0.6);
+            gain.gain.setValueAtTime(0.35, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.5);
             
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(now);
-            osc.stop(now + 0.6);
-        }
+            osc.stop(now + 0.5);
+        }}
         playKyuin();
-        setTimeout(playKyuin, 700);
+        setTimeout(playKyuin, 550);
+
+        // 2秒後（2000ms）にパトランプを自動で消去する
+        setTimeout(() => {{
+            const el = document.getElementById("pato-container");
+            if (el) {{
+                el.style.opacity = "0";
+                setTimeout(() => el.remove(), 500);
+            }}
+        }}, 2000);
         </script>
-        <div style="text-align: center; margin: 10px 0;">
-            <div style="
-                display: inline-block;
-                font-size: 50px;
-                animation: spinPato 0.4s linear infinite;
-                filter: drop-shadow(0 0 15px red);
-            ">🚨</div>
-            <div style="color: #ff3333; font-weight: bold; font-size: 18px; text-shadow: 0 0 8px rgba(255,0,0,0.8); animation: flashText 0.3s alternate infinite;">
-                ✨ 激熱！キュインキュイン発動！！ ✨
-            </div>
-        </div>
         <style>
-        @keyframes spinPato {
-            0% { transform: rotate(0deg) scale(1); }
-            50% { transform: scale(1.3); }
-            100% { transform: rotate(360deg) scale(1); }
-        }
-        @keyframes flashText {
-            from { opacity: 0.4; }
-            to { opacity: 1; }
-        }
+        @keyframes spinPato {{
+            0% {{ transform: rotate(0deg) scale(1); }}
+            50% {{ transform: scale(1.35); }}
+            100% {{ transform: rotate(360deg) scale(1); }}
+        }}
+        @keyframes flashText {{
+            from {{ opacity: 0.3; }}
+            to {{ opacity: 1; }}
+        }}
         </style>
         """
     st.markdown(sound_html, unsafe_allow_html=True)
@@ -320,9 +333,15 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
 
         st.markdown("### 🚨 【クオンツAI予測】リアルタイム判定速報")
         
-        # 売りまたは買いシグナル（青または赤）が出ている場合にパトランプ演出を発動
-        is_signal_active = (std_color in ["blue", "red"]) or (quick_color in ["blue", "red"])
-        render_pato_lamp(is_signal_active)
+        # 毎回判定時にユニークなキーを生成して確実にアニメーションを再実行させる
+        active_color = "green"
+        if std_color in ["blue", "red"]:
+          active_color = std_color
+        elif quick_color in ["blue", "red"]:
+          active_color = quick_color
+
+        if active_color in ["blue", "red"]:
+          render_pato_lamp(active_color)
 
         col_res1, col_res2 = st.columns(2)
 
@@ -426,8 +445,7 @@ elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
         st.markdown(
             f"### 🚤 {race_type_auto} ({jst_now_str}) クオンツ予測レポート"
         )
-        # 公営競技モードでも熱い予想が出た想定でパトランプ演出を連動
-        render_pato_lamp(True)
+        render_pato_lamp("blue")
         st.info(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
@@ -475,7 +493,7 @@ elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽�
         st.markdown(
             f"### 🎰 {hall_auto} ({jst_now_str}) クオンツ期待値分析"
         )
-        render_pato_lamp(True)
+        render_pato_lamp("red")
         st.success(res_text)
       except Exception as e:
         st.error(f"エラー: {e}")
