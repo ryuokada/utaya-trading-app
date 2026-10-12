@@ -271,7 +271,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   current_asset_name = selected_asset_tuple[0]
 
 
-  # キャッシュ期間を30秒に伸ばし、データ取得のウェイトや重い処理を完全に排除してミリ秒単位で高速化
   @st.cache_data(ttl=30)
   def fetch_and_train_model(symbol):
     df = yf.download(symbol, period="5d", interval="15m", progress=False)
@@ -314,7 +313,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     X = df_ml[["RSI_5", "RSI_14", "RSI_26", "Return_1", "Return_3"]]
     y = df_ml["Target_Up_2D"]
 
-    # 高速化のためestimatorを適正化
     model = RandomForestClassifier(n_estimators=50, random_state=42)
     model.fit(X, y)
 
@@ -330,8 +328,16 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     )
 
     probs = model.predict_proba(current_features)[0]
-    prob_up = probs[1] * 100
-    prob_down = (1.0 - probs[1]) * 100
+    
+    # 確率配列の要素数を安全にチェックしてIndexErrorを防ぐ
+    if len(probs) >= 2:
+      prob_up = probs[1] * 100
+      prob_down = probs[0] * 100
+    else:
+      # クラスが1つしか検出されなかった場合のフォールバック
+      pred_class = model.predict(current_features)[0]
+      prob_up = 100.0 if pred_class == 1 else 0.0
+      prob_down = 100.0 if pred_class == 0 else 0.0
 
     rsi_short = df_ml["RSI_5"].iloc[-1]
     rsi_mid = df_ml["RSI_14"].iloc[-1]
@@ -347,7 +353,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     )
 
 
-  # ローカルの予測計算はミリ秒単位で瞬時に完了させる
   res_model = fetch_and_train_model(ticker_symbol)
   if res_model[0] is None:
     st.error("十分な市場データの取得に失敗しました。")
@@ -388,7 +393,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       quick_color = "red"
       is_premium = True
 
-    # 画面上部に瞬時にシグナルボックスとサウンドを描画
     render_static_signal_box(
         "blue"
         if (std_color == "blue" or quick_color == "blue") and is_premium
@@ -476,7 +480,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
     col3.metric("中期RSI", f"{rsi_mid:.1f}")
     col4.metric("長期RSI", f"{rsi_long:.1f}")
 
-    # 【重要】重いGeminiの文章生成AIレポートは「ボタンを押した時だけ」に分離し、通常のシグナル監視のスピードをコンマ何秒に引き上げました
     st.markdown("---")
     if st.button("🤖 Gemini AIによる詳細クオンツ解説レポートを生成する（クリック）"):
       if client:
@@ -501,7 +504,6 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
       else:
         st.error("APIキーが設定されていません。")
 
-  # 自動リロード間隔を短縮（例: 5秒ごとにミリ秒単位の判定をループ）
   time.sleep(5)
   st.rerun()
 
