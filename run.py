@@ -73,7 +73,7 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# パチンコ演出コンポーネント（選んだ銘柄名とチェリー・スイカ表示を完全に連動）
+# パチンコ演出コンポーネント（回転せず、選択中の銘柄名を正確に表示）
 def render_pachinko_演出(signal_type, sound_enabled, asset_name):
   sound_script = ""
   if sound_enabled:
@@ -140,110 +140,42 @@ def render_pachinko_演出(signal_type, sound_enabled, asset_name):
 
   if signal_type == "blue":
     html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 150px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 25px #0055ff;">
-            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; letter-spacing: 1px; margin-bottom: 6px;">
+        <div style="width: 100%; height: 130px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 20px #0055ff;">
+            <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 15px; margin-bottom: 4px;">
                 ✨ プチュン！！【 {asset_name} 勝率99%完璧な買いエントリー 】 ✨
             </div>
-            <div style="font-size: 22px; color: #ffcc00; font-family: monospace; font-weight: bold;">
+            <div style="font-size: 20px; color: #ffcc00; font-family: monospace; font-weight: bold;">
                 [ 🍒 · <span style="color:red;">7</span> · 🍒 ]
             </div>
         </div>
-        <script>
-        {sound_script}
-        setTimeout(() => {{
-            const screen = document.getElementById("pachinko-screen");
-            if (screen) {{
-                screen.style.background = "#111111";
-                screen.style.border = "1px solid #444444";
-                screen.style.boxShadow = "none";
-                screen.innerHTML = `
-                    <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択銘柄: {asset_name}</div>
-                    <div id="reel-box" style="font-size: 24px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 4px;">
-                        [ 🍒 · 🍉 · 🔔 ]
-                    </div>
-                    <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
-                        🎰 天才AI監視中（極限の好機を待ち構えています）
-                    </div>
-                `;
-                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
-                let idx = 0;
-                setInterval(() => {{
-                    idx = (idx + 1) % symbols.length;
-                    const box = document.getElementById("reel-box");
-                    if (box) {{ box.innerHTML = symbols[idx]; }}
-                }}, 1000);
-            }}
-        }}, 4000);
-        </script>
+        <script>{sound_script}</script>
         """
   elif signal_type == "red":
     html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 150px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
-            <div style="font-size: 30px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 15px #ff0000; letter-spacing: 3px; animation: spinRed 0.3s linear infinite;">
+        <div style="width: 100%; height: 130px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px #ff3333;">
+            <div style="font-size: 26px; font-family: monospace; font-weight: bold; color: #ff0000; text-shadow: 0 0 12px #ff0000; margin-bottom: 4px;">
                 [ <span style="color:red;">7</span> · <span style="color:red;">7</span> · <span style="color:red;">7</span> ]
             </div>
-            <div style="color: #ff3333; font-weight: bold; font-size: 15px; text-shadow: 0 0 8px rgba(255,0,0,0.8); margin-top: 4px;">
+            <div style="color: #ff3333; font-weight: bold; font-size: 14px; text-shadow: 0 0 8px rgba(255,0,0,0.8);">
                 🔥 キュインキュイン！！【 {asset_name} 勝率99%完璧な売りエントリー 】 🔥
             </div>
         </div>
-        <script>
-        {sound_script}
-        setTimeout(() => {{
-            const screen = document.getElementById("pachinko-screen");
-            if (screen) {{
-                screen.style.background = "#111111";
-                screen.style.border = "1px solid #444444";
-                screen.style.boxShadow = "none";
-                screen.innerHTML = `
-                    <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択銘柄: {asset_name}</div>
-                    <div id="reel-box" style="font-size: 24px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 4px;">
-                        [ 🍒 · 🍉 · 🔔 ]
-                    </div>
-                    <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
-                        🎰 天才AI監視中（極限の好機を待ち構えています）
-                    </div>
-                `;
-                const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
-                let idx = 0;
-                setInterval(() => {{
-                    idx = (idx + 1) % symbols.length;
-                    const box = document.getElementById("reel-box");
-                    if (box) {{ box.innerHTML = symbols[idx]; }}
-                }}, 1000);
-            }}
-        }}, 4000);
-        </script>
-        <style>
-        @keyframes spinRed {{
-            0% {{ transform: scale(1); }}
-            50% {{ transform: scale(1.08); }}
-            100% {{ transform: scale(1); }}
-        }}
-        </style>
+        <script>{sound_script}</script>
         """
   else:
     html_content = f"""
-        <div id="pachinko-screen" style="width: 100%; height: 130px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択銘柄: {asset_name} (準備フェーズ監視中)</div>
-            <div id="reel-box" style="font-size: 24px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 4px;">
+        <div style="width: 100%; height: 120px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
+            <div style="color: #00ffcc; font-size: 13px; font-weight: bold; margin-bottom: 4px;">🎯 選択中銘柄: {asset_name} (準備フェーズ監視中)</div>
+            <div style="font-size: 22px; font-family: monospace; font-weight: bold; color: #ffcc00; letter-spacing: 3px;">
                 [ 🍒 · 🍉 · 🔔 ]
             </div>
             <div style="color: #aaaaaa; font-size: 11px; margin-top: 4px;">
-                🛡️ AI厳格フィルター作動中：タイミング不一致のため「完全見送り（待機）」
+                🛡️ AI厳格フィルター：タイミング不一致のため「完全見送り（待機）」
             </div>
         </div>
-        <script>
-        const symbols = ["[ 🍒 · 🍉 · 🔔 ]", "[ 🔔 · <span style='color:red;'>7</span> · 🍒 ]", "[ 🍉 · 🔔 · 🍉 ]", "[ 🍒 · 🍒 · <span style='color:red;'>7</span> ]"];
-        let idx = 0;
-        setInterval(() => {{
-            idx = (idx + 1) % symbols.length;
-            const box = document.getElementById("reel-box");
-            if (box) {{ box.innerHTML = symbols[idx]; }}
-        }}, 1000);
-        </script>
         """
 
-  components.html(html_content, height=140)
+  components.html(html_content, height=130)
 
 
 def get_dynamic_learning_instruction(mode_name, total, win_rate):
@@ -334,8 +266,6 @@ st.sidebar.metric(
 )
 
 if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイック）":
-  st.markdown("### 🎯 天才クオンツAI・勝率99%完璧エントリー監視プラットフォーム")
-
   assets_list = [
       ("WTI原油 / 石油 (CL=F)", "CL=F"),
       ("日経平均株価 (^N225)", "^N225"),
@@ -349,196 +279,150 @@ if mode == "⚡ マルチタイムフレーム相場判定（標準 vs クイッ
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  # メイン画面の右側に配置した、スマホでスライド・PCで上下キー/クリックでスムーズに動かせるバー
-  col_title, col_ctrl = st.columns([3, 2])
-  with col_title:
-    st.markdown(
-        "<small>スマホは指で左右にスワイプ、PCはキーボードの [←] [→] 矢印キーまたは右側のバーで銘柄を瞬時に切り替えられます。</small>",
-        unsafe_allow_html=True,
-    )
-  with col_ctrl:
+  # 🖥️ 1画面でスッキリ見渡せるよう、右側に縦型銘柄選択メニューを配置
+  col_main, col_sub = st.columns([3, 1])
+
+  with col_sub:
+    st.markdown("### 🎚️ 銘柄選択（縦型メニュー）")
     asset_names_only = [item[0] for item in assets_list]
     current_idx = st.session_state.selected_asset_index
-    selected_slider_name = st.select_slider(
-        "🎚️ 【外側右側配置】銘柄クイック選択バー",
+    
+    selected_vertical_name = st.radio(
+        "分析対象銘柄",
         options=asset_names_only,
-        value=asset_names_only[current_idx],
-        key="main_outer_slide_bar"
+        index=current_idx,
+        key="vertical_asset_radio"
     )
     for idx, item in enumerate(assets_list):
-      if item[0] == selected_slider_name and idx != current_idx:
+      if item[0] == selected_vertical_name and idx != current_idx:
         st.session_state.selected_asset_index = idx
         st.rerun()
 
-  st.markdown("---")
+  with col_main:
+    st.markdown("### 🎯 天才クオンツAI・勝率99%完璧エントリー監視プラットフォーム")
 
-  selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
-  ticker_symbol = selected_asset_tuple[1]
-  current_asset_name = selected_asset_tuple[0]
+    selected_asset_tuple = assets_list[st.session_state.selected_asset_index]
+    ticker_symbol = selected_asset_tuple[1]
+    current_asset_name = selected_asset_tuple[0]
 
-  @st.cache_data(ttl=5)
-  def fetch_market_data(symbol):
-    df = yf.download(symbol, period="5d", interval="5m", progress=False)
-    if df.empty:
-      return None
-    if isinstance(df.columns, pd.MultiIndex):
-      df.columns = df.columns.get_level_values(0)
-    return df["Close"]
+    @st.cache_data(ttl=5)
+    def fetch_market_data(symbol):
+      df = yf.download(symbol, period="5d", interval="5m", progress=False)
+      if df.empty:
+        return None
+      if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+      return df["Close"]
 
-  with st.spinner(f"{current_asset_name} のリアルタイム板情報とチャートを厳密解析中..."):
-    try:
-      closes = fetch_market_data(ticker_symbol)
-      if closes is None or len(closes) == 0:
-        st.error("データの取得に失敗しました。")
-      else:
-        def calc_rsi(series, period):
-          delta = series.diff()
-          gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-          loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-          rs = gain / loss
-          return 100 - (100 / (1 + rs))
+    with st.spinner(f"{current_asset_name} のリアルタイム板情報とチャートを厳密解析中..."):
+      try:
+        closes = fetch_market_data(ticker_symbol)
+        if closes is None or len(closes) == 0:
+          st.error("データの取得に失敗しました。")
+        else:
+          def calc_rsi(series, period):
+            delta = series.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            return 100 - (100 / (1 + rs))
 
-        rsi_short = calc_rsi(closes, 5).iloc[-1]
-        rsi_mid = calc_rsi(closes, 14).iloc[-1]
-        rsi_long = calc_rsi(closes, 26).iloc[-1]
+          rsi_short = calc_rsi(closes, 5).iloc[-1]
+          rsi_mid = calc_rsi(closes, 14).iloc[-1]
+          rsi_long = calc_rsi(closes, 26).iloc[-1]
 
-        valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
-        avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
+          valid_rsis = [r for r in [rsi_short, rsi_mid, rsi_long] if not np.isnan(r)]
+          avg_rsi = np.mean(valid_rsis) if valid_rsis else 50.0
 
-        # 【勝率99%極限フィルター：タイミングが少しでもずれていれば絶対に見送り】
-        std_signal = f"【完全見送り】{current_asset_name}はタイミング不一致（待機中）"
-        std_color = "green"
-        if rsi_short < 15 and avg_rsi < 22 and rsi_short == min(valid_rsis):
-          std_signal = f"✨【標準モード】{current_asset_name} 勝率99%極限の底打ち買いシグナル！"
-          std_color = "blue"
-        elif rsi_short > 85 and avg_rsi > 78 and rsi_short == max(valid_rsis):
-          std_signal = f"🔥【標準モード】{current_asset_name} 勝率99%極限の天井売りシグナル！"
-          std_color = "red"
+          # 【勝率99%極限フィルター：タイミングが少しでもずれていれば絶対に見送り】
+          std_signal = f"【完全見送り】{current_asset_name}はタイミング不一致（待機中）"
+          std_color = "green"
+          if rsi_short < 15 and avg_rsi < 22 and rsi_short == min(valid_rsis):
+            std_signal = f"✨【標準モード】{current_asset_name} 勝率99%極限の底打ち買いシグナル！"
+            std_color = "blue"
+          elif rsi_short > 85 and avg_rsi > 78 and rsi_short == max(valid_rsis):
+            std_signal = f"🔥【標準モード】{current_asset_name} 勝率99%極限の天井売りシグナル！"
+            std_color = "red"
 
-        quick_signal = f"【様子見】{current_asset_name}の短期ノイズをフィルタリング中"
-        quick_color = "green"
-        if rsi_short < 10:
-          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGH激熱エントリー！"
-          quick_color = "blue"
-        elif rsi_short > 90:
-          quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
-          quick_color = "red"
+          quick_signal = f"【様子見】{current_asset_name}の短期ノイズをフィルタリング中"
+          quick_color = "green"
+          if rsi_short < 10:
+            quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期HIGH激熱エントリー！"
+            quick_color = "blue"
+          elif rsi_short > 90:
+            quick_signal = f"⚡【クイックモード】{current_asset_name} 超短期LOW激熱エントリー！"
+            quick_color = "red"
 
-        st.markdown(f"### 🎰 【パチンコ型クオンツ予測】{current_asset_name} リアルタイム判定速報")
-        
-        active_payout = "green"
-        if std_color == "blue" or quick_color == "blue":
-          active_payout = "blue"
-        elif std_color == "red" or quick_color == "red":
-          active_payout = "red"
+          st.markdown(f"### 🎰 【パチンコ型クオンツ予測】{current_asset_name} リアルタイム判定速報")
+          
+          active_payout = "green"
+          if std_color == "blue" or quick_color == "blue":
+            active_payout = "blue"
+          elif std_color == "red" or quick_color == "red":
+            active_payout = "red"
 
-        # 準備フェーズに選んだ銘柄名を表示し、タイミング合致時のみ演出発動
-        render_pachinko_演出(active_payout, sound_on, current_asset_name)
+          # 選択中の銘柄名を正確に反映した演出発動
+          render_pachinko_演出(active_payout, sound_on, current_asset_name)
 
-        st.markdown("---")
+          st.markdown("---")
 
-        total_assets = len(assets_list)
-        current_idx = st.session_state.selected_asset_index
+          col_res1, col_res2 = st.columns(2)
 
-        swipe_html = f"""
-        <div id="swipe-gate" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #1f1f1f, #2d2d2d); border: 2px solid #555; border-radius: 12px; text-align: center; color: #fff; cursor: pointer; user-select: none; box-shadow: 0 4px 15px rgba(0,0,0,0.4);">
-            <div style="font-size: 13px; color: #ffcc00; margin-bottom: 4px; font-weight: bold;">◀ ◀ スマホは左右に指スライド / PCは [←] [→] キーで切替 ▶ ▶</div>
-            <div style="font-size: 20px; font-weight: bold; color: #00ffcc; letter-spacing: 1px; margin: 4px 0;">
-                📊 選択中 ({current_idx + 1} / {total_assets}): {current_asset_name}
-            </div>
-            <div style="font-size: 11px; color: #aaa;">（指でスワイプすると瞬時に次の銘柄にローテーションします）</div>
-        </div>
-
-        <script>
-        let touchstartX = 0;
-        let touchendX = 0;
-        const gate = document.getElementById('swipe-gate');
-
-        gate.addEventListener('touchstart', function(e) {{
-            touchstartX = e.changedTouches[0].screenX;
-        }}, false);
-
-        gate.addEventListener('touchend', function(e) {{
-            touchendX = e.changedTouches[0].screenX;
-            if (touchendX < touchstartX - 30) {{
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'next'}}, '*');
-            }}
-            if (touchendX > touchstartX + 30) {{
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'prev'}}, '*');
-            }}
-        }}, false);
-
-        window.parent.addEventListener('keydown', function(e) {{
-            if (e.key === 'ArrowRight') {{
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'next'}}, '*');
-            }} else if (e.key === 'ArrowLeft') {{
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'prev'}}, '*');
-            }}
-        }});
-        </script>
-        """
-
-        swipe_val = components.html(swipe_html, height=110)
-
-        st.markdown("---")
-
-        col_res1, col_res2 = st.columns(2)
-
-        msg_std = (
-            f"**標準分析モード:** {current_asset_name} ➔ **{std_signal}**"
-            f" (RSI:{rsi_mid:.1f})"
-        )
-        msg_quick = (
-            f"**クイック分析モード:** {current_asset_name} ➔ **{quick_signal}**"
-            f" (RSI:{rsi_short:.1f})"
-        )
-
-        with col_res1:
-          if std_color == "blue":
-            st.info(msg_std)
-          elif std_color == "red":
-            st.error(msg_std)
-          else:
-            st.success(msg_std)
-
-        with col_res2:
-          if quick_color == "blue":
-            st.info(msg_quick)
-          elif quick_color == "red":
-            st.error(msg_quick)
-          else:
-            st.success(msg_quick)
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
-        col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
-        col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
-        col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
-
-        if client:
-          dyn_inst = get_dynamic_learning_instruction(
-              "標準＆クイック",
-              st.session_state.std_total + st.session_state.quick_total,
-              (std_win_rate + quick_win_rate) / 2,
+          msg_std = (
+              f"**標準分析:** {current_asset_name} ➔ **{std_signal}**"
+              f" (RSI:{rsi_mid:.1f})"
           )
-          prompt_analysis = f"""
-                    対象銘柄: {current_asset_name} ({ticker_symbol})
-                    短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
-                    標準判定: {std_signal}
-                    クイック判定: {quick_signal}
-                    
-                    【初心者にもわかりやすい天才AIの勝率99%検証解説】
-                    現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
-                    """
-          with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
-            res_text = generate_with_retry(
-                client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
-            )
-            st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
-            st.markdown(res_text)
+          msg_quick = (
+              f"**クイック分析:** {current_asset_name} ➔ **{quick_signal}**"
+              f" (RSI:{rsi_short:.1f})"
+          )
 
-    except Exception as e:
-      st.error(f"データ取得または分析エラー: {e}")
+          with col_res1:
+            if std_color == "blue":
+              st.info(msg_std)
+            elif std_color == "red":
+              st.error(msg_std)
+            else:
+              st.success(msg_std)
+
+          with col_res2:
+            if quick_color == "blue":
+              st.info(msg_quick)
+            elif quick_color == "red":
+              st.error(msg_quick)
+            else:
+              st.success(msg_quick)
+
+          col1, col2, col3, col4 = st.columns(4)
+          col1.metric("短期RSI", f"{rsi_short:.1f}" if not np.isnan(rsi_short) else "N/A")
+          col2.metric("中期RSI", f"{rsi_mid:.1f}" if not np.isnan(rsi_mid) else "N/A")
+          col3.metric("長期RSI", f"{rsi_long:.1f}" if not np.isnan(rsi_long) else "N/A")
+          col4.metric("市場バイアス平均", f"{avg_rsi:.1f}")
+
+          if client:
+            dyn_inst = get_dynamic_learning_instruction(
+                "標準＆クイック",
+                st.session_state.std_total + st.session_state.quick_total,
+                (std_win_rate + quick_win_rate) / 2,
+            )
+            prompt_analysis = f"""
+                      対象銘柄: {current_asset_name} ({ticker_symbol})
+                      短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f} | 長期RSI: {rsi_long:.1f} | 平均RSI: {avg_rsi:.1f}
+                      標準判定: {std_signal}
+                      クイック判定: {quick_signal}
+                      
+                      【初心者にもわかりやすい天才AIの勝率99%検証解説】
+                      現在選択されている「{current_asset_name}」について、今本当に完璧なエントリータイミングが来ているのか、それとも見送るべきノイズなのかを、プロの視点でわかりやすく解説してください。
+                      """
+            with st.spinner(f"天才クオンツAIが {current_asset_name} の完璧な好機を演算中..."):
+              res_text = generate_with_retry(
+                  client, "gemini-2.5-flash", [dyn_inst, prompt_analysis]
+              )
+              st.markdown(f"### 🤖 天才AIの {current_asset_name} 厳選分析レポート")
+              st.markdown(res_text)
+
+      except Exception as e:
+        st.error(f"データ取得または分析エラー: {e}")
 
   time.sleep(15)
   st.rerun()
