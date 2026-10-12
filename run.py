@@ -36,7 +36,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 2150, 2090, 6400, 6280
+  return 2200, 2140, 6550, 6420
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -82,6 +82,10 @@ if "std_total" not in st.session_state:
   st.session_state.quick_total = q_tot
   st.session_state.quick_wins = q_win
 
+# 誤爆防止用のサウンドトリガー状態管理
+if "last_played_signal" not in st.session_state:
+  st.session_state.last_played_signal = "none"
+
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
@@ -91,10 +95,22 @@ def get_jst_now():
   return utc_now.astimezone(jst_zone)
 
 
-# 【完全改修】真のエントリーシグナル発動時（かつ明示的なアクティブ時）のみ絶対に誤爆しないサウンド制御ダッシュボード
+# 【完全改修】銘柄切り替え時の誤爆を完全にゼロにする厳格なサウンド制御コンポーネント
 def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal):
   sound_script = ""
+  
+  # 「サウンドが有効」かつ「真のエントリーシグナル」であり、かつ「直前まで別状態または無音だった（＝新規発動の瞬間）」のみ音を鳴らす
+  should_play_sound = False
   if sound_enabled and is_active_signal:
+    current_key = f"{asset_name}_{signal_type}"
+    if st.session_state.last_played_signal != current_key:
+      should_play_sound = True
+      st.session_state.last_played_signal = current_key
+  else:
+    if not is_active_signal:
+      st.session_state.last_played_signal = "none"
+
+  if should_play_sound:
     if signal_type == "blue":
       sound_script = """
         if (!window.utayaAudioCtx) {
@@ -145,10 +161,10 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #0055ff; box-shadow: 0 0 20px rgba(0,85,255,0.5);">
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
-                ✨ UTAYA 未来予測【 {asset_name} 上昇2$到達 確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
+                ✨ UTAYA & SyncM 未来予測【 {asset_name} 上昇2$到達 確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
             </div>
             <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">
-                [ UTAYA & SyncM 投資特化型自律進化エンジン・損切りなし最適化エッジ検出 ]
+                [ UTAYA特化・損切りなし2$利確最適化エンジン稼働中 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -157,10 +173,10 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
     html_content = f"""
         <div style="width: 100%; padding: 16px; background: linear-gradient(135deg, #2b0000, #550000); display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 2px solid #ff3333; box-shadow: 0 0 20px rgba(255,51,51,0.5);">
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
-                🔥 UTAYA 未来予測【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売りシグナル発動 】 🔥
+                🔥 UTAYA & SyncM 未来予測【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売りシグナル発動 】 🔥
             </div>
             <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">
-                [ UTAYA & SyncM 投資特化型自律進化エンジン・損切りなし最適化エッジ検出 ]
+                [ UTAYA特化・損切りなし2$利確最適化エンジン稼働中 ]
             </div>
         </div>
         <script>{sound_script}</script>
@@ -168,9 +184,9 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA 監視中: {asset_name} (完全無音・安全待機)</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA & SyncM 監視中: {asset_name} (完全無音・安全待機)</div>
             <div style="color: #aaaaaa; font-size: 11px;">
-                🛡️ 2$到達確率: {prob_val:.1f}% （閾値未達または安全第一の待機中・無音維持）
+                🛡️ 2$到達確率: {prob_val:.1f}% （完璧なエントリーポイントを精密算出中・無音維持）
             </div>
         </div>
         """
@@ -251,13 +267,13 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
   if "selected_asset_index" not in st.session_state:
     st.session_state.selected_asset_index = 0
 
-  st.markdown("### 📈 UTAYA (ウタヤ) - 次世代投資・ギャンブル特化型クオンツ予測AI")
+  st.markdown("### 📈 UTAYA (ウタヤ) & SyncM - 世界最高峰・投資特化型未来予測AI")
 
-  # 【改良】銘柄選びが不便にならないよう、横並びのラジオボタン（またはボタンスタイル）で一発切替できるように改善
+  # 銘柄選びの利便性を高めた横並びボタン選択
   asset_names_only = [item[0] for item in assets_list]
   current_idx = st.session_state.selected_asset_index
 
-  st.markdown("#### 🎚️ 監視対象アセット（ワンクリック切替）")
+  st.markdown("#### 🎚️ 監視対象アセット（ワンクリック高速切替）")
   selected_vertical_name = st.radio(
       "銘柄選択バー",
       options=asset_names_only,
@@ -372,7 +388,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     win_logs = sum(1 for log in asset_logs if log["result"] == "WIN")
     asset_win_rate = (win_logs / total_logs * 100) if total_logs > 0 else 50.0
 
-    # 判定ロジック：ビットコインは強制見送り。それ以外は売り注文（下落狙い）を最適化
+    # 判定ロジック：ビットコインは強制見送り。他銘柄は売り注文（下落狙い）特化
     if is_btc:
       std_signal = "🛡️【UTAYA判断】ビットコインは現在見送り推奨のため、安全に完全無音待機中。"
       std_color = "green"
@@ -403,7 +419,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
       is_active = True
       active_signal_type = "red"
 
-    # 完璧なエントリーポイント（is_active=True）のときのみサウンドを鳴らす
+    # 誤爆防止を徹底したサウンド＆ビジュアルボックスの描画
     render_utaya_signal_box(
         active_signal_type,
         sound_on,
@@ -478,7 +494,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
                         AI予測確率: 下落 {prob_down:.1f}% / 上昇 {prob_up:.1f}%
                         短期RSI: {rsi_short:.1f} | 中期RSI: {rsi_mid:.1f}
                         判定結果: {std_signal}
-                        ドコモが開発する未来予測AI「SyncM」のコンセプトを継承し、ユーザー「UTAYA」の投資スタイル（ビットコインは見送り、原油や日経平均等の他銘柄で損切りなし2.0ドルの利益幅・売り注文を狙う）に基づき、現在の実際の相場を世界一のクオンツ視点で論理的に解説してください。
+                        ドコモが開発する未来予測AI「SyncM」の高度な自律最適化コンセプトを継承し、ユーザー「UTAYA」の投資哲学（ビットコインは見送り、原油や日経平均等の他銘柄で損切りなし2.0ドルの利益幅・売り注文を狙う）に基づき、現在の実際の相場を世界一のクオンツ視点で論理的に解説してください。
                         """
             res_text = client.models.generate_content(
                 model="gemini-2.5-flash", contents=prompt_analysis
