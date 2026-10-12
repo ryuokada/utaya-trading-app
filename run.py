@@ -37,7 +37,7 @@ def load_data():
           )
     except Exception:
       pass
-  return 3700, 3640, 9700, 9620
+  return 3800, 3740, 9900, 9820
 
 
 def save_data(std_total, std_wins, quick_total, quick_wins):
@@ -133,7 +133,7 @@ if "switch_lock" not in st.session_state:
 client = genai.Client(api_key=API_KEY) if API_KEY != "YOUR_GEMINI_API_KEY" else None
 
 
-# 【リアルタイム自動更新・完璧サウンド＆カラー同期制御】
+# 【安定動作版・サウンド＆カラー同期制御】
 def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is_active_signal, is_switching):
   sound_script = ""
   should_play_sound = False
@@ -196,8 +196,8 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
   if is_switching:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #1a1a00; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #cca300;">
-            <div style="color: #ffcc00; font-size: 14px; font-weight: bold; margin-bottom: 2px;">⏳ UTAYA リアルタイム同期中: {asset_name}</div>
-            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 無音セーフティガード作動中</div>
+            <div style="color: #ffcc00; font-size: 14px; font-weight: bold; margin-bottom: 2px;">⏳ UTAYA 同期中: {asset_name}</div>
+            <div style="color: #aaaaaa; font-size: 11px;">🛡️ セーフティガード作動中</div>
         </div>
         """
   elif signal_type == "blue" and is_active_signal:
@@ -206,7 +206,7 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
             <div style="color: #0080ff; font-family: monospace; font-weight: bold; font-size: 16px; margin-bottom: 4px;">
                 ✨ UTAYA ベスト発動【 {asset_name} 上昇2$到達 確率 {prob_val:.1f}% 買いシグナル発動 】 ✨
             </div>
-            <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">[ リアルタイム自動更新・ベストエントリー検出 ]</div>
+            <div style="font-size: 12px; color: #00ffcc; font-family: monospace;">[ ベストエントリー検出 ]</div>
         </div>
         <script>{sound_script}</script>
         """
@@ -216,15 +216,15 @@ def render_utaya_signal_box(signal_type, sound_enabled, asset_name, prob_val, is
             <div style="font-size: 16px; font-family: monospace; font-weight: bold; color: #ff3333; margin-bottom: 4px;">
                 🔥 UTAYA ベスト発動【 {asset_name} 下落2$到達 確率 {prob_val:.1f}% 売り注文シグナル発動 】 🔥
             </div>
-            <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">[ リアルタイム自動更新・ベストエントリー検出 ]</div>
+            <div style="font-size: 12px; color: #ffcc00; font-family: monospace;">[ ベストエントリー検出 ]</div>
         </div>
         <script>{sound_script}</script>
         """
   else:
     html_content = f"""
         <div style="width: 100%; padding: 14px; background: #111111; display: flex; flex-direction: column; justify-content: center; align-items: center; border-radius: 8px; border: 1px solid #444444;">
-            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA ライブ監視中: {asset_name} (自動更新中)</div>
-            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 到達確率: {prob_val:.1f}% （閾値未達・自動巡回中）</div>
+            <div style="color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 2px;">🌐 UTAYA 監視中: {asset_name} (待機中)</div>
+            <div style="color: #aaaaaa; font-size: 11px;">🛡️ 到達確率: {prob_val:.1f}% （閾値未達・無音待機中）</div>
         </div>
         """
 
@@ -246,17 +246,6 @@ st.sidebar.markdown("### 🔊 サウンドコントロール")
 sound_on = st.sidebar.checkbox(
     "🔊 UTAYA 音響エフェクト（ベストポイント発動時のみ鳴動）", value=True
 )
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🔄 ライブオートリフレッシュ設定")
-auto_refresh = st.sidebar.checkbox(
-    "🔄 10秒ごとに数値を自動ライブ更新する", value=True
-)
-
-# 10秒ごとに自動で画面をリフレッシュして最新の予測を自動実行する仕組み
-if auto_refresh:
-  time.sleep(10)
-  st.rerun()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🧠 UTAYA 全銘柄フェア自動進化実績")
@@ -344,6 +333,7 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
   is_switching = (time.time() - st.session_state.switch_lock) < 1.5
 
 
+  @st.cache_data(ttl=15)
   def fetch_and_train_utaya(symbol):
     df = yf.download(symbol, period="5d", interval="15m", progress=False)
     if df.empty or len(df) < 30:
@@ -495,58 +485,4 @@ if mode == "⚡ UTAYA 投資特化型・未来予測エンジン":
     with col_res1:
       if active_signal_type == "red" and is_active and not is_switching:
         st.error(msg_std)
-      elif active_signal_type == "blue" and is_active and not is_switching:
-        st.info(msg_std)
-      else:
-        st.success(msg_std)
-
-    with col_res2:
-      if active_signal_type in ["red", "blue"] and is_active and not is_switching:
-        st.error(msg_quick)
-      else:
-        st.success(msg_quick)
-
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("2$下落到達確率", f"{prob_down:.1f}%")
-    col2.metric("2$上昇到達確率", f"{prob_up:.1f}%")
-    col3.metric("短期RSI", f"{rsi_short:.1f}")
-    col4.metric("長期RSI", f"{rsi_long:.1f}")
-
-    st.markdown("---")
-    st.markdown(
-        "### 🤖 UTAYA 全銘柄フェア自律クオンツレポート\n"
-        f"現在の対象銘柄 **{current_asset_name}** において、バイアスを排除し、AIがリアルタイムの価格変動をフェアに分析して最適な損切りなし2ドル利確の方向を自律判定しています。"
-    )
-
-elif mode == "🚤 公営競技・自動締め切り直前2連単予想":
-  st.subheader("🚤 UTAYA 公営競技予測エンジン")
-  st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
-
-elif mode == "🎰 パチンコ（板橋・豊島エリア）自動狙い目抽出":
-  st.subheader("🎰 UTAYA 板橋・豊島エリアホール解析")
-  st.info("モード切替完了。フェア自律進化型のUTAYAが稼働中です。")
-
-elif mode == "💬 UTAYA AIメタ認知・思考プロチャット":
-  st.subheader("💬 UTAYA AIメタ認知・思考プロチャットアシスタント")
-  if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-  for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-      st.markdown(m["content"])
-
-  prompt = st.chat_input("UTAYAの全銘柄フェアな脳内思考について質問してください...")
-  if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-      st.markdown(prompt)
-    with st.chat_message("assistant"):
-      local_ans = (
-          f"【UTAYAフェア自律応答】ご質問「{prompt}」に対し、全銘柄中立の脳内エンジンが即時回答します。"
-          "特定の銘柄除外や一方向への固定バイアスは完全に排除されています。"
-          "ビットコインを含むすべての対象アセットをフェアな基準で機械学習し、市場エッジに応じて自律判定を下します。"
-      )
-      st.markdown(local_ans)
-      st.session_state.messages.append(
-          {"role": "assistant", "content": local_ans}
-      )
+      elif active
