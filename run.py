@@ -9,6 +9,36 @@ st.set_page_config(
     layout="wide",
 )
 
+# スタイリング（見送り:緑、買い:青、売り:赤 のバッジ風デザイン）
+st.markdown(
+    """
+    <style>
+    .badge-buy {
+        background-color: #0044cc;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+    }
+    .badge-sell {
+        background-color: #cc0000;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+    }
+    .badge-wait {
+        background-color: #008800;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: bold;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 ASSETS_LIST = [
     ("WTI原油 / 石油", "CL=F"),
     ("日経平均株価", "^N225"),
@@ -91,12 +121,13 @@ for name, symbol in ASSETS_LIST:
         rsi_short = df_ml["RSI_5"].iloc[-1]
         current_price = float(closes.iloc[-1])
 
+        # 判定とHTMLカラーバッジの割り当て
         if prob_down >= 72.0:
-            signal = "売り (LOW)"
+            signal_html = '<span class="badge-sell">売り (LOW)</span>'
         elif prob_up >= 72.0:
-            signal = "買い (HIGH)"
+            signal_html = '<span class="badge-buy">買い (HIGH)</span>'
         else:
-            signal = "見送り (待機)"
+            signal_html = '<span class="badge-wait">見送り (待機)</span>'
 
         results.append({
             "銘柄": name,
@@ -104,13 +135,14 @@ for name, symbol in ASSETS_LIST:
             "短期RSI(5)": f"{rsi_short:.1f}",
             "上昇確率": f"{prob_up:.1f}%",
             "下落確率": f"{prob_down:.1f}%",
-            "AI判定": signal,
+            "AI判定": signal_html,
         })
     except Exception as e:
         continue
 
 if results:
     df_result = pd.DataFrame(results)
-    st.dataframe(df_result, use_container_width=True, hide_index=True)
+    # HTMLタグをレンダリングするために st.markdown を使用してテーブルを表示
+    st.markdown(df_result.to_html(escape=False, index=False), unsafe_allow_html=True)
 else:
     st.warning("現在データを取得中です。少々お待ちください。")
