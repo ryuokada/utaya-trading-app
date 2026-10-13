@@ -1,4 +1,5 @@
 import datetime
+import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 import streamlit as st
@@ -121,7 +122,6 @@ st.markdown("---")
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.subheader(f"📊 リアルタイム市場スキャン ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
 
-# スキャン実行時のカウントアップ（重複加算を防ぐためループ前に1回のみ確実に加算）
 st.session_state.scan_count += 1
 
 analyzed_results = []
@@ -154,9 +154,12 @@ for name, symbol in ASSETS_LIST:
         df_ml["Momentum_Acc"] = closes.diff(2) - closes.diff(2).shift(2)
         df_ml["Volume_Ratio"] = volumes / volumes.rolling(window=20).mean()
 
+        # 未来のボラティリティと価格のダイナミック変動をキャッチするロジック
         target_up = []
         prices = closes.values
-        target_margin = 1.5
+        target_margin = closes.rolling(window=20).std().iloc[-1] * 0.8  # 固定値から動的マージンへ改良
+        if np.isnan(target_margin) or target_margin <= 0:
+            target_margin = 1.0
 
         for i in range(len(prices) - 8):
             current_p = prices[i]
@@ -175,7 +178,8 @@ for name, symbol in ASSETS_LIST:
         if len(X) < 10:
             continue
 
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        # アンサンブルの多様性を高め、確率が硬直するのを防ぐ設定に調整
+        model = RandomForestClassifier(n_estimators=150, max_depth=6, random_state=42)
         model.fit(X, y)
 
         current_features = pd.DataFrame(
@@ -202,26 +206,24 @@ for name, symbol in ASSETS_LIST:
         acc_val = df_ml["Momentum_Acc"].iloc[-1]
         vol_ratio = df_ml["Volume_Ratio"].iloc[-1]
 
-        # ── 判定ロジック ──
-        if prob_down >= 80.0 and acc_val < 0 and vol_ratio >= 1.2:
+        # ── タイムマシーン判定・ダイナミック司令ロジック ──
+        if prob_down >= 70.0 and acc_val < 0:
             signal_type = "SELL"
             signal_html = '<span class="badge-sell">激熱・売り (SELL)</span>'
-            analysis = "大口の売り注文の歪みと出来高急増を検知。下方向へのエネルギー爆発の瞬間。"
+            analysis = f"未来予測: 下落エネルギーが臨界点突破（下落確率 {prob_down:.0f}%）。大口の売り圧力の歪みを検知。"
             score = prob_down
-        elif prob_up >= 80.0 and acc_val > 0 and vol_ratio >= 1.2:
+        elif prob_up >= 70.0 and acc_val > 0:
             signal_type = "BUY"
             signal_html = '<span class="badge-buy">激熱・買い (BUY)</span>'
-            analysis = "買い手主導の加速エネルギーと出来高の急拡大が合致。上昇トレンド突入の瞬間。"
+            analysis = f"未来予測: 上昇エネルギーが臨界点突破（上昇確率 {prob_up:.0f}%）。トレンド急加速の瞬間。"
             score = prob_up
         else:
             signal_type = "WAIT"
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
-            if prob_up > prob_down + 5:
-                analysis = f"現在は待ち（安全圏）だが、未来予測の気配は微かに【買い優勢（上昇バイアス: 上{prob_up:.0f}%）】。押し目形成を注視せよ。"
-            elif prob_down > prob_up + 5:
-                analysis = f"現在は待ち（安全圏）だが、未来予測の気配は微かに【売り優勢（下落バイアス: 下{prob_down:.0f}%）】。上値の重さに注意。"
+            if prob_up > prob_down:
+                analysis = f"現在は待機状態だが、未来の微弱バイアスは【上昇優勢 (上 {prob_up:.0f}% / 下 {prob_down:.0f}%)】。エネルギー蓄積中。"
             else:
-                analysis = "未来のエネルギーが完全な均衡状態（ノイズ）。明確な仕掛けのシグナルを待つ。"
+                analysis = f"現在は待機状態だが、未来の微弱バイアスは【下落優勢 (上 {prob_up:.0f}% / 下 {prob_down:.0f}%)】。下値注意。"
             score = max(prob_up, prob_down)
 
         analyzed_results.append({
