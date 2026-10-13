@@ -118,7 +118,10 @@ with col2:
     st.markdown(f'<div class="metric-card"><small>自己学習Lv</small><h3>Lv.5</h3></div>', unsafe_allow_html=True)
 
 st.markdown("---")
-st.subheader(f"📊 リアルタイム市場スキャン ({datetime.datetime.now().strftime('%H:%M:%S')})")
+
+# 日本時間（JST = UTC+9）に明示的に変換して表示
+jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+st.subheader(f"📊 リアルタイム市場スキャン ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
 
 for name, symbol in ASSETS_LIST:
     try:
@@ -186,7 +189,7 @@ for name, symbol in ASSETS_LIST:
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
             analysis = "クジラの仕掛け（ダマシ）の警戒ゾーン。見送りが賢明。"
 
-        # スマホで綺麗に並ぶ「カード型UI」として出力
+        # カード型UI
         card_html = f"""
         <div class="asset-card">
             <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 8px;">📌 {name}</div>
