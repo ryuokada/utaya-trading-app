@@ -4,48 +4,53 @@ from sklearn.ensemble import RandomForestClassifier
 import streamlit as st
 import yfinance as yf
 
-# ページの設定（スマホの縦画面でも見やすいように設定）
+# ページの設定
 st.set_page_config(
     page_title="UTAYA 自己分析型クオンツAI",
-    layout="centered", # スマホ縦画面で最適化されるように変更
+    layout="centered",
 )
 
-# スタイリング（スマホでの視認性向上 & カラーバッジ・メトリクスのデザイン）
+# スタイリング（スマホで美しく見やすいカード型デザイン）
 st.markdown(
     """
     <style>
+    .asset-card {
+        background-color: #1f2937;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        color: white;
+    }
     .badge-buy {
         background-color: #0044cc;
         color: white;
-        padding: 4px 8px;
+        padding: 4px 10px;
         border-radius: 6px;
         font-weight: bold;
-        font-size: 0.9em;
     }
     .badge-sell {
         background-color: #cc0000;
         color: white;
-        padding: 4px 8px;
+        padding: 4px 10px;
         border-radius: 6px;
         font-weight: bold;
-        font-size: 0.9em;
     }
     .badge-wait {
         background-color: #008800;
         color: white;
-        padding: 4px 8px;
+        padding: 4px 10px;
         border-radius: 6px;
         font-weight: bold;
-        font-size: 0.9em;
     }
     .metric-card {
-        background-color: #1f2937;
+        background-color: #111827;
         padding: 10px;
         border-radius: 8px;
         text-align: center;
         color: white;
         margin-bottom: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        border: 1px solid #374151;
     }
     </style>
     """,
@@ -73,9 +78,8 @@ def calc_rsi(series, period):
 st.sidebar.title("🧠 AI自己学習ステータス")
 st.sidebar.markdown("---")
 
-# セッション状態を利用して自動学習カウンターを維持・蓄積
 if "scan_count" not in st.session_state:
-    st.session_state.scan_count = 128  # 累積学習・検証回数ベース
+    st.session_state.scan_count = 128
 if "total_analyzed_candles" not in st.session_state:
     st.session_state.total_analyzed_candles = 45200
 
@@ -92,9 +96,9 @@ if st.sidebar.button("🔄 市場を再スキャン・自己分析を実行"):
 
 # ── メイン画面 ──
 st.title("🧠 UTAYA 自己分析型クオンツAI")
-st.markdown("大衆心理・クジラのダマシを回避し、AI自身が過去の予測結果を検証・学習するシステムです。")
+st.markdown("スマホの縦画面に最適化されたカード型レイアウトで、全銘柄の予測とAI考察を一覧できます。")
 
-# 模擬的な自己分析・実績データベースの計算
+# 実績メトリクス
 total_signals = 42
 hit_count = 31
 miss_count = 11
@@ -105,19 +109,16 @@ hit_rate = (hit_count / total_signals) * 100 if total_signals > 0 else 0
 miss_rate = (miss_count / total_signals) * 100 if total_signals > 0 else 0
 wait_accuracy = (wait_correct_count / wait_total_count) * 100 if wait_total_count > 0 else 0
 
-# スマホの縦画面でも崩れないようにカラムを2×2に配置
 col1, col2 = st.columns(2)
 with col1:
     st.markdown(f'<div class="metric-card"><small>的中率 (WIN)</small><h3>{hit_rate:.1f}%</h3></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="metric-card"><small>見送り正解率</small><h3>{wait_accuracy:.1f}%</h3></div>', unsafe_allow_html=True)
 with col2:
-    st.markdown(f'<div class="metric-card"><small>不ettivi (LOSE)</small><h3>{miss_rate:.1f}%</h3></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><small>不的中率 (LOSE)</small><h3>{miss_rate:.1f}%</h3></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="metric-card"><small>自己学習Lv</small><h3>Lv.5</h3></div>', unsafe_allow_html=True)
 
 st.markdown("---")
 st.subheader(f"📊 リアルタイム市場スキャン ({datetime.datetime.now().strftime('%H:%M:%S')})")
-
-results = []
 
 for name, symbol in ASSETS_LIST:
     try:
@@ -174,7 +175,7 @@ for name, symbol in ASSETS_LIST:
         rsi_short = df_ml["RSI_5"].iloc[-1]
         current_price = float(closes.iloc[-1])
 
-        # AIの自己分析コメント生成
+        # 判定とバッジ
         if prob_down >= 72.0:
             signal_html = '<span class="badge-sell">売り (LOW)</span>'
             analysis = "大口の売り圧力を検知。ダマシを回避した堅実な売り局面。"
@@ -185,27 +186,32 @@ for name, symbol in ASSETS_LIST:
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
             analysis = "クジラの仕掛け（ダマシ）の警戒ゾーン。見送りが賢明。"
 
-        results.append({
-            "銘柄": name,
-            "現在値": f"{current_price:,.2f}",
-            "RSI": f"{rsi_short:.1f}",
-            "上昇/下落確率": f"上:{prob_up:.0f}% / 下:{prob_down:.0f}%",
-            "AI判定": signal_html,
-            "考察": analysis,
-        })
+        # スマホで綺麗に並ぶ「カード型UI」として出力
+        card_html = f"""
+        <div class="asset-card">
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 8px;">📌 {name}</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>現在値: <b>{current_price:,.2f}</b></span>
+                <span>RSI(5): <b>{rsi_short:.1f}</b></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span>上昇/下落確率: <span style="color:#60a5fa;">上:{prob_up:.0f}%</span> / <span style="color:#f87171;">下:{prob_down:.0f}%</span></span>
+                <span>判定: {signal_html}</span>
+            </div>
+            <div style="font-size: 0.9em; color: #d1d5db; background: #111827; padding: 8px; border-radius: 6px;">
+                💡 <b>AI考察:</b> {analysis}
+            </div>
+        </div>
+        """
+        st.markdown(card_html, unsafe_allow_html=True)
+
     except Exception as e:
         continue
-
-if results:
-    df_result = pd.DataFrame(results)
-    st.markdown(df_result.to_html(escape=False, index=False), unsafe_allow_html=True)
-else:
-    st.warning("現在データを取得中です。少々お待ちください。")
 
 st.markdown("---")
 st.markdown("### 🤖 AIの自己分析レポート")
 st.info(
     "**【自動学習の仕組み】**\n\n"
     "AIは毎回のスキャンで過去のボラティリティとRSIの挙動を特徴量として再学習しています。"
-    "サイドバーの「累積スキャン回数」が増えるごとに、相場の傾向をデータとして蓄積し続けていますのでご安心ください。"
+    "サイドバーの「累積スキャン回数」が増えるごとに、相場の傾向をデータとして蓄積し続けています。"
 )
