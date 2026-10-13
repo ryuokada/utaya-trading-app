@@ -4,16 +4,25 @@ from sklearn.ensemble import RandomForestClassifier
 import streamlit as st
 import yfinance as yf
 
-# ページの設定（自動更新をスムーズに行うためレイアウトを整える）
+# ページの設定
 st.set_page_config(
-    page_title="UTAYA 完全自動型クオンツAI",
+    page_title="UTAYA クオンツAI・リアルタイム戦闘司令",
     layout="centered",
 )
 
-# スタイリング（スマホで美しく見やすいカード型デザイン ＆ 自動更新インジケータ用）
+# スタイリング（最注目銘柄のゴールド特別枠 ＆ カードデザイン）
 st.markdown(
     """
     <style>
+    .top-asset-card {
+        background: linear-gradient(135deg, #1e3a8a, #312e81);
+        border: 2px solid #60a5fa;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+        color: white;
+    }
     .asset-card {
         background-color: #1f2937;
         padding: 15px;
@@ -83,13 +92,13 @@ if "scan_count" not in st.session_state:
 if "total_analyzed_candles" not in st.session_state:
     st.session_state.total_analyzed_candles = 45200
 
-# 自動更新の間隔設定（秒単位：デフォルト60秒＝1分ごとに自動更新）
-refresh_interval = st.sidebar.slider("⏱️ 自動更新間隔 (秒)", min_value=30, max_value=300, value=60, step=30)
+# サーバーブロックを防ぐため安全な最短間隔（30秒〜）に設定
+refresh_interval = st.sidebar.slider("⏱️ 自動更新間隔 (秒)", min_value=30, max_value=300, value=30, step=30)
 
 st.sidebar.markdown(f"🔄 **累積市場スキャン回数**: `{st.session_state.scan_count}回`")
 st.sidebar.markdown(f"📊 **総学習データポイント**: `{st.session_state.total_analyzed_candles:,} 本`")
 st.sidebar.markdown("🎯 **ダマシ回避フィルター**: `稼働中 (72%以上)`")
-st.sidebar.markdown("⚡ **モード**: `完全自動アップデート中`")
+st.sidebar.markdown("⚡ **モード**: `最注目銘柄自動ピックアップ中`")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 今すぐ手動で再スキャン"):
@@ -97,13 +106,12 @@ if st.sidebar.button("🔄 今すぐ手動で再スキャン"):
     st.session_state.total_analyzed_candles += 350
     st.rerun()
 
-# ── 自動更新の仕組み（Streamlitのネイティブ機能を利用） ──
-# 指定した秒数ごとに自動で画面が再実行され、最新の相場データを取得します
+# 自動更新タグ
 st.markdown(f'<meta http-equiv="refresh" content="{refresh_interval}">', unsafe_allow_html=True)
 
 # ── メイン画面 ──
-st.title("🧠 UTAYA 完全自動クオンツAI")
-st.markdown(f"スマホを開きっぱなしにするだけで、**{refresh_interval}秒ごと**にAIが自動で市場を再スキャンし、予測と確率をアップデートします。")
+st.title("🧠 UTAYA クオンツAI・戦闘司令")
+st.markdown(f"全市場をスキャンし、**「今最もアツい（買い・売りシグンの強い）銘柄」**を自動で一番上にピックアップして表示します。")
 
 # 実績メトリクス
 total_signals = 42
@@ -126,13 +134,13 @@ with col2:
 
 st.markdown("---")
 
-# 日本時間（JST = UTC+9）に明示的に変換して表示
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
-st.subheader(f"📊 リアルタイム自動スキャン中 ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
+st.subheader(f"📊 リアルタイム市場スキャン ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
 
-# 自動スキャン実行時にカウンタも自動加算（自動学習の蓄積）
 st.session_state.scan_count += 1
 st.session_state.total_analyzed_candles += 50
+
+analyzed_results = []
 
 for name, symbol in ASSETS_LIST:
     try:
@@ -191,41 +199,88 @@ for name, symbol in ASSETS_LIST:
 
         # 判定とバッジ
         if prob_down >= 72.0:
+            signal_type = "SELL"
             signal_html = '<span class="badge-sell">売り (LOW)</span>'
             analysis = "大口の売り圧力を検知。ダマシを回避した堅実な売り局面。"
+            score = prob_down
         elif prob_up >= 72.0:
+            signal_type = "BUY"
             signal_html = '<span class="badge-buy">買い (HIGH)</span>'
             analysis = "押し目買いのモメンタムが合致。優位性の高い買い局面。"
+            score = prob_up
         else:
+            signal_type = "WAIT"
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
             analysis = "クジラの仕掛け（ダマシ）の警戒ゾーン。見送りが賢明。"
+            score = max(prob_up, prob_down)
 
-        # カード型UI
-        card_html = f"""
-        <div class="asset-card">
-            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 8px;">📌 {name}</div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                <span>現在値: <b>{current_price:,.2f}</b></span>
-                <span>RSI(5): <b>{rsi_short:.1f}</b></span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <span>上昇/下落確率: <span style="color:#60a5fa;">上:{prob_up:.0f}%</span> / <span style="color:#f87171;">下:{prob_down:.0f}%</span></span>
-                <span>判定: {signal_html}</span>
-            </div>
-            <div style="font-size: 0.9em; color: #d1d5db; background: #111827; padding: 8px; border-radius: 6px;">
-                💡 <b>AI考察:</b> {analysis}
-            </div>
-        </div>
-        """
-        st.markdown(card_html, unsafe_allow_html=True)
+        analyzed_results.append({
+            "name": name,
+            "current_price": current_price,
+            "rsi_short": rsi_short,
+            "prob_up": prob_up,
+            "prob_down": prob_down,
+            "signal_type": signal_type,
+            "signal_html": signal_html,
+            "analysis": analysis,
+            "score": score
+        })
 
     except Exception as e:
         continue
 
+# ── 確率（スコア）が高い順に自動ソート（最もチャンスのある銘柄を一番上にする） ──
+analyzed_results.sort(key=lambda x: (0 if x["signal_type"] != "WAIT" else 1, -x["score"]))
+
+if analyzed_results:
+    # 【一番上の特別枠】今最もアツい銘柄
+    top_item = analyzed_results[0]
+    st.markdown("### 🔥 【本日の最注目】今最もアプローチすべき銘柄")
+    
+    top_card_html = f"""
+    <div class="top-asset-card">
+        <div style="font-size: 1.3em; font-weight: bold; margin-bottom: 8px;">⭐ {top_item['name']} （最優先シグナル）</div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.1em;">
+            <span>現在値: <b>{top_item['current_price']:,.2f}</b></span>
+            <span>RSI(5): <b>{top_item['rsi_short']:.1f}</b></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 1.1em;">
+            <span>確率: <span style="color:#60a5fa;">上:{top_item['prob_up']:.0f}%</span> / <span style="color:#f87171;">下:{top_item['prob_down']:.0f}%</span></span>
+            <span>判定: {top_item['signal_html']}</span>
+        </div>
+        <div style="font-size: 0.95em; color: #e5e7eb; background: #111827; padding: 10px; border-radius: 8px;">
+            💡 <b>AI戦闘司令:</b> {top_item['analysis']}
+        </div>
+    </div>
+    """
+    st.markdown(top_card_html, unsafe_allow_html=True)
+
+    # 【残りの銘柄一覧】
+    st.markdown("### 📋 その他の監視銘柄一覧")
+    for item in analyzed_results[1:]:
+        card_html = f"""
+        <div class="asset-card">
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 8px;">📌 {item['name']}</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>現在値: <b>{item['current_price']:,.2f}</b></span>
+                <span>RSI(5): <b>{item['rsi_short']:.1f}</b></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span>上昇/下落確率: <span style="color:#60a5fa;">上:{item['prob_up']:.0f}%</span> / <span style="color:#f87171;">下:{item['prob_down']:.0f}%</span></span>
+                <span>判定: {item['signal_html']}</span>
+            </div>
+            <div style="font-size: 0.9em; color: #d1d5db; background: #111827; padding: 8px; border-radius: 6px;">
+                💡 <b>AI考察:</b> {item['analysis']}
+            </div>
+        </div>
+        """
+        st.markdown(card_html, unsafe_allow_html=True)
+else:
+    st.warning("現在データを取得中です。少々お待ちください。")
+
 st.markdown("---")
 st.markdown("### 🤖 AIの完全自動学習レポート")
 st.info(
-    "**【オートリフレッシュ稼働中】**\n\n"
-    "サイドバーのスライダーで設定した時間ごとに、スマホの画面が自動でリフレッシュされ、"
-    "最新の市場データを基にAIが自動学習・予測を更新し続けます。もうポチポチ更新する必要はありません！"
+    "**【最注目ピックアップ稼働中】**\n\n"
+    "全銘柄のAI予測スコアを自動で比較し、今最も確度の高い（買いや売りの）銘柄を自動で一番上の特等席にピン留め表示します。"
 )
