@@ -36,7 +36,7 @@ try:
 
     def calc_rsi(series, period):
       delta = series.diff()
-      gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+      gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
       loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
       rs = gain / loss
       return 100 - (100 / (1 + rs))
@@ -85,9 +85,8 @@ try:
     rsi_val = df_ml["RSI_5"].iloc[-1]
 
     # 画面に結果を表示
-    metric_placeholder.metric(
-        label="現在のRSI(5)", value=f"{rsi_val:.1f}"
-    )
+    metric_placeholder.metric(label="現在のRSI(5)", value=f"{rsi_val:.1f}")
+
     col1, col2 = st.columns(2)
     col1.metric(label="上昇確率", value=f"{prob_up:.1f}%")
     col2.metric(label="下落確率", value=f"{prob_down:.1f}%")
