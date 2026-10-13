@@ -83,7 +83,7 @@ def calc_rsi(series, period):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# ── セッションステート（リアルタイム蓄積） ──
+# ── セッションステート（リアルタイム蓄積の初期化） ──
 if "scan_count" not in st.session_state:
     st.session_state.scan_count = 142
 if "total_analyzed_candles" not in st.session_state:
@@ -115,16 +115,17 @@ st.markdown(f'<meta http-equiv="refresh" content="{refresh_interval}">', unsafe_
 
 # ── メイン画面 ──
 st.title("🧠 UTAYA クオンツAI・戦闘司令")
-st.markdown(f"全市場をスキャンし、**「未来のエネルギーの歪みが爆発する激熱の瞬間」**を自動で一番上にピックアップします。")
+st.markdown("全市場をスキャンし、**「未来のエネルギーの歪みが爆発する激熱の瞬間」**を自動で一番上にピックアップします。")
 st.markdown("---")
 
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.subheader(f"📊 リアルタイム市場スキャン ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
 
+# スキャン実行時のカウントアップ（重複加算を防ぐためループ前に1回のみ確実に加算）
 st.session_state.scan_count += 1
-st.session_state.total_analyzed_candles += 85
 
 analyzed_results = []
+added_candles = 0
 
 for name, symbol in ASSETS_LIST:
     try:
@@ -134,6 +135,7 @@ for name, symbol in ASSETS_LIST:
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
+        added_candles += len(df)
         closes = df["Close"]
         volumes = df["Volume"] if "Volume" in df.columns else pd.Series(1, index=df.index)
         
@@ -170,6 +172,9 @@ for name, symbol in ASSETS_LIST:
         X = df_ml[feature_cols]
         y = df_ml["Target_Up_2D"]
 
+        if len(X) < 10:
+            continue
+
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X, y)
 
@@ -197,7 +202,7 @@ for name, symbol in ASSETS_LIST:
         acc_val = df_ml["Momentum_Acc"].iloc[-1]
         vol_ratio = df_ml["Volume_Ratio"].iloc[-1]
 
-        # ── タイムマシーン判定 ＋ 見送り時の未来バイアス（ヒント）解析 ──
+        # ── 判定ロジック ──
         if prob_down >= 80.0 and acc_val < 0 and vol_ratio >= 1.2:
             signal_type = "SELL"
             signal_html = '<span class="badge-sell">激熱・売り (SELL)</span>'
@@ -211,7 +216,6 @@ for name, symbol in ASSETS_LIST:
         else:
             signal_type = "WAIT"
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
-            # ── 見送り時でも未来の傾き（バイアス）をヒントとして算出 ──
             if prob_up > prob_down + 5:
                 analysis = f"現在は待ち（安全圏）だが、未来予測の気配は微かに【買い優勢（上昇バイアス: 上{prob_up:.0f}%）】。押し目形成を注視せよ。"
             elif prob_down > prob_up + 5:
@@ -234,6 +238,8 @@ for name, symbol in ASSETS_LIST:
 
     except Exception as e:
         continue
+
+st.session_state.total_analyzed_candles += added_candles
 
 # ── スコア順にソート ──
 analyzed_results.sort(key=lambda x: (0 if x["signal_type"] != "WAIT" else 1, -x["score"]))
@@ -286,7 +292,7 @@ else:
 
 st.markdown("---")
 
-# ── 的中率などの実績表示（最注目銘柄の下部に移動） ──
+# ── 的中率などの実績表示 ──
 st.subheader("📊 AI戦闘実績・的中率ステータス")
 hit_rate = (st.session_state.hit_count / st.session_state.total_signals) * 100 if st.session_state.total_signals > 0 else 0
 miss_rate = 100.0 - hit_rate
