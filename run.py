@@ -101,7 +101,7 @@ refresh_interval = st.sidebar.slider("⏱️ 自動更新間隔 (秒)", min_valu
 
 st.sidebar.markdown(f"🔄 **累積市場スキャン回数**: `{st.session_state.scan_count:,}回`")
 st.sidebar.markdown(f"📊 **総学習データポイント**: `{st.session_state.total_analyzed_candles:,} 本`")
-st.sidebar.markdown("🎯 **タイムマシーンエンジン**: `マルチタイムフレーム共鳴 ＋ 変曲点加速度検知`")
+st.sidebar.markdown("🎯 **タイムマシーンエンジン**: `マルチタイムフレーム共鳴 ＋ 未来の微弱バイアス検知`")
 st.sidebar.markdown("⚡ **モード**: `超高精度未来予測稼働中`")
 
 st.sidebar.markdown("---")
@@ -197,6 +197,7 @@ for name, symbol in ASSETS_LIST:
         acc_val = df_ml["Momentum_Acc"].iloc[-1]
         vol_ratio = df_ml["Volume_Ratio"].iloc[-1]
 
+        # ── タイムマシーン判定 ＋ 見送り時の未来バイアス（ヒント）解析 ──
         if prob_down >= 80.0 and acc_val < 0 and vol_ratio >= 1.2:
             signal_type = "SELL"
             signal_html = '<span class="badge-sell">激熱・売り (SELL)</span>'
@@ -210,7 +211,13 @@ for name, symbol in ASSETS_LIST:
         else:
             signal_type = "WAIT"
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
-            analysis = "未来のエネルギーが均衡状態（ノイズ）。明確な仕掛けのシグナルを待つ。"
+            # ── 見送り時でも未来の傾き（バイアス）をヒントとして算出 ──
+            if prob_up > prob_down + 5:
+                analysis = f"現在は待ち（安全圏）だが、未来予測の気配は微かに【買い優勢（上昇バイアス: 上{prob_up:.0f}%）】。押し目形成を注視せよ。"
+            elif prob_down > prob_up + 5:
+                analysis = f"現在は待ち（安全圏）だが、未来予測の気配は微かに【売り優勢（下落バイアス: 下{prob_down:.0f}%）】。上値の重さに注意。"
+            else:
+                analysis = "未来のエネルギーが完全な均衡状態（ノイズ）。明確な仕掛けのシグナルを待つ。"
             score = max(prob_up, prob_down)
 
         analyzed_results.append({
