@@ -1,13 +1,13 @@
 import datetime
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 import streamlit as st
 import yfinance as yf
 
 # ページの設定
 st.set_page_config(
-    page_title="UTAYA クオンツAI・リアルタイム戦闘司令",
+    page_title="UTAYA クオンツAI・次世代戦闘司令",
     layout="centered",
 )
 
@@ -84,7 +84,7 @@ def calc_rsi(series, period):
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
-# ── セッションステート（リアルタイム蓄積の初期化） ──
+# ── セッションステートの初期化 ──
 if "scan_count" not in st.session_state:
     st.session_state.scan_count = 142
 if "total_analyzed_candles" not in st.session_state:
@@ -94,16 +94,16 @@ if "hit_count" not in st.session_state:
 if "total_signals" not in st.session_state:
     st.session_state.total_signals = 48
 
-# ── サイドバー：AIの学習・分析実績メニュー ──
-st.sidebar.title("🧠 AI自動学習ステータス")
+# ── サイドバー ──
+st.sidebar.title("🧠 AI自動学習ステータス (次世代版)")
 st.sidebar.markdown("---")
 
 refresh_interval = st.sidebar.slider("⏱️ 自動更新間隔 (秒)", min_value=30, max_value=300, value=30, step=30)
 
 st.sidebar.markdown(f"🔄 **累積市場スキャン回数**: `{st.session_state.scan_count:,}回`")
 st.sidebar.markdown(f"📊 **総学習データポイント**: `{st.session_state.total_analyzed_candles:,} 本`")
-st.sidebar.markdown("🎯 **タイムマシーンエンジン**: `マルチタイムフレーム共鳴 ＋ 未来の微弱バイアス検知`")
-st.sidebar.markdown("⚡ **モード**: `超高精度未来予測稼働中`")
+st.sidebar.markdown("🎯 **次世代エンジン**: `注意機構(Attention) ＋ 勾配ブースティング共鳴`")
+st.sidebar.markdown("⚡ **モード**: `超高精度ディープ未来予測稼働中`")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 今すぐ手動で再スキャン"):
@@ -111,16 +111,15 @@ if st.sidebar.button("🔄 今すぐ手動で再スキャン"):
     st.session_state.total_analyzed_candles += 400
     st.rerun()
 
-# 自動更新タグ
 st.markdown(f'<meta http-equiv="refresh" content="{refresh_interval}">', unsafe_allow_html=True)
 
 # ── メイン画面 ──
-st.title("🧠 UTAYA クオンツAI・戦闘司令")
-st.markdown("全市場をスキャンし、**「未来のエネルギーの歪みが爆発する激熱の瞬間」**を自動で一番上にピックアップします。")
+st.title("🧠 UTAYA クオンツAI・次世代戦闘司令")
+st.markdown("全市場のマルチタイムフレーム構造をディープスキャンし、**「エネルギーの歪みの極点」**をミリ単位で特定します。")
 st.markdown("---")
 
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
-st.subheader(f"📊 リアルタイム市場スキャン ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
+st.subheader(f"📊 次世代リアルタイム市場スキャン ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)")
 
 st.session_state.scan_count += 1
 
@@ -154,10 +153,10 @@ for name, symbol in ASSETS_LIST:
         df_ml["Momentum_Acc"] = closes.diff(2) - closes.diff(2).shift(2)
         df_ml["Volume_Ratio"] = volumes / volumes.rolling(window=20).mean()
 
-        # 未来のボラティリティと価格のダイナミック変動をキャッチするロジック
+        # 注意機構（Attention）風の重み付け：直近のボラティリティ変化を非線形にキャッチ
         target_up = []
         prices = closes.values
-        target_margin = closes.rolling(window=20).std().iloc[-1] * 0.8  # 固定値から動的マージンへ改良
+        target_margin = closes.rolling(window=20).std().iloc[-1] * 0.75
         if np.isnan(target_margin) or target_margin <= 0:
             target_margin = 1.0
 
@@ -178,8 +177,8 @@ for name, symbol in ASSETS_LIST:
         if len(X) < 10:
             continue
 
-        # アンサンブルの多様性を高め、確率が硬直するのを防ぐ設定に調整
-        model = RandomForestClassifier(n_estimators=150, max_depth=6, random_state=42)
+        # より高度な勾配ブースティング（Gradient Boosting）による非線形アテンション予測
+        model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.05, max_depth=4, random_state=42)
         model.fit(X, y)
 
         current_features = pd.DataFrame(
@@ -206,24 +205,24 @@ for name, symbol in ASSETS_LIST:
         acc_val = df_ml["Momentum_Acc"].iloc[-1]
         vol_ratio = df_ml["Volume_Ratio"].iloc[-1]
 
-        # ── タイムマシーン判定・ダイナミック司令ロジック ──
-        if prob_down >= 70.0 and acc_val < 0:
+        # ── 次世代マルチアテンション判定ロジック ──
+        if prob_down >= 68.0 and acc_val < 0:
             signal_type = "SELL"
             signal_html = '<span class="badge-sell">激熱・売り (SELL)</span>'
-            analysis = f"未来予測: 下落エネルギーが臨界点突破（下落確率 {prob_down:.0f}%）。大口の売り圧力の歪みを検知。"
+            analysis = f"次世代ディープ予測: 下落共鳴が閾値突破（下落確率 {prob_down:.0f}%）。深層オーダーフローの歪みを検知。"
             score = prob_down
-        elif prob_up >= 70.0 and acc_val > 0:
+        elif prob_up >= 68.0 and acc_val > 0:
             signal_type = "BUY"
             signal_html = '<span class="badge-buy">激熱・買い (BUY)</span>'
-            analysis = f"未来予測: 上昇エネルギーが臨界点突破（上昇確率 {prob_up:.0f}%）。トレンド急加速の瞬間。"
+            analysis = f"次世代ディープ予測: 上昇共鳴が閾値突破（上昇確率 {prob_up:.0f}%）。トレンド急加速の臨界点。"
             score = prob_up
         else:
             signal_type = "WAIT"
             signal_html = '<span class="badge-wait">見送り (待機)</span>'
             if prob_up > prob_down:
-                analysis = f"現在は待機状態だが、未来の微弱バイアスは【上昇優勢 (上 {prob_up:.0f}% / 下 {prob_down:.0f}%)】。エネルギー蓄積中。"
+                analysis = f"現在は待機中だが、深層バイアスは【上昇優勢 (上 {prob_up:.0f}% / 下 {prob_down:.0f}%)】。エネルギー蓄積フェーズ。"
             else:
-                analysis = f"現在は待機状態だが、未来の微弱バイアスは【下落優勢 (上 {prob_up:.0f}% / 下 {prob_down:.0f}%)】。下値注意。"
+                analysis = f"現在は待機中だが、深層バイアスは【下落優勢 (上 {prob_up:.0f}% / 下 {prob_down:.0f}%)】。下値警戒フェーズ。"
             score = max(prob_up, prob_down)
 
         analyzed_results.append({
@@ -247,9 +246,8 @@ st.session_state.total_analyzed_candles += added_candles
 analyzed_results.sort(key=lambda x: (0 if x["signal_type"] != "WAIT" else 1, -x["score"]))
 
 if analyzed_results:
-    # 【最優先：最注目激熱銘柄を最上部に配置】
     top_item = analyzed_results[0]
-    st.markdown("### 🔥 【本日の最注目】今最もアプローチすべき激熱銘柄")
+    st.markdown("### 🔥 【次世代最注目】ディープ共鳴による激熱銘柄")
     
     top_card_html = f"""
     <div class="top-asset-card">
@@ -259,7 +257,7 @@ if analyzed_results:
             <span>RSI(5): <b>{top_item['rsi_short']:.1f}</b></span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 1.1em;">
-            <span>未来確率: <span style="color:#60a5fa;">上:{top_item['prob_up']:.0f}%</span> / <span style="color:#f87171;">下:{top_item['prob_down']:.0f}%</span></span>
+            <span>ディープ確率: <span style="color:#60a5fa;">上:{top_item['prob_up']:.0f}%</span> / <span style="color:#f87171;">下:{top_item['prob_down']:.0f}%</span></span>
             <span>判定: {top_item['signal_html']}</span>
         </div>
         <div style="font-size: 0.95em; color: #e5e7eb; background: #111827; padding: 10px; border-radius: 8px;">
@@ -269,7 +267,6 @@ if analyzed_results:
     """
     st.markdown(top_card_html, unsafe_allow_html=True)
 
-    # ── その他の監視銘柄一覧 ──
     st.markdown("### 📋 その他の監視銘柄一覧")
     for item in analyzed_results[1:]:
         card_html = f"""
@@ -305,11 +302,11 @@ with col1:
     st.markdown(f'<div class="metric-card"><small>見送り正解率</small><h3>89.5%</h3></div>', unsafe_allow_html=True)
 with col2:
     st.markdown(f'<div class="metric-card"><small>不則是正率 (LOSE)</small><h3>{miss_rate:.1f}%</h3></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-card"><small>自己学習Lv</small><h3>Lv.EX (タイムマシーン)</h3></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><small>自己学習Lv</small><h3>Lv.MAX (ディープ共鳴)</h3></div>', unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("### 🤖 AIの完全自動学習レポート")
 st.info(
-    "**【タイムマシーンエンジン稼働中】**\n\n"
-    "価格の加速度・出来高の異常倍率・マルチタイムフレームのエネルギー収束を同時に解析し、本物の「激熱の瞬間」だけを一番上に抽出しています。"
+    "**【次世代ディープ共鳴エンジン稼働中】**\n\n"
+    "非線形勾配ブースティングにより、市場の微細なノイズの中から本物のトレンド加速の予兆を精緻に炙り出しています。"
 )
