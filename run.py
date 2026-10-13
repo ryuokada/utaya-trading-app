@@ -116,19 +116,6 @@ st.markdown(f'<meta http-equiv="refresh" content="{refresh_interval}">', unsafe_
 # ── メイン画面 ──
 st.title("🧠 UTAYA クオンツAI・戦闘司令")
 st.markdown(f"全市場をスキャンし、**「未来のエネルギーの歪みが爆発する激熱の瞬間」**を自動で一番上にピックアップします。")
-
-# 確率の計算
-hit_rate = (st.session_state.hit_count / st.session_state.total_signals) * 100 if st.session_state.total_signals > 0 else 0
-miss_rate = 100.0 - hit_rate
-
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown(f'<div class="metric-card"><small>的中率 (WIN)</small><h3>{hit_rate:.1f}%</h3></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-card"><small>見送り正解率</small><h3>89.5%</h3></div>', unsafe_allow_html=True)
-with col2:
-    st.markdown(f'<div class="metric-card"><small>不則是正率 (LOSE)</small><h3>{miss_rate:.1f}%</h3></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="metric-card"><small>自己学習Lv</small><h3>Lv.EX (タイムマシーン)</h3></div>', unsafe_allow_html=True)
-
 st.markdown("---")
 
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
@@ -141,7 +128,6 @@ analyzed_results = []
 
 for name, symbol in ASSETS_LIST:
     try:
-        # より解像度の高い予測を行うため1時間足と15分足の多層データを構築
         df = yf.download(symbol, period="7d", interval="15m", progress=False)
         if df.empty or len(df) < 50:
             continue
@@ -158,16 +144,14 @@ for name, symbol in ASSETS_LIST:
         df_ml["RSI_26"] = calc_rsi(closes, 26)
         df_ml["Return_1"] = closes.pct_change(1)
         df_ml["Return_3"] = closes.pct_change(3)
-        df_ml["Return_12"] = closes.pct_change(12) # 中期モメンタム
+        df_ml["Return_12"] = closes.pct_change(12)
         
-        # ボラティリティ・加速度・出来高の急増（クジラの仕掛け検知）
         ma20 = closes.rolling(window=20).mean()
         std20 = closes.rolling(window=20).std()
         df_ml["BB_Width"] = (std20 / ma20) * 100
-        df_ml["Momentum_Acc"] = closes.diff(2) - closes.diff(2).shift(2) # 加速度
-        df_ml["Volume_Ratio"] = volumes / volumes.rolling(window=20).mean() # 出来高急増倍率
+        df_ml["Momentum_Acc"] = closes.diff(2) - closes.diff(2).shift(2)
+        df_ml["Volume_Ratio"] = volumes / volumes.rolling(window=20).mean()
 
-        # 未来予測ターゲット（次数本先での優位な価格変動の検知）
         target_up = []
         prices = closes.values
         target_margin = 1.5
@@ -213,7 +197,6 @@ for name, symbol in ASSETS_LIST:
         acc_val = df_ml["Momentum_Acc"].iloc[-1]
         vol_ratio = df_ml["Volume_Ratio"].iloc[-1]
 
-        # ── タイムマシーン激熱判定ロジック（確率 ＋ 加速度 ＋ 出来高収縮の共鳴） ──
         if prob_down >= 80.0 and acc_val < 0 and vol_ratio >= 1.2:
             signal_type = "SELL"
             signal_html = '<span class="badge-sell">激熱・売り (SELL)</span>'
@@ -249,6 +232,7 @@ for name, symbol in ASSETS_LIST:
 analyzed_results.sort(key=lambda x: (0 if x["signal_type"] != "WAIT" else 1, -x["score"]))
 
 if analyzed_results:
+    # 【最優先：最注目激熱銘柄を最上部に配置】
     top_item = analyzed_results[0]
     st.markdown("### 🔥 【本日の最注目】今最もアプローチすべき激熱銘柄")
     
@@ -270,6 +254,7 @@ if analyzed_results:
     """
     st.markdown(top_card_html, unsafe_allow_html=True)
 
+    # ── その他の監視銘柄一覧 ──
     st.markdown("### 📋 その他の監視銘柄一覧")
     for item in analyzed_results[1:]:
         card_html = f"""
@@ -291,6 +276,21 @@ if analyzed_results:
         st.markdown(card_html, unsafe_allow_html=True)
 else:
     st.warning("現在データを取得中です。少々お待ちください。")
+
+st.markdown("---")
+
+# ── 的中率などの実績表示（最注目銘柄の下部に移動） ──
+st.subheader("📊 AI戦闘実績・的中率ステータス")
+hit_rate = (st.session_state.hit_count / st.session_state.total_signals) * 100 if st.session_state.total_signals > 0 else 0
+miss_rate = 100.0 - hit_rate
+
+col1, col2 = st.columns(2)
+with col1:
+    st.markdown(f'<div class="metric-card"><small>的中率 (WIN)</small><h3>{hit_rate:.1f}%</h3></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><small>見送り正解率</small><h3>89.5%</h3></div>', unsafe_allow_html=True)
+with col2:
+    st.markdown(f'<div class="metric-card"><small>不則是正率 (LOSE)</small><h3>{miss_rate:.1f}%</h3></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><small>自己学習Lv</small><h3>Lv.EX (タイムマシーン)</h3></div>', unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("### 🤖 AIの完全自動学習レポート")
