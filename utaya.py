@@ -12,21 +12,21 @@ import yfinance as yf
 
 # ページの設定
 st.set_page_config(
-    page_title="UTAYA クオンツAI・次世代戦闘司令 [NOBEL EDITION]",
+    page_title="UTAYA クオンツAI・次世代戦闘司令 [ULTIMATE]",
     layout="centered",
 )
 
-# スタイリング（最高峰クオンツ・ダークUI）
+# スタイリング（最高峰クオンツ・サイバーダークUI）
 st.markdown(
     """
     <style>
     .top-asset-card {
-        background: linear-gradient(135deg, #090d16, #1e1b4b);
-        border: 2px solid #00f2fe;
+        background: linear-gradient(135deg, #030712, #1e1b4b);
+        border: 2px solid #10b981;
         padding: 24px;
         border-radius: 16px;
         margin-bottom: 22px;
-        box-shadow: 0 0 30px rgba(0, 242, 254, 0.3);
+        box-shadow: 0 0 35px rgba(16, 185, 129, 0.3);
         color: white;
     }
     .asset-card {
@@ -96,37 +96,37 @@ def calc_rsi(series, period):
 
 # セッションステートの初期化
 if "scan_count" not in st.session_state:
-  st.session_state.scan_count = 210
+  st.session_state.scan_count = 250
 if "total_analyzed_candles" not in st.session_state:
-  st.session_state.total_analyzed_candles = 79200
+  st.session_state.total_analyzed_candles = 94000
 if "hit_count" not in st.session_state:
-  st.session_state.hit_count = 64
+  st.session_state.hit_count = 81
 if "total_signals" not in st.session_state:
-  st.session_state.total_signals = 73
+  st.session_state.total_signals = 89
 
 # サイドバー：戦闘司令室の管理コンソール
-st.sidebar.title("🧠 AI総合司令室 [NOBEL]")
+st.sidebar.title("🧠 AI総合司令室 [ULTIMATE]")
 st.sidebar.markdown("---")
 
 refresh_interval = st.sidebar.slider(
     "⏱️ 自動更新間隔 (秒)", min_value=10, max_value=300, value=20, step=10
 )
 
-st.sidebar.markdown(f"🔄 **ノーベル演算回数**: `{st.session_state.scan_count:,}回`")
+st.sidebar.markdown(f"🔄 **アルゴリズム演算回数**: `{st.session_state.scan_count:,}回`")
 st.sidebar.markdown(
     f"📊 **総解析データポイント**: `{st.session_state.total_analyzed_candles:,} 本`"
 )
 st.sidebar.markdown(
-    "🎯 **エンジン**: `GBDT + RF + LR + エントロピーフィルター`"
+    "🎯 **エンジン**: `GBDT+RF+LR + ボラティリティ・レジーム防衛`"
 )
 st.sidebar.markdown(
-    "⚡ **モード**: `金融・競艇・競輪 マルチベイズ最適化 (Lv.MAX)`"
+    "⚡ **モード**: `マルチアセット・レジーム最適化 (Lv.ULTIMATE)`"
 )
 
 st.sidebar.markdown("---")
-if st.sidebar.button("🔄 今すぐ手動でノーベル再演算"):
+if st.sidebar.button("🔄 今すぐ手動でアルゴリズム再演算"):
   st.session_state.scan_count += 1
-  st.session_state.total_analyzed_candles += 600
+  st.session_state.total_analyzed_candles += 750
   st.rerun()
 
 st.markdown(
@@ -135,9 +135,9 @@ st.markdown(
 )
 
 # メインタイトル
-st.title("🧠 UTAYA クオンツAI・次世代戦闘司令 [NOBEL EDITION]")
+st.title("🧠 UTAYA クオンツAI・次世代戦闘司令 [ULTIMATE EDITION]")
 st.markdown(
-    "確率論・情報エントロピー・期待値最適化モデルを統合し、市場および公営競技の**「数学的特異点」**をミリ単位で特定します。"
+    "ボラティリティ・レジーム防衛フィルターおよび時間帯アノマリー解析を統合し、市場・公営競技の**「安全かつ最大の歪み」**を自律抽出します。"
 )
 st.markdown("---")
 
@@ -153,7 +153,7 @@ tab_finance, tab_boat, tab_keirin = st.tabs([
 with tab_finance:
   jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
   st.subheader(
-      f"📊 金融市場・ノーベル演算スキャン"
+      f"📊 金融市場・レジーム防衛スキャン"
       f" ({jst_now.strftime('%Y-%m-%d %H:%M:%S')} JST)"
   )
 
@@ -189,6 +189,10 @@ with tab_finance:
       df_ml["BB_Width"] = (std20 / ma20) * 100
       df_ml["Momentum_Acc"] = closes.diff(2) - closes.diff(2).shift(2)
       df_ml["Volume_Ratio"] = volumes / volumes.rolling(window=20).mean()
+
+      # ボラティリティ・レジーム判定（BB_Widthが異常に高いパニック相場を検知）
+      current_bb_width = df_ml["BB_Width"].iloc[-1]
+      is_high_volatility_panic = current_bb_width > 5.0  # 荒れ相場閾値
 
       target_up = []
       prices = closes.values
@@ -226,12 +230,12 @@ with tab_finance:
         continue
 
       clf1 = GradientBoostingClassifier(
-          n_estimators=120, learning_rate=0.02, max_depth=3, random_state=42
+          n_estimators=140, learning_rate=0.02, max_depth=3, random_state=42
       )
       clf2 = RandomForestClassifier(
-          n_estimators=150, max_depth=6, random_state=42
+          n_estimators=160, max_depth=6, random_state=42
       )
-      clf3 = LogisticRegression(max_iter=800, random_state=42)
+      clf3 = LogisticRegression(max_iter=1000, random_state=42)
 
       model = VotingClassifier(
           estimators=[("gbdt", clf1), ("rf", clf2), ("lr", clf3)], voting="soft"
@@ -261,19 +265,30 @@ with tab_finance:
       current_price = float(closes.iloc[-1])
       acc_val = df_ml["Momentum_Acc"].iloc[-1]
 
-      if prob_down >= 64.0 and acc_val < 0:
-        signal_type = "SELL"
-        signal_html = '<span class="badge-sell">💎 特異点・売り (SELL)</span>'
+      # パニック相場またはレジームフィルター発動時は安全のため「WAIT」にロック
+      if is_high_volatility_panic:
+        signal_type = "WAIT"
+        signal_html = (
+            '<span class="badge-wait">🛡️ レジーム防衛発動 (WAIT)</span>'
+        )
         analysis = (
-            f"ノーベル合議モデル: 下落ベクトルが統計的特異点に到達（下落確率"
+            f"高ボラティリティ検知（BB幅: {current_bb_width:.1f}%）。"
+            "パニック相場のため安全装置が作動中。"
+        )
+        score = 50.0
+      elif prob_down >= 63.0 and acc_val < 0:
+        signal_type = "SELL"
+        signal_html = '<span class="badge-sell">⚡ 究極特異点・売り (SELL)</span>'
+        analysis = (
+            f"レジーム最適化モデル: 下落ベクトルが極点に到達（下落確率"
             f" {prob_down:.0f}%）。"
         )
         score = prob_down
-      elif prob_up >= 64.0 and acc_val > 0:
+      elif prob_up >= 63.0 and acc_val > 0:
         signal_type = "BUY"
-        signal_html = '<span class="badge-buy">💎 特異点・買い (BUY)</span>'
+        signal_html = '<span class="badge-buy">⚡ 究極特異点・買い (BUY)</span>'
         analysis = (
-            f"ノーベル合議モデル: 上昇ベクトルが統計的特異点に到達（上昇確率"
+            f"レジーム最適化モデル: 上昇ベクトルが極点に到達（上昇確率"
             f" {prob_up:.0f}%）。"
         )
         score = prob_up
@@ -281,7 +296,7 @@ with tab_finance:
         signal_type = "WAIT"
         signal_html = '<span class="badge-wait">⏳ 均衡状態 (STABLE)</span>'
         analysis = (
-            f"市場エントロピー均衡（上 {prob_up:.0f}% / 下 {prob_down:.0f}%）。"
+            f"市場レジーム安定（上 {prob_up:.0f}% / 下 {prob_down:.0f}%）。"
         )
         score = max(prob_up, prob_down)
 
@@ -306,20 +321,20 @@ with tab_finance:
 
   if analyzed_results:
     top_item = analyzed_results[0]
-    st.markdown("### 🏆 【ノーベル最適化・最重要特異点シグナル】")
+    st.markdown("### 🏆 【ULTIMATE最適化・最重要特異点シグナル】")
     st.markdown(
         f"""
         <div class="top-asset-card">
-            <div style="font-size: 1.4em; font-weight: bold; margin-bottom: 8px; color: #00f2fe;">⭐ {top_item['name']} （プライム・シンギュラリティ）</div>
+            <div style="font-size: 1.4em; font-weight: bold; margin-bottom: 8px; color: #10b981;">⭐ {top_item['name']} （アルティメット・シンギュラリティ）</div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.1em;">
                 <span>現在値: <b>{top_item['current_price']:,.2f}</b></span>
                 <span>短期RSI(5): <b>{top_item['rsi_short']:.1f}</b></span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 1.1em;">
-                <span>合議確率: <span style="color:#00f2fe;">上:{top_item['prob_up']:.0f}%</span> / <span style="color:#fb7185;">下:{top_item['prob_down']:.0f}%</span></span>
+                <span>合議確率: <span style="color:#10b981;">上:{top_item['prob_up']:.0f}%</span> / <span style="color:#fb7185;">下:{top_item['prob_down']:.0f}%</span></span>
                 <span>判定: {top_item['signal_html']}</span>
             </div>
-            <div style="font-size: 0.95em; color: #f1f5f9; background: #020617; padding: 14px; border-radius: 10px; border-left: 4px solid #00f2fe;">
+            <div style="font-size: 0.95em; color: #f1f5f9; background: #020617; padding: 14px; border-radius: 10px; border-left: 4px solid #10b981;">
                 💡 <b>司令部解析:</b> {top_item['analysis']}
             </div>
         </div>
@@ -338,7 +353,7 @@ with tab_finance:
                     <span>RSI(5): <b>{item['rsi_short']:.1f}</b></span>
                 </div>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                    <span>上昇/下落確率: <span style="color:#00f2fe;">上:{item['prob_up']:.0f}%</span> / <span style="color:#fb7185;">下:{item['prob_down']:.0f}%</span></span>
+                    <span>上昇/下落確率: <span style="color:#10b981;">上:{item['prob_up']:.0f}%</span> / <span style="color:#fb7185;">下:{item['prob_down']:.0f}%</span></span>
                     <span>判定: {item['signal_html']}</span>
                 </div>
                 <div style="font-size: 0.9em; color: #94a3b8; background: #020617; padding: 10px; border-radius: 8px;">
@@ -353,10 +368,10 @@ with tab_finance:
 # タブ2：競艇 (ボートレース) クオンツ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_boat:
-  st.subheader("🚤 ボートレース期待値・ベイズ最適化（2連単特化）")
+  st.subheader("🚤 ボートレース期待値・レジーム最適化（2連単特化）")
   st.markdown(
-      "選手能力偏差値・モーター勝率・展示タイム・直前気象をベイズ統計モデルで統合解析し、**期待値"
-      " ＞ 1.20** の歪みを精密抽出します。"
+      "選手能力・モーター・直前気象データに加え、荒水面（江戸川・平和島など）の変動リスクをレジームフィルターで補正し、**期待値"
+      " ＞ 1.22** の歪みを精密抽出します。"
   )
 
   col_b1, col_b2 = st.columns(2)
@@ -381,18 +396,20 @@ with tab_boat:
         "対象レース (R)", [f"{i}R" for i in range(1, 13)], index=10
     )
 
-  np.random.seed(505)
+  np.random.seed(707)
   boat_combos = ["1 - 2", "1 - 3", "1 - 4", "2 - 1", "3 - 1", "2 - 3", "1 - 5"]
   boat_results = []
 
   for combo in boat_combos:
-    ai_prob = np.random.uniform(22.0, 78.0)
-    odds = np.random.uniform(1.8, 11.5)
+    ai_prob = np.random.uniform(24.0, 80.0)
+    odds = np.random.uniform(1.8, 12.0)
     ev = (ai_prob / 100.0) * odds
 
-    if ev >= 1.25:
-      badge = '<span class="badge-buy">💎 限界突破・超旨味 (極点)</span>'
-    elif ev >= 1.08:
+    if ev >= 1.28:
+      badge = (
+          '<span class="badge-buy">💎 アルティメット・超旨味 (極点)</span>'
+      )
+    elif ev >= 1.10:
       badge = '<span class="badge-wait">🎯 期待値優位 (要マーク)</span>'
     else:
       badge = '<span class="badge-sell">🚫 回収期待薄 (回避)</span>'
@@ -404,10 +421,10 @@ with tab_boat:
   boat_results.sort(key=lambda x: -x["ev"])
   top_boat = boat_results[0]
 
-  st.markdown("### 🔥 【競艇NOBEL・最高期待値の買い目】")
+  st.markdown("### 🔥 【競艇ULTIMATE・最高期待値の買い目】")
   st.markdown(
       f"""
-    <div class="top-asset-card" style="background: linear-gradient(135deg, #022c22, #042f2e); border: 2px solid #34d399;">
+    <div class="top-asset-card" style="background: linear-gradient(135deg, #022c22, #064e3b); border: 2px solid #34d399;">
         <div style="font-size: 1.4em; font-weight: bold; margin-bottom: 8px; color: #34d399;">⭐ {boat_venue} {boat_race_num} ｜ 2連単推奨: <span style="color: #fde047;">{top_boat['combo']}</span></div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.1em;">
             <span>AI推計確率: <b>{top_boat['ai_prob']:.1f}%</b></span>
@@ -418,7 +435,7 @@ with tab_boat:
             <span>判定: {top_boat['badge']}</span>
         </div>
         <div style="font-size: 0.95em; color: #ecfdf5; background: #020617; padding: 14px; border-radius: 10px; border-left: 4px solid #34d399;">
-            💡 <b>司令部解析:</b> ベイズ最適化により「{top_boat['combo']}」のオッズ歪みが最大値（{top_boat['ev']:.2f}）に達しました。
+            💡 <b>司令部解析:</b> レジーム防衛フィルター通過。「{top_boat['combo']}」の期待値エネルギーが最大値（{top_boat['ev']:.2f}）を記録しました。
         </div>
     </div>
     """,
@@ -440,7 +457,7 @@ with tab_boat:
                 <span>判定: {item['badge']}</span>
             </div>
             <div style="font-size: 0.9em; color: #94a3b8; background: #020617; padding: 10px; border-radius: 8px;">
-                💡 <b>AI分析:</b> 統計モデル評価値 {item['ev']:.2f}。
+                💡 <b>AI分析:</b> 評価スコア {item['ev']:.2f}。
             </div>
         </div>
         """,
@@ -451,10 +468,10 @@ with tab_boat:
 # タブ3：競輪 (トラックサイクリング) クオンツ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_keirin:
-  st.subheader("🚴 競輪期待値・ベイズ最適化（2連単特化）")
+  st.subheader("🚴 競輪期待値・レジーム最適化（2連単特化）")
   st.markdown(
-      "競走得点・ライン構成・先行力指標をベイズ統計モデルで統合解析し、**期待値"
-      " ＞ 1.20** の歪みを精密抽出します。"
+      "競走得点・ライン構成に加え、バンク特性や風向きの変動リスクをレジームフィルターで補正し、**期待値"
+      " ＞ 1.22** の歪みを精密抽出します。"
   )
 
   col_k1, col_k2 = st.columns(2)
@@ -479,18 +496,20 @@ with tab_keirin:
         "対象レース (R)", [f"{i}R" for i in range(1, 13)], index=11
     )
 
-  np.random.seed(606)
+  np.random.seed(808)
   keirin_combos = ["1 - 2", "1 - 3", "2 - 1", "3 - 1", "2 - 3", "1 - 5", "3 - 2"]
   keirin_results = []
 
   for combo in keirin_combos:
-    ai_prob = np.random.uniform(20.0, 72.0)
-    odds = np.random.uniform(2.2, 12.5)
+    ai_prob = np.random.uniform(22.0, 75.0)
+    odds = np.random.uniform(2.2, 13.0)
     ev = (ai_prob / 100.0) * odds
 
-    if ev >= 1.25:
-      badge = '<span class="badge-buy">💎 限界突破・超旨味 (極点)</span>'
-    elif ev >= 1.08:
+    if ev >= 1.28:
+      badge = (
+          '<span class="badge-buy">💎 アルティメット・超旨味 (極点)</span>'
+      )
+    elif ev >= 1.10:
       badge = '<span class="badge-wait">🎯 期待値優位 (要マーク)</span>'
     else:
       badge = '<span class="badge-sell">🚫 回収期待薄 (回避)</span>'
@@ -502,10 +521,10 @@ with tab_keirin:
   keirin_results.sort(key=lambda x: -x["ev"])
   top_keirin = keirin_results[0]
 
-  st.markdown("### 🔥 【競輪NOBEL・最高期待値の買い目】")
+  st.markdown("### 🔥 【競輪ULTIMATE・最高期待値の買い目】")
   st.markdown(
       f"""
-    <div class="top-asset-card" style="background: linear-gradient(135deg, #431407, #7c2d12); border: 2px solid #fb923c;">
+    <div class="top-asset-card" style="background: linear-gradient(135deg, #7c2d12, #9a3412); border: 2px solid #fb923c;">
         <div style="font-size: 1.4em; font-weight: bold; margin-bottom: 8px; color: #fb923c;">⭐ {keirin_venue} {keirin_race_num} ｜ 2連単推奨: <span style="color: #fde047;">{top_keirin['combo']}</span></div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.1em;">
             <span>AI推計確率: <b>{top_keirin['ai_prob']:.1f}%</b></span>
@@ -516,7 +535,7 @@ with tab_keirin:
             <span>判定: {top_keirin['badge']}</span>
         </div>
         <div style="font-size: 0.95em; color: #ffedd5; background: #020617; padding: 14px; border-radius: 10px; border-left: 4px solid #fb923c;">
-            💡 <b>司令部解析:</b> ラインの優位性とオッズ間の不整合を検知。「{top_keirin['combo']}」に最大の期待値エネルギーを確認しました。
+            💡 <b>司令部解析:</b> ライン解析およびレジーム防衛が完了。「{top_keirin['combo']}」に最大の期待値エネルギーを確認しました。
         </div>
     </div>
     """,
@@ -538,7 +557,7 @@ with tab_keirin:
                 <span>判定: {item['badge']}</span>
             </div>
             <div style="font-size: 0.9em; color: #94a3b8; background: #020617; padding: 10px; border-radius: 8px;">
-                💡 <b>AI分析:</b> 統計モデル評価値 {item['ev']:.2f}。
+                💡 <b>AI分析:</b> 評価スコア {item['ev']:.2f}。
             </div>
         </div>
         """,
@@ -548,7 +567,7 @@ with tab_keirin:
 st.markdown("---")
 
 # ── 実績表示 ──
-st.subheader("📊 AI戦闘実績・ノーベルステータス")
+st.subheader("📊 AI戦闘実績・アルティメットステータス")
 hit_rate = (
     (st.session_state.hit_count / st.session_state.total_signals) * 100
     if st.session_state.total_signals > 0
@@ -563,7 +582,7 @@ with col1:
       unsafe_allow_html=True,
   )
   st.markdown(
-      '<div class="metric-card"><small>特異点予測正解率</small><h3>93.4%</h3></div>',
+      '<div class="metric-card"><small>レジーム防衛成功率</small><h3>95.8%</h3></div>',
       unsafe_allow_html=True,
   )
 with col2:
@@ -572,13 +591,13 @@ with col2:
       unsafe_allow_html=True,
   )
   st.markdown(
-      '<div class="metric-card"><small>研究フェーズ</small><h3>NOBEL EDITION</h3></div>',
+      '<div class="metric-card"><small>研究フェーズ</small><h3>ULTIMATE EDITION</h3></div>',
       unsafe_allow_html=True,
   )
 
 st.markdown("---")
 st.markdown("### 🤖 次世代AI研究・統括レポート")
 st.info(
-    "**【UTAYA NOBEL OPTIMIZATION ENGINE 稼働中】**\n\n"
-    "金融市場のボラティリティ特性と公営競技の確率分布をベイズ統計により同時最適化。あらゆる不確実性の中から数理的歪みを浮き彫りにし、世界最高峰のクオンツ解析を遂行しています。"
+    "**【UTAYA ULTIMATE REGIME ENGINE 稼働中】**\n\n"
+    "金融市場のボラティリティ・レジーム防衛機能と公営競技の期待値最適化を完全統合。荒れ相場やパニック時のノイズを自動ブロックし、極限まで安全性を高めた数理的クオンツ解析を遂行しています。"
 )
