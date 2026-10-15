@@ -92,11 +92,11 @@ st.markdown(
         padding: 14px 18px;
         border-radius: 14px;
         font-weight: bold;
-        font-size: 1.02em;
+        font-size: 1.05em;
         width: 100%;
         box-shadow: 0 6px 20px rgba(0,0,0,0.4);
         border: 4px solid #fb7185;
-        line-height: 1.5;
+        line-height: 1.6;
     }
     .comic-bubble::after {
         content: '';
@@ -153,7 +153,7 @@ st.markdown(
 st.markdown("### 🧠 UTAYA [QUANTUM-3X タイムマシーン]")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 金融・仮想通貨特化型タイムマシーンエンジン（全脳力集中）
+# 金融・仮想通貨特化型タイムマシーンエンジン
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.markdown(
@@ -227,8 +227,8 @@ for name, symbol, fallback_price in ASSETS_LIST:
           f'<span class="badge-buy">🚀 空間歪曲 BUY ({prob_buy:.0f}%)</span>'
       )
       analysis = (
-          f"🚨【今だ！買いエントリー】 損切(耐え): {endure_buy:,.1f} ｜ 狙撃利確:"
-          f" {take_buy:,.1f}"
+          f"🚨【今だ！買い】 現在値: {current_price:,.2f} ｜ 損切: {endure_buy:,.1f}"
+          f" ｜ 利確: {take_buy:,.1f}"
       )
       score = prob_buy
     elif prob_sell >= 65.0 or (cur_z > 1.2 and cur_vel3 < 0):
@@ -236,8 +236,8 @@ for name, symbol, fallback_price in ASSETS_LIST:
           f'<span class="badge-sell">⚡ 空間歪曲 SELL ({prob_sell:.0f}%)</span>'
       )
       analysis = (
-          f"🚨【今だ！売りエントリー】 損切(耐え): {endure_sell:,.1f} ｜ 狙撃利確:"
-          f" {take_sell:,.1f}"
+          f"🚨【今だ！売り】 現在値: {current_price:,.2f} ｜ 損切: {endure_sell:,.1f}"
+          f" ｜ 利確: {take_sell:,.1f}"
       )
       score = prob_sell
     else:
@@ -246,13 +246,17 @@ for name, symbol, fallback_price in ASSETS_LIST:
             f'<span class="badge-stable-buy">⏳ 予兆蓄積 (買優勢'
             f" {prob_buy:.0f}%)</span>"
         )
-        analysis = f"⚠️【待機推奨】エネルギー蓄積中（合図が出るまで指値で構えろ）"
+        analysis = (
+            f"⚠️【待機】エネルギー収束中（現在値: {current_price:,.2f}）"
+        )
       else:
         signal_html = (
             f'<span class="badge-stable-sell">⏳ 予兆蓄積 (売優勢'
             f" {prob_sell:.0f}%)</span>"
         )
-        analysis = f"⚠️【待機推奨】エネルギー蓄積中（合図が出るまで指値で構えろ）"
+        analysis = (
+            f"⚠️【待機】エネルギー収束中（現在値: {current_price:,.2f}）"
+        )
       score = max(prob_buy, prob_sell)
 
     analyzed_results.append({
@@ -301,12 +305,12 @@ if analyzed_results:
   display_top = st.session_state.pinned_top_asset or best_item
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # ⚔️ 鬼滅風和装VTuber「UTAYAちゃん」のポーズ連動システム（画像切替）
+  # ⚔️ 鬼滅風和装VTuber「UTAYAちゃん」のシャープな指示システム
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   top_name = display_top["name"]
   top_score = display_top["score"]
+  top_price = display_top["current_price"]
 
-  # 正しい画像ファイル名（ikuzo.png と mate.png）を指定
   ikuzo_img_path = "ikuzo.png"
   mate_img_path = "mate.png"
 
@@ -314,27 +318,24 @@ if analyzed_results:
   mate_b64 = get_image_base64(mate_img_path)
 
   if top_score >= 65.0:
-    # 【いくぞ！】パターン（突撃・エントリーの合図）
+    # 買い または 売り の「いくぞ！」判定
     img_src = (
         f"data:image/png;base64,{ikuzo_b64}"
         if ikuzo_b64
         else "https://via.placeholder.com/130?text=IKUZO"
     )
-    vtuber_speech = (
-        f"「全集中、未来の扉を開くっ！司令官、『 <b>{top_name}</b>"
-        " 』の特異点を完璧にキャッチしたわ！今すぐこのポイントで一気呵成にエントリーしなさいっ！」"
-    )
+    if display_top["prob_buy"] >= 65.0:
+      vtuber_speech = f"「いくぞ！ <b>{top_name}</b> を<b>【買い】</b>だ！ 今すぐ <b>{top_price:,.2f}</b> でエントリーせよっ！」"
+    else:
+      vtuber_speech = f"「いくぞ！ <b>{top_name}</b> を<b>【売り】</b>だ！ 今すぐ <b>{top_price:,.2f}</b> でショートを叩けっ！」"
   else:
-    # 【まて！】パターン（冷静・待機の合図）
+    # 待機の「まて！」判定
     img_src = (
         f"data:image/png;base64,{mate_b64}"
         if mate_b64
         else "https://via.placeholder.com/130?text=MATE"
     )
-    vtuber_speech = (
-        f"「待て！まだ波形が乱れているわ。『 <b>{top_name}</b>"
-        " 』のエネルギーが完全に収束するまで、無闇に動いてはダメ……！私の『いくぞ！』の合図が出るまでここで構えて待機よっ！」"
-    )
+    vtuber_speech = f"「まて！ <b>{top_name}</b> は現在 <b>{top_price:,.2f}</b> ｜ まだ波形が乱れている。合図が出るまで待機だ！」"
 
   st.markdown(
       f"""
@@ -369,28 +370,4 @@ if analyzed_results:
             <span>現在値: <b>{display_top['current_price']:,.2f}</b></span>
             <span>司令判定: {display_top['signal_html']}</span>
         </div>
-        <div style="font-size: 0.9em; color: #f8fafc; background: #020617; padding: 10px; border-radius: 8px; border: 1px solid #38bdf8;">
-            {display_top['analysis']}
-        </div>
-    </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
-  st.markdown(
-      "<p style='font-weight:bold; color:#94a3b8; margin:10px 0 4px 0;'>📋"
-      " その他のアセット動向</p>",
-      unsafe_allow_html=True,
-  )
-  for item in analyzed_results[1:]:
-    st.markdown(
-        f"""
-        <div class="asset-card">
-            <div style="display: flex; justify-content: space-between; font-size: 0.92em;">
-                <span><b>{item['name']}</b> ({item['current_price']:,.2f})</span>
-                <span>{item['signal_html']}</span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        <div style="font-size: 0.9em; color: #f8fafc; background: #020617; padding: 10px; border-
