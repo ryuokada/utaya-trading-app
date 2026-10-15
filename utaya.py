@@ -109,6 +109,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 厳選した3銘柄（ドル円・ゴールド・日経平均）
 ASSETS_LIST = [
     ("ドル円 (USD/JPY)", "USDJPY=X", 155.0),
     ("ゴールド・金", "GC=F", 2350.0),
