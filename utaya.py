@@ -14,7 +14,7 @@ def get_image_base64(image_path):
     return ""
 
 
-# スタイリングの定義
+# スタイリング
 st.markdown(
     """
     <style>
@@ -87,7 +87,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 厳選した3大アセット（ドル円・ゴールド・日経平均）
+# 厳選した3大アセット
 ASSETS_LIST = [
     ("ドル円 (USD/JPY)", 154.85, 0.45),
     ("ゴールド・金", 2368.20, 0.92),
@@ -106,7 +106,7 @@ if st.sidebar.button("⚡ 即時量子スキャン実行"):
   st.session_state.scan_count += 1
   st.rerun()
 
-# タイトルと時刻
+# タイトル
 st.markdown("### 🧠 UTAYA 司令室 [QUANTUM-3X タイムマシーン]")
 jst_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
     hours=9
