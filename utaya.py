@@ -176,7 +176,6 @@ for name, symbol, fallback_price in ASSETS_LIST:
     current_price = float(closes.iloc[-1])
 
     returns = closes.pct_change().dropna()
-    volatility = float(returns.std()) * 100 if len(returns) > 0 else 1.0
     mom = float((closes.iloc[-1] - closes.iloc[-5]) / closes.iloc[-5] * 100)
 
     prob_buy = float(np.clip(50.0 + mom * 5.0, 15.0, 88.0))
