@@ -2,7 +2,7 @@ import base64
 import datetime
 import streamlit as st
 
-# ページの設定（通常ブラウザ対応の標準レイアウト）
+# ページの設定
 st.set_page_config(page_title="UTAYA 司令室 [QUANTUM-3X]", layout="centered")
 
 
@@ -169,7 +169,7 @@ st.markdown(
         </div>
     </div>
     """,
-      unsafe_allow_html=True,
+    unsafe_allow_html=True,
 )
 
 st.markdown(
