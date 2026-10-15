@@ -6,13 +6,12 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 
-# ページの設定（スマホ最適化・コンパクトレイアウト）
+# ページの設定
 st.set_page_config(
     page_title="UTAYA 司令室 [QUANTUM-3X タイムマシーン]", layout="centered"
 )
 
 
-# 画像をBase64にエンコードしてHTMLで確実に表示する関数
 def get_image_base64(image_path):
   try:
     with open(image_path, "rb") as img_file:
@@ -21,7 +20,6 @@ def get_image_base64(image_path):
     return ""
 
 
-# スタイリング
 st.markdown(
     """
     <style>
@@ -111,14 +109,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# 厳選した3銘柄に絞り込み
 ASSETS_LIST = [
-    ("WTI原油 / 石油", "CL=F", 75.0),
-    ("日経平均株価", "^N225", 38500.0),
-    ("ゴールド・金", "GC=F", 2350.0),
     ("ドル円 (USD/JPY)", "USDJPY=X", 155.0),
-    ("イーサリアム", "ETH-USD", 3200.0),
-    ("シルバー・銀", "SI=F", 28.0),
-    ("ビットコイン", "BTC-USD", 65000.0),
+    ("ゴールド・金", "GC=F", 2350.0),
+    ("日経平均株価", "^N225", 38500.0),
 ]
 
 if "scan_count" not in st.session_state:
@@ -129,7 +124,7 @@ if "pin_timestamp" not in st.session_state:
   st.session_state.pin_timestamp = 0.0
 if "learning_reflection" not in st.session_state:
   st.session_state.learning_reflection = (
-      "未来予測と現実の乖離（ノイズ・スリッページ）を24時間連続解析中..."
+      "3大基幹アセット（ドル・金・日経平均）の特異点波形を高精度解析中..."
   )
 
 st.sidebar.title("🧠 司令室 [QUANTUM-3X]")
@@ -147,10 +142,12 @@ st.markdown(
 
 st.markdown("### 🧠 UTAYA [QUANTUM-3X タイムマシーン]")
 
-jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+jst_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+    hours=9
+)
 st.markdown(
     f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:6px;'>⚡"
-    f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST</p>",
+    f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S')} JST</p>",
     unsafe_allow_html=True,
 )
 
@@ -162,91 +159,51 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.session_state.scan_count += 1
 analyzed_results = []
 
 for name, symbol, fallback_price in ASSETS_LIST:
   try:
-    df = yf.download(symbol, period="5d", interval="15m", progress=False)
-    if df.empty or len(df) < 20:
+    # メモリ消費を徹底的に抑えるため最小限の期間だけ取得
+    df = yf.download(symbol, period="2d", interval="1h", progress=False)
+    if df.empty or len(df) < 3:
+      df = yf.download(symbol, period="5d", interval="1d", progress=False)
+
+    if df.empty:
       raise ValueError("Empty data")
+
     if isinstance(df.columns, pd.MultiIndex):
       df.columns = df.columns.get_level_values(0)
 
-    closes = df["Close"]
-    highs = df["High"] if "High" in df.columns else closes
-    lows = df["Low"] if "Low" in df.columns else closes
-
-    vel_1 = closes.pct_change(1)
-    vel_3 = closes.pct_change(3)
-    accel = vel_1.diff()
-
-    rolling_mean = closes.rolling(window=10).mean()
-    rolling_std = closes.rolling(window=10).std()
-    z_score = (closes - rolling_mean) / (rolling_std + 1e-8)
-
-    tr = np.maximum(
-        highs - lows,
-        np.maximum(
-            np.abs(highs - closes.shift(1)), np.abs(lows - closes.shift(1))
-        ),
-    )
-    atr = pd.Series(tr).rolling(window=5).mean()
-
+    closes = df["Close"].dropna()
     current_price = float(closes.iloc[-1])
-    cur_z = float(z_score.iloc[-1])
-    cur_vel3 = float(vel_3.iloc[-1]) * 100
-    cur_accel = float(accel.iloc[-1]) * 100
-    cur_atr = (
-        float(atr.iloc[-1])
-        if not pd.isna(atr.iloc[-1]) and atr.iloc[-1] > 0
-        else current_price * 0.002
+
+    mom = (
+        float((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100)
+        if len(closes) > 1
+        else 0.0
     )
 
-    quantum_power = cur_vel3 * 2.0 + cur_accel * 3.0 - (cur_z * 5.0)
-    prob_buy = float(np.clip(50.0 + quantum_power * 3.5, 10.0, 92.0))
+    prob_buy = float(np.clip(50.0 + mom * 12.0, 15.0, 90.0))
     prob_sell = float(100.0 - prob_buy)
 
-    endure_buy = current_price - (cur_atr * 0.6)
-    take_buy = current_price + (cur_atr * 1.5)
-    endure_sell = current_price + (cur_atr * 0.6)
-    take_sell = current_price - (cur_atr * 1.5)
-
-    if prob_buy >= 65.0 or (cur_z < -1.2 and cur_vel3 > 0):
+    if prob_buy >= 65.0:
       signal_html = (
           f'<span class="badge-buy">🚀 空間歪曲 BUY ({prob_buy:.0f}%)</span>'
       )
-      analysis = (
-          f"🚨【今だ！買いエントリー】 損切(耐え): {endure_buy:,.1f} ｜"
-          f" 狙撃利確: {take_buy:,.1f}"
-      )
+      analysis = f"🚨【今だ！買い】 現在値: {current_price:,.2f}"
       score = prob_buy
-    elif prob_sell >= 65.0 or (cur_z > 1.2 and cur_vel3 < 0):
+    elif prob_sell >= 65.0:
       signal_html = (
           f'<span class="badge-sell">⚡ 空間歪曲 SELL ({prob_sell:.0f}%)</span>'
       )
-      analysis = (
-          f"🚨【今だ！売りエントリー】 損切(耐え): {endure_sell:,.1f} ｜"
-          f" 狙撃利確: {take_sell:,.1f}"
-      )
+      analysis = f"🚨【今だ！売り】 現在値: {current_price:,.2f}"
       score = prob_sell
     else:
-      if prob_buy >= prob_sell:
-        signal_html = (
-            f'<span class="badge-stable-buy">⏳ 予兆蓄積 (買優勢'
-            f" {prob_buy:.0f}%)</span>"
-        )
-        analysis = (
-            "⚠️【待機推奨】エネルギー蓄積中（合図が出るまで指値で構えろ）"
-        )
-      else:
-        signal_html = (
-            f'<span class="badge-stable-sell">⏳ 予兆蓄積 (売優勢'
-            f" {prob_sell:.0f}%)</span>"
-        )
-        analysis = (
-            "⚠️【待機推奨】エネルギー蓄積中（合図が出るまで指値で構えろ）"
-        )
+      signal_html = (
+          f'<span class="badge-stable-buy">⏳ 予兆蓄積 (優勢'
+          f" {max(prob_buy, prob_sell):.0f}%)</span>"
+      )
+      analysis = f"⚠️【待機】エネルギー収束中（現在値: {current_price:,.2f}）"
       score = max(prob_buy, prob_sell)
 
     analyzed_results.append({
@@ -280,28 +237,16 @@ if analyzed_results:
       or (current_time - st.session_state.pin_timestamp) > 60.0
       or best_item["score"] >= st.session_state.pinned_top_asset["score"] * 0.98
   ):
-    if (
-        st.session_state.pinned_top_asset is None
-        or best_item["name"] != st.session_state.pinned_top_asset["name"]
-    ):
-      st.session_state.pinned_top_asset = best_item
-      st.session_state.pin_timestamp = current_time
-      st.session_state.learning_reflection = (
-          f"直近の変動を解析: {best_item['name']} の特異点パターンを適応中。"
-          "現実の反発点と未来予測の誤差を収斂。"
-      )
+    st.session_state.pinned_top_asset = best_item
+    st.session_state.pin_timestamp = current_time
 
   display_top = st.session_state.pinned_top_asset or best_item
-
   top_name = display_top["name"]
   top_score = display_top["score"]
   top_price = display_top["current_price"]
 
-  ikuzo_img_path = "ikuzo.png"
-  mate_img_path = "mate.png"
-
-  ikuzo_b64 = get_image_base64(ikuzo_img_path)
-  mate_b64 = get_image_base64(mate_img_path)
+  ikuzo_b64 = get_image_base64("ikuzo.png")
+  mate_b64 = get_image_base64("mate.png")
 
   if top_score >= 65.0:
     img_src = (
@@ -309,18 +254,17 @@ if analyzed_results:
         if ikuzo_b64
         else "https://via.placeholder.com/130?text=IKUZO"
     )
-    vtuber_speech = (
-        f"「全集中、未来の扉を開くっ！司令官、『 <b>{top_name}</b>' の特異点を完璧にキャッチしたわ！今すぐこのポイントで一気呵成にエントリーしなさいっ！」"
-    )
+    if display_top["prob_buy"] >= 65.0:
+      vtuber_speech = f"「いくぞ！ <b>{top_name}</b> を<b>【買い】</b>だ！ 今すぐ <b>{top_price:,.2f}</b> でエントリーせよっ！」"
+    else:
+      vtuber_speech = f"「いくぞ！ <b>{top_name}</b> を<b>【売り】</b>だ！ 今すぐ <b>{top_price:,.2f}</b> でショートを叩けっ！」"
   else:
     img_src = (
         f"data:image/png;base64,{mate_b64}"
         if mate_b64
         else "https://via.placeholder.com/130?text=MATE"
     )
-    vtuber_speech = (
-        f"「待て！まだ波形が乱れているわ。『 <b>{top_name}</b>' のエネルギーが完全に収束するまで、無闇に動いてはダメ……！私の『いくぞ！』の合図が出るまでここで構えて待機よっ！」"
-    )
+    vtuber_speech = f"「まて！ <b>{top_name}</b> は現在 <b>{top_price:,.2f}</b> ｜ まだ波形が乱れている。合図が出るまで待機だ！」"
 
   st.markdown(
       f"""
@@ -339,11 +283,7 @@ if analyzed_results:
 
   st.markdown(
       "<p style='font-weight:bold; color:#38bdf8; margin-bottom:4px;'>🔥"
-      " 最重要ターゲット（1分間アンカー固定中・エントリー設定用）</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      '<span class="anchor-notice">📌 値動きが激しくてもこの銘柄と価格ポイントを1分間キープします。落ち着いて指値・損切をセットしてください。</span>',
+      " 最重要ターゲット（1分間アンカー固定中）</p>",
       unsafe_allow_html=True,
   )
 
@@ -365,7 +305,7 @@ if analyzed_results:
 
   st.markdown(
       "<p style='font-weight:bold; color:#94a3b8; margin:10px 0 4px 0;'>📋"
-      " その他のアセット動向</p>",
+      " その他の基幹アセット動向</p>",
       unsafe_allow_html=True,
   )
   for item in analyzed_results[1:]:
