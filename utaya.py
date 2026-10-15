@@ -10,7 +10,7 @@ st.set_page_config(
     page_title="UTAYA 司令室 [QUANTUM-3X タイムマシーン]", layout="centered"
 )
 
-# スタイリング（鬼滅風和装VTuberキャラクター ＆ 漫画風コミックバブルのデザイン）
+# スタイリング（鬼滅風和装VTuberキャラクターのポーズ切り替え ＆ コミックバブルのデザイン）
 st.markdown(
     """
     <style>
@@ -50,42 +50,38 @@ st.markdown(
     }
     .vtuber-avatar-box {
         text-align: center;
-        min-width: 110px;
+        min-width: 130px;
         margin-right: 18px;
     }
-    /* 和装VTuberキャラクターのビジュアルグラフィックフレーム */
+    /* 和装VTuberキャラクターのポーズ切り替えフレーム */
     .vtuber-chara-card {
         background: radial-gradient(circle, #ffe4e6 0%, #f43f5e 100%);
         border: 3px solid #fff1f2;
         border-radius: 16px;
-        padding: 10px 4px;
-        box-shadow: 0 0 25px rgba(244, 63, 94, 0.6);
+        padding: 12px 6px;
+        box-shadow: 0 0 25px rgba(244, 63, 94, 0.7);
         animation: vtuber-pulse 2s infinite ease-in-out;
     }
     @keyframes vtuber-pulse {
         0%, 100% { transform: scale(1); }
         50% { transform: scale(1.04); }
     }
-    .chara-emoji {
-        font-size: 2.8em;
-        line-height: 1.1;
-    }
-    .chara-pose-tag {
-        font-size: 0.72em;
-        color: #ffffff;
-        font-weight: bold;
-        background: #881337;
-        padding: 2px 6px;
-        border-radius: 6px;
-        margin-top: 4px;
+    .chara-pose-title {
+        font-size: 1.1em;
+        font-weight: 900;
+        color: #fff1f2;
+        background: #9f1239;
+        padding: 4px 8px;
+        border-radius: 8px;
+        margin-bottom: 6px;
         display: inline-block;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
     }
-    .vtuber-name {
-        font-size: 0.82em;
+    .chara-sub {
+        font-size: 0.75em;
         color: #fbcfe8;
         font-weight: bold;
         margin-top: 6px;
-        letter-spacing: 1px;
     }
     /* 漫画の迫力ある吹き出し */
     .comic-bubble {
@@ -157,7 +153,7 @@ st.markdown(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 金融・仮想通貨特化エンジン
+# 金融・仮想通貨特化型タイムマシーンエンジン
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.markdown(
@@ -306,26 +302,25 @@ if analyzed_results:
   display_top = st.session_state.pinned_top_asset or best_item
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # ⚔️ 鬼滅風和装VTuber「UTAYAちゃん」の 2大ポーズ＆吹き出し演出
+  # ⚔️ 鬼滅風和装VTuber「UTAYAちゃん」のポーズ連動指示システム
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   top_name = display_top["name"]
   top_score = display_top["score"]
 
+  # タイムマシーンの確率スコアに基づき、「いくぞ！」と「まて！」を完全連動
   if top_score >= 65.0:
-    # 「いくぞ！」パターン（勢いよく突き出す戦闘・突撃ポーズ）
-    chara_visual = "⚔️👘💥"
-    pose_name = "【いくぞ！突撃の構え】"
+    # 【いくぞ！】パターン（突撃・エントリーの合図）
+    pose_call = "いくぞ！"
     vtuber_speech = (
         f"「全集中、未来の扉を開くっ！司令官、『 <b>{top_name}</b>"
-        " 』の特異点を確認！今すぐこのポイントで一気呵成に突撃せよっ！」"
+        " 』の特異点を完璧にキャッチしたわ！今すぐこのポイントで一気呵成にエントリーしなさいっ！」"
     )
   else:
-    # 「まて！」パターン（片手を前に出して真剣に制止する構図）
-    chara_visual = "🛑👘🛡️"
-    pose_name = "【まて！冷静の構え】"
+    # 【まて！】パターン（冷静・待機の合図）
+    pose_call = "まて！"
     vtuber_speech = (
-        f"「待て！まだ波形が乱れている！『 <b>{top_name}</b>"
-        " 』のエネルギーが完全に収束するまで、無闇に動くな……！私の合図を待てっ！」"
+        f"「待て！まだ波形が乱れているわ。『 <b>{top_name}</b>"
+        " 』のエネルギーが完全に収束するまで、無闇に動いてはダメ……！私の『いくぞ！』の合図が出るまでここで構えて待機よっ！」"
     )
 
   st.markdown(
@@ -333,10 +328,10 @@ if analyzed_results:
     <div class="vtuber-container">
         <div class="vtuber-avatar-box">
             <div class="vtuber-chara-card">
-                <div class="chara-emoji">{chara_visual}</div>
+                <div class="chara-pose-title">{pose_call}</div>
+                <div style="font-size: 2.2em;">👘⚔️</div>
             </div>
-            <div class="chara-pose-tag">{pose_name}</div>
-            <div class="vtuber-name">和装VTuber UTAYA</div>
+            <div class="chara-sub">和装VTuber UTAYA</div>
         </div>
         <div class="comic-bubble">
             {vtuber_speech}
