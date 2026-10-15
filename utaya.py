@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered",
 )
 
-# スタイリング（方向性カラー ＆ 二頭身アンドロイドの吹き出し用デザイン）
+# スタイリング（VTuber配信向け漫画風吹き出し＆近未来UIデザイン）
 st.markdown(
     """
     <style>
@@ -38,38 +38,65 @@ st.markdown(
     .badge-stable-sell { background-color: #be123c; color: #fecdd3; border: 1px solid #fb7185; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .anchor-notice { font-size: 0.78em; color: #38bdf8; background: #0c4a6e; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; display: inline-block; }
 
-    /* 二頭身アンドロイド実況スタイル */
-    .android-box {
+    /* VTuberコミック風吹き出しレイアウト */
+    .vtuber-container {
+        display: flex;
+        align-items: flex-start;
+        background: linear-gradient(135deg, #090d16, #1e1b4b);
+        border: 2px solid #c084fc;
+        padding: 14px;
+        border-radius: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 0 30px rgba(192, 132, 252, 0.2);
+    }
+    .vtuber-avatar-box {
+        text-align: center;
+        min-width: 90px;
+        margin-right: 14px;
+    }
+    .vtuber-icon {
+        font-size: 3.2em;
+        background: #020617;
+        border: 2px solid #a855f7;
+        border-radius: 50%;
+        width: 75px;
+        height: 75px;
         display: flex;
         align-items: center;
-        background: linear-gradient(135deg, #0f172a, #1e1b4b);
-        border: 2px solid #a855f7;
-        padding: 12px;
-        border-radius: 16px;
-        margin-bottom: 15px;
-        box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+        justify-content: center;
+        margin: 0 auto 6px auto;
+        box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
     }
-    .android-avatar {
-        font-size: 2.8em;
-        margin-right: 14px;
-        text-align: center;
-        min-width: 60px;
-        animation: pulse-avatar 2s infinite;
+    .vtuber-name {
+        font-size: 0.78em;
+        color: #e9d5ff;
+        font-weight: bold;
+        background: #581c87;
+        padding: 2px 6px;
+        border-radius: 6px;
     }
-    .android-speech {
-        background: #020617;
-        border: 1px solid #c084fc;
-        padding: 10px 14px;
-        border-radius: 12px;
-        color: #f3e8ff;
-        font-size: 0.95em;
-        width: 100%;
+    .comic-bubble {
         position: relative;
+        background: #ffffff;
+        color: #0f172a;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 0.96em;
+        width: 100%;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        border: 3px solid #cbd5e1;
     }
-    @keyframes pulse-avatar {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.08); }
-        100% { transform: scale(1); }
+    /* 漫画の吹き出しのしっぽ（左向き） */
+    .comic-bubble::after {
+        content: '';
+        position: absolute;
+        left: -12px;
+        top: 20px;
+        border-width: 8px 12px 8px 0;
+        border-style: solid;
+        border-color: transparent #ffffff transparent;
+        display: block;
     }
     </style>
     """,
@@ -126,7 +153,7 @@ with tab_finance:
   st.markdown(
       f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:4px;'>⚡"
       f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST"
-      " (YouTubeライブ中継モード稼働中)</p>",
+      " (YouTubeライブ配信中)</p>",
       unsafe_allow_html=True,
   )
 
@@ -270,38 +297,39 @@ with tab_finance:
     display_top = st.session_state.pinned_top_asset or best_item
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # 🤖 二頭身アンドロイド（ウタヤちゃん）の吹き出し実況エリア
+    # 🎤 VTuber「UTAYAちゃん」の漫画風吹き出し実況エリア
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     top_name = display_top["name"]
-    top_price = display_top["current_price"]
     top_score = display_top["score"]
 
     if top_score >= 65.0:
-      android_msg = (
-          f"「司令官！未来からの通信が一致しました！今すぐ <b>{top_name}</b>"
-          f" のポイントでエントリー指示を出します！逃さないでくださいっ！」"
+      vtuber_speech = (
+          f"「司令官！未来からの完全一致シグナルをキャッチしました！今すぐ"
+          f" <b>{top_name}</b> でエントリー指示を出します！逃さないでっ！」"
       )
       avatar_emoji = "🤖✨"
     elif top_score >= 55.0:
-      android_msg = (
-          f"「司令官、<b>{top_name}</b> のエネルギーが最高潮に高まっています。"
-          "チャートの歪みを監視中……！合図が出るまで指値を構えて待機です！」"
+      vtuber_speech = (
+          f"「司令官、<b>{top_name}</b>"
+          " の歪みがピークに達しています。チャートの波形を完全同期中……！合図が出るまで指値を構えて待機です！」"
       )
       avatar_emoji = "🤖💬"
     else:
-      android_msg = (
-          f"「現在の時空変動は穏やかです。今は無理な特攻をせず、<b>{top_name}</b>"
-          " の次なるタイムウェーブのうねりを解析しています……。」"
+      vtuber_speech = (
+          f"「時空の波動は安定中。無理な特攻は禁物です。今は <b>{top_name}</b>"
+          " の次なるタイムウェーブを静かに解析しています……。」"
       )
       avatar_emoji = "🤖⏳"
 
     st.markdown(
         f"""
-        <div class="android-box">
-            <div class="android-avatar">{avatar_emoji}<br><span style="font-size: 0.38em; color: #c084fc; font-weight: bold;">UTAYA-AI</span></div>
-            <div class="android-speech">
-                <div style="font-size: 0.75em; color: #c084fc; font-weight: bold; margin-bottom: 2px;">⚡ 未来ナビゲーター・ウタヤちゃんからの報告</div>
-                {android_msg}
+        <div class="vtuber-container">
+            <div class="vtuber-avatar-box">
+                <div class="vtuber-icon">{avatar_emoji}</div>
+                <div class="vtuber-name">UTAYAちゃん</div>
+            </div>
+            <div class="comic-bubble">
+                {vtuber_speech}
             </div>
         </div>
         """,
