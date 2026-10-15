@@ -378,4 +378,18 @@ if analyzed_results:
 
   st.markdown(
       "<p style='font-weight:bold; color:#94a3b8; margin:10px 0 4px 0;'>📋"
-      " その他のアセット動向
+      " その他のアセット動向</p>",
+      unsafe_allow_html=True,
+  )
+  for item in analyzed_results[1:]:
+    st.markdown(
+        f"""
+        <div class="asset-card">
+            <div style="display: flex; justify-content: space-between; font-size: 0.92em;">
+                <span><b>{item['name']}</b> ({item['current_price']:,.2f})</span>
+                <span>{item['signal_html']}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
