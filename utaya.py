@@ -11,7 +11,7 @@ st.set_page_config(
     layout="centered",
 )
 
-# スタイリング（方向性カラー対応バッジの定義）
+# スタイリング（方向性カラー ＆ 二頭身アンドロイドの吹き出し用デザイン）
 st.markdown(
     """
     <style>
@@ -36,8 +36,41 @@ st.markdown(
     .badge-sell { background-color: #e11d48; color: white; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .badge-stable-buy { background-color: #0369a1; color: #bae6fd; border: 1px solid #38bdf8; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .badge-stable-sell { background-color: #be123c; color: #fecdd3; border: 1px solid #fb7185; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
-    .badge-wait { background-color: #0d9488; color: white; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .anchor-notice { font-size: 0.78em; color: #38bdf8; background: #0c4a6e; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; display: inline-block; }
+
+    /* 二頭身アンドロイド実況スタイル */
+    .android-box {
+        display: flex;
+        align-items: center;
+        background: linear-gradient(135deg, #0f172a, #1e1b4b);
+        border: 2px solid #a855f7;
+        padding: 12px;
+        border-radius: 16px;
+        margin-bottom: 15px;
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+    }
+    .android-avatar {
+        font-size: 2.8em;
+        margin-right: 14px;
+        text-align: center;
+        min-width: 60px;
+        animation: pulse-avatar 2s infinite;
+    }
+    .android-speech {
+        background: #020617;
+        border: 1px solid #c084fc;
+        padding: 10px 14px;
+        border-radius: 12px;
+        color: #f3e8ff;
+        font-size: 0.95em;
+        width: 100%;
+        position: relative;
+    }
+    @keyframes pulse-avatar {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+        100% { transform: scale(1); }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -53,7 +86,7 @@ ASSETS_LIST = [
     ("ビットコイン", "BTC-USD", 65000.0),
 ]
 
-# セッションステートの初期化（アンカー機能・学習反省ログ用）
+# セッションステートの初期化
 if "scan_count" not in st.session_state:
   st.session_state.scan_count = 520
 if "pinned_top_asset" not in st.session_state:
@@ -86,14 +119,14 @@ tab_finance, tab_boat, tab_keirin = st.tabs(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# タブ1：金融・仮想通貨（量子スキャルピング ＆ アンカーエンジン）
+# タブ1：金融・仮想通貨
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_finance:
   jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
   st.markdown(
       f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:4px;'>⚡"
       f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST"
-      " (24時間連続反省学習システム稼働中)</p>",
+      " (YouTubeライブ中継モード稼働中)</p>",
       unsafe_allow_html=True,
   )
 
@@ -121,7 +154,6 @@ with tab_finance:
       highs = df["High"] if "High" in df.columns else closes
       lows = df["Low"] if "Low" in df.columns else closes
 
-      # 超短期非線形モメンタムと量子ボラティリティ
       vel_1 = closes.pct_change(1)
       vel_3 = closes.pct_change(3)
       accel = vel_1.diff()
@@ -149,12 +181,10 @@ with tab_finance:
           else current_price * 0.002
       )
 
-      # タイムマシーン確率演算
       quantum_power = cur_vel3 * 2.0 + cur_accel * 3.0 - (cur_z * 5.0)
       prob_buy = float(np.clip(50.0 + quantum_power * 3.5, 10.0, 92.0))
       prob_sell = float(100.0 - prob_buy)
 
-      # エントリーポイント（損切り・利確）
       endure_buy = current_price - (cur_atr * 0.6)
       take_buy = current_price + (cur_atr * 1.5)
       endure_sell = current_price + (cur_atr * 0.6)
@@ -219,14 +249,13 @@ with tab_finance:
     current_time = time.time()
     best_item = analyzed_results[0]
 
-    # アンカー機能：最高位銘柄が切り替わってから約60秒間（または次の高スコア更新まで）トップを固定保持
+    # アンカー機能：最高位銘柄を1分間キープ
     if (
         st.session_state.pinned_top_asset is None
         or (current_time - st.session_state.pin_timestamp) > 60.0
         or best_item["score"]
         >= st.session_state.pinned_top_asset["score"] * 0.98
     ):
-      # もし新しい銘柄のスコアが十分に高い、または制限時間が経過した場合はアンカーを更新
       if (
           st.session_state.pinned_top_asset is None
           or best_item["name"] != st.session_state.pinned_top_asset["name"]
@@ -239,6 +268,45 @@ with tab_finance:
         )
 
     display_top = st.session_state.pinned_top_asset or best_item
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # 🤖 二頭身アンドロイド（ウタヤちゃん）の吹き出し実況エリア
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    top_name = display_top["name"]
+    top_price = display_top["current_price"]
+    top_score = display_top["score"]
+
+    if top_score >= 65.0:
+      android_msg = (
+          f"「司令官！未来からの通信が一致しました！今すぐ <b>{top_name}</b>"
+          f" のポイントでエントリー指示を出します！逃さないでくださいっ！」"
+      )
+      avatar_emoji = "🤖✨"
+    elif top_score >= 55.0:
+      android_msg = (
+          f"「司令官、<b>{top_name}</b> のエネルギーが最高潮に高まっています。"
+          "チャートの歪みを監視中……！合図が出るまで指値を構えて待機です！」"
+      )
+      avatar_emoji = "🤖💬"
+    else:
+      android_msg = (
+          f"「現在の時空変動は穏やかです。今は無理な特攻をせず、<b>{top_name}</b>"
+          " の次なるタイムウェーブのうねりを解析しています……。」"
+      )
+      avatar_emoji = "🤖⏳"
+
+    st.markdown(
+        f"""
+        <div class="android-box">
+            <div class="android-avatar">{avatar_emoji}<br><span style="font-size: 0.38em; color: #c084fc; font-weight: bold;">UTAYA-AI</span></div>
+            <div class="android-speech">
+                <div style="font-size: 0.75em; color: #c084fc; font-weight: bold; margin-bottom: 2px;">⚡ 未来ナビゲーター・ウタヤちゃんからの報告</div>
+                {android_msg}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         "<p style='font-weight:bold; color:#38bdf8; margin-bottom:4px;'>🔥"
@@ -320,7 +388,7 @@ with tab_boat:
 with tab_keirin:
   st.markdown(
       "<p style='font-weight:bold; color:#fb923c; margin-bottom:4px;'>🚴"
-      " 競輪 クイックオッズ司令</p>",
+      " 競輪 クイックオッズ司令官</p>",
       unsafe_allow_html=True,
   )
   col_k1, col_k2 = st.columns(2)
