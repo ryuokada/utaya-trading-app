@@ -119,7 +119,6 @@ st.markdown(
 
 analyzed_results = []
 for name, base_price, change in ASSETS_LIST:
-  # 安定稼働のための超軽量演算シミュレーション
   pseudo_change = change + ((st.session_state.scan_count % 3) * 0.02)
   current_price = base_price * (1 + pseudo_change / 100)
 
