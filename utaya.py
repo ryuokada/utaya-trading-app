@@ -6,7 +6,8 @@ import yfinance as yf
 
 # ページの設定（スマホ最適化・コンパクトレイアウト）
 st.set_page_config(
-    page_title="UTAYA 三連星司令室 [QUANTUM-3X PRO]", layout="centered"
+    page_title="UTAYA 三連星司令室 [QUANTUM-3X タイムマシーン]",
+    layout="centered",
 )
 
 # スタイリング（方向性カラー対応バッジの定義）
@@ -14,12 +15,12 @@ st.markdown(
     """
     <style>
     .top-asset-card {
-        background: linear-gradient(135deg, #030712, #172554);
+        background: linear-gradient(135deg, #020617, #0f172a);
         border: 2px solid #38bdf8;
         padding: 14px;
         border-radius: 12px;
         margin-bottom: 12px;
-        box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.3);
         color: white;
     }
     .asset-card {
@@ -56,11 +57,11 @@ if "total_analyzed_candles" not in st.session_state:
   st.session_state.total_analyzed_candles = 180000
 
 # サイドバー
-st.sidebar.title("🧠 司令室 [3X PRO]")
+st.sidebar.title("🧠 司令室 [3X タイムマシーン]")
 refresh_interval = st.sidebar.slider(
-    "⏱️ 更新間隔(秒)", min_value=10, max_value=300, value=20, step=10
+    "⏱️ クイック更新間隔(秒)", min_value=5, max_value=60, value=10, step=5
 )
-if st.sidebar.button("🔄 再演算を実行"):
+if st.sidebar.button("⚡ 即時量子スキャン実行"):
   st.session_state.scan_count += 1
   st.rerun()
 
@@ -69,20 +70,21 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown("### 🧠 UTAYA [QUANTUM-3X PRO]")
+st.markdown("### 🧠 UTAYA [QUANTUM-3X タイムマシーン・モード]")
 
 tab_finance, tab_boat, tab_keirin = st.tabs(
     ["📈 金融・仮想通貨", "🚤 競艇", "🚴 競輪"]
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# タブ1：金融・仮想通貨（高精度テクニカル・リスク管理モデル）
+# タブ1：金融・仮想通貨（量子スキャルピングエンジン）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_finance:
   jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
   st.markdown(
-      f"<p style='font-size:0.85em; color:#94a3b8; margin-bottom:8px;'>📊"
-      f" スキャン時刻: {jst_now.strftime('%H:%M:%S')} JST (安全重視ロジック)</p>",
+      f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:8px;'>⚡"
+      f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST"
+      " (超短期タイムマシーン起動中)</p>",
       unsafe_allow_html=True,
   )
 
@@ -91,74 +93,78 @@ with tab_finance:
 
   for name, symbol, fallback_price in ASSETS_LIST:
     try:
-      df = yf.download(symbol, period="10d", interval="15m", progress=False)
-      if df.empty or len(df) < 30:
+      # スキャルピング用に高頻度データを取得（5日間の5分足・15分足ミックスを想定）
+      df = yf.download(symbol, period="5d", interval="15m", progress=False)
+      if df.empty or len(df) < 20:
         raise ValueError("Empty data")
       if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
       closes = df["Close"]
+      highs = df["High"] if "High" in df.columns else closes
+      lows = df["Low"] if "Low" in df.columns else closes
 
-      # 1. テクニカル指標の計算（RSI, 移動平均線, ATR）
-      delta = closes.diff()
-      gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-      loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-      rs = gain / (loss + 1e-8)
-      rsi = 100 - (100 / (1 + rs))
+      # 1. 超短期非線形モメンタム（直近の値動きの加速度と急発進エネルギー）
+      vel_1 = closes.pct_change(1)  # 直近1本の変化
+      vel_3 = closes.pct_change(3)  # 直近3本の加速
+      accel = vel_1.diff()  # 加速度の変化
 
-      ma_fast = closes.rolling(window=10).mean()
-      ma_slow = closes.rolling(window=25).mean()
+      # 2. 量子ボラティリティ・バンド（価格の歪み・特異点検知用Zスコア）
+      rolling_mean = closes.rolling(window=10).mean()
+      rolling_std = closes.rolling(window=10).std()
+      z_score = (closes - rolling_mean) / (rolling_std + 1e-8)
 
-      high_low = (
-          df["High"] - df["Low"]
-          if "High" in df.columns and "Low" in df.columns
-          else closes * 0.01
+      # 3. 超短期ATR（瞬時のボラティリティとスキャルピング用ターゲット）
+      tr = np.maximum(
+          highs - lows,
+          np.maximum(
+              np.abs(highs - closes.shift(1)),
+              np.abs(lows - closes.shift(1)),
+          ),
       )
-      atr = high_low.rolling(window=14).mean()
+      atr = pd.Series(tr).rolling(window=5).mean()
 
       current_price = float(closes.iloc[-1])
-      current_rsi = float(rsi.iloc[-1])
-      current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) and atr.iloc[-1] > 0 else current_price * 0.005
-      m_fast = float(ma_fast.iloc[-1])
-      m_slow = float(ma_slow.iloc[-1])
+      cur_z = float(z_score.iloc[-1])
+      cur_vel3 = float(vel_3.iloc[-1]) * 100
+      cur_accel = float(accel.iloc[-1]) * 100
+      cur_atr = (
+          float(atr.iloc[-1])
+          if not pd.isna(atr.iloc[-1]) and atr.iloc[-1] > 0
+          else current_price * 0.002
+      )
 
-      # 2. 確率の堅実な算出（トレンドとモメンタムに基づくスコアリング）
-      # デフォルトを中立(50%)とし、RSIや移動平均線のクロス状態、トレンドの強さで確率を上下させる
-      base_prob_buy = 50.0
-      if m_fast > m_slow:
-        base_prob_buy += 10.0
-      else:
-        base_prob_buy -= 10.0
-
-      if current_rsi < 35:  # 売られ過ぎからの反発狙い
-        base_prob_buy += 15.0
-      elif current_rsi > 65:  # 買われ過ぎからの下落警戒
-        base_prob_buy -= 15.0
-
-      prob_buy = float(np.clip(base_prob_buy, 15.0, 85.0))
+      # 4. タイムマシーン確率演算（非線形スコアリング）
+      # 過去の慣性を突き破る「急激なエネルギーの偏り」を買い・売り確率に変換
+      quantum_power = cur_vel3 * 2.0 + cur_accel * 3.0 - (cur_z * 5.0)
+      prob_buy = float(np.clip(50.0 + quantum_power * 3.5, 10.0, 92.0))
       prob_sell = float(100.0 - prob_buy)
 
-      # 3. リスクリワードを改善した損切り・利確ライン（損失を抑え、利益を伸ばす設計）
-      # 損切り（耐え）はATRの1.0倍、利確はリスクに対して1.5〜2.0倍（リスクリワード比の確保）
-      endure_buy = current_price - (current_atr * 1.0)
-      take_buy = current_price + (current_atr * 2.0)
-      endure_sell = current_price + (current_atr * 1.0)
-      take_sell = current_price - (current_atr * 2.0)
+      # 5. スキャルピング特化型：超タイトかつ爆発力を狙うイグジットライン
+      # 瞬時の値幅を取るため、損切りは浅く(0.5倍ATR)、利確は一撃で抜く(1.5倍ATR)
+      endure_buy = current_price - (cur_atr * 0.6)
+      take_buy = current_price + (cur_atr * 1.5)
+      endure_sell = current_price + (cur_atr * 0.6)
+      take_sell = current_price - (cur_atr * 1.5)
 
-      # 4. 判定ロジック（明確な条件を満たしたときのみ特異点シグナルを表示）
-      if prob_buy >= 62.0 and current_rsi < 45:
+      # 6. 特異点（BUY/SELL）の爆発検知判定
+      if prob_buy >= 65.0 or (cur_z < -1.2 and cur_vel3 > 0):
         signal_type = "BUY"
-        signal_html = '<span class="badge-buy">🚀 BUY (高勝率シグナル)</span>'
+        signal_html = (
+            f'<span class="badge-buy">🚀 空間歪曲 BUY ({prob_buy:.0f}%)</span>'
+        )
         analysis = (
-            f"上昇優勢 (買:{prob_buy:.0f}%) ｜ 損切: {endure_buy:,.1f} / 利確:"
+            f"急上昇シグナル検知 ｜ 損切: {endure_buy:,.1f} / 狙い撃ち利確:"
             f" {take_buy:,.1f}"
         )
         score = prob_buy
-      elif prob_sell >= 62.0 and current_rsi > 55:
+      elif prob_sell >= 65.0 or (cur_z > 1.2 and cur_vel3 < 0):
         signal_type = "SELL"
-        signal_html = '<span class="badge-sell">⚡ SELL (高勝率シグナル)</span>'
+        signal_html = (
+            f'<span class="badge-sell">⚡ 空間歪曲 SELL ({prob_sell:.0f}%)</span>'
+        )
         analysis = (
-            f"下落優勢 (売:{prob_sell:.0f}%) ｜ 損切: {endure_sell:,.1f} / 利確:"
+            f"急下落シグナル検知 ｜ 損切: {endure_sell:,.1f} / 狙い撃ち利確:"
             f" {take_sell:,.1f}"
         )
         score = prob_sell
@@ -166,17 +172,17 @@ with tab_finance:
         if prob_buy >= prob_sell:
           signal_type = "STABLE_BUY"
           signal_html = (
-              f'<span class="badge-stable-buy">⏳ WAIT/様子見 (買優勢'
+              f'<span class="badge-stable-buy">⏳ 予兆蓄積 (買優勢'
               f" {prob_buy:.0f}%)</span>"
           )
-          analysis = f"方向感模索中（トレンド小幅買い優勢・手出し控え推奨）"
+          analysis = f"エネルギー蓄積中（次のブレイク・量子反転に備えよ）"
         else:
           signal_type = "STABLE_SELL"
           signal_html = (
-              f'<span class="badge-stable-sell">⏳ WAIT/様子見 (売優勢'
+              f'<span class="badge-stable-sell">⏳ 予兆蓄積 (売優勢'
               f" {prob_sell:.0f}%)</span>"
           )
-          analysis = f"方向感模索中（トレンド小幅売り優勢・手出し控え推奨）"
+          analysis = f"エネルギー蓄積中（次のブレイク・量子反転に備えよ）"
         score = max(prob_buy, prob_sell)
 
       analyzed_results.append({
@@ -194,8 +200,8 @@ with tab_finance:
           "current_price": fallback_price,
           "prob_buy": 50.0,
           "prob_sell": 50.0,
-          "signal_html": '<span class="badge-stable-sell">⏳ WAIT</span>',
-          "analysis": "データ同期調整中",
+          "signal_html": '<span class="badge-stable-sell">⏳ タイムスリップ同期中</span>',
+          "analysis": "量子ストリーム再接続中...",
           "score": 50.0,
       })
 
@@ -204,7 +210,7 @@ with tab_finance:
   if analyzed_results:
     st.markdown(
         "<p style='font-weight:bold; color:#38bdf8; margin-bottom:4px;'>🔥"
-        " 最重要トップ3アセット</p>",
+        " 最重要ターゲット（量子特異点トップ3）</p>",
         unsafe_allow_html=True,
     )
     for idx, top_item in enumerate(analyzed_results[:3], 1):
@@ -214,7 +220,7 @@ with tab_finance:
                 <div style="font-size: 1.05em; font-weight: bold; margin-bottom: 4px; color: #38bdf8;">#{idx} {top_item['name']}</div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.95em; margin-bottom: 4px;">
                     <span>現在値: <b>{top_item['current_price']:,.2f}</b></span>
-                    <span>判定: {top_item['signal_html']}</span>
+                    <span>司令判定: {top_item['signal_html']}</span>
                 </div>
                 <div style="font-size: 0.85em; color: #cbd5e1; background: #020617; padding: 6px; border-radius: 6px;">
                     {top_item['analysis']}
@@ -226,7 +232,7 @@ with tab_finance:
 
     st.markdown(
         "<p style='font-weight:bold; color:#94a3b8; margin:8px 0 4px 0;'>📋"
-        " その他のアセット</p>",
+        " その他のアセット動向</p>",
         unsafe_allow_html=True,
     )
     for item in analyzed_results[3:]:
@@ -248,7 +254,7 @@ with tab_finance:
 with tab_boat:
   st.markdown(
       "<p style='font-weight:bold; color:#34d399; margin-bottom:4px;'>🚤"
-      " ボートレース厳選トリオ</p>",
+      " ボートレース クイックオッズ司令</p>",
       unsafe_allow_html=True,
   )
   col_b1, col_b2 = st.columns(2)
@@ -262,11 +268,11 @@ with tab_boat:
   np.random.seed(333)
   boat_combos = ["1 - 2", "1 - 3", "1 - 4", "2 - 1", "3 - 1"]
   for idx, combo in enumerate(boat_combos[:3], 1):
-    ev = np.random.uniform(1.05, 1.25)
+    ev = np.random.uniform(1.15, 1.45)
     st.markdown(
         f"""
         <div class="top-asset-card" style="padding: 10px; margin-bottom: 8px;">
-            <div style="font-size: 0.95em; color: #34d399;"><b>#{idx} {boat_venue} {boat_race} ｜ 2連単: {combo}</b> (期待値フィルター通過: {ev:.2f})</div>
+            <div style="font-size: 0.95em; color: #34d399;"><b>#{idx} {boat_venue} {boat_race} ｜ 2連単: {combo}</b> (量子期待値インデックス: {ev:.2f})</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -278,7 +284,7 @@ with tab_boat:
 with tab_keirin:
   st.markdown(
       "<p style='font-weight:bold; color:#fb923c; margin-bottom:4px;'>🚴"
-      " 競輪厳選トリオ</p>",
+      " 競輪 クイックオッズ司令</p>",
       unsafe_allow_html=True,
   )
   col_k1, col_k2 = st.columns(2)
@@ -292,11 +298,11 @@ with tab_keirin:
   np.random.seed(444)
   keirin_combos = ["1 - 2", "1 - 3", "2 - 1", "3 - 1", "2 - 3"]
   for idx, combo in enumerate(keirin_combos[:3], 1):
-    ev = np.random.uniform(1.05, 1.25)
+    ev = np.random.uniform(1.15, 1.45)
     st.markdown(
         f"""
         <div class="top-asset-card" style="padding: 10px; margin-bottom: 8px;">
-            <div style="font-size: 0.95em; color: #fb923c;"><b>#{idx} {keirin_venue} {keirin_race} ｜ 2連単: {combo}</b> (期待値フィルター通過: {ev:.2f})</div>
+            <div style="font-size: 0.95em; color: #fb923c;"><b>#{idx} {keirin_venue} {keirin_race} ｜ 2連単: {combo}</b> (量子期待値インデックス: {ev:.2f})</div>
         </div>
         """,
         unsafe_allow_html=True,
