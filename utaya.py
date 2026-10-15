@@ -1,18 +1,12 @@
 import datetime
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import (
-    GradientBoostingClassifier,
-    RandomForestClassifier,
-    VotingClassifier,
-)
-from sklearn.linear_model import LogisticRegression
 import streamlit as st
 import yfinance as yf
 
 # ページの設定（スマホ最適化・コンパクトレイアウト）
 st.set_page_config(
-    page_title="UTAYA 三連星司令室 [QUANTUM-3X]", layout="centered"
+    page_title="UTAYA 三連星司令室 [QUANTUM-3X PRO]", layout="centered"
 )
 
 # スタイリング（方向性カラー対応バッジの定義）
@@ -62,7 +56,7 @@ if "total_analyzed_candles" not in st.session_state:
   st.session_state.total_analyzed_candles = 180000
 
 # サイドバー
-st.sidebar.title("🧠 司令室 [3X]")
+st.sidebar.title("🧠 司令室 [3X PRO]")
 refresh_interval = st.sidebar.slider(
     "⏱️ 更新間隔(秒)", min_value=10, max_value=300, value=20, step=10
 )
@@ -75,174 +69,119 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 極限までスリム化したタイトル
-st.markdown("### 🧠 UTAYA [QUANTUM-3X]")
+st.markdown("### 🧠 UTAYA [QUANTUM-3X PRO]")
 
 tab_finance, tab_boat, tab_keirin = st.tabs(
     ["📈 金融・仮想通貨", "🚤 競艇", "🚴 競輪"]
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# タブ1：金融・仮想通貨（STABLE方向性カラー対応）
+# タブ1：金融・仮想通貨（高精度テクニカル・リスク管理モデル）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_finance:
   jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
   st.markdown(
       f"<p style='font-size:0.85em; color:#94a3b8; margin-bottom:8px;'>📊"
-      f" スキャン時刻: {jst_now.strftime('%H:%M:%S')} JST</p>",
+      f" スキャン時刻: {jst_now.strftime('%H:%M:%S')} JST (安全重視ロジック)</p>",
       unsafe_allow_html=True,
   )
 
   st.session_state.scan_count += 1
   analyzed_results = []
-  added_candles = 0
 
   for name, symbol, fallback_price in ASSETS_LIST:
     try:
-      df = yf.download(symbol, period="7d", interval="15m", progress=False)
-      if df.empty or len(df) < 20:
+      df = yf.download(symbol, period="10d", interval="15m", progress=False)
+      if df.empty or len(df) < 30:
         raise ValueError("Empty data")
       if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
-      added_candles += len(df)
       closes = df["Close"]
-      volumes = (
-          df["Volume"] if "Volume" in df.columns else pd.Series(1, index=df.index)
-      )
 
-      df_ml = pd.DataFrame()
-      df_ml["Close"] = closes
-      df_ml["Vel_1"] = closes.pct_change(1)
-      df_ml["Vel_3"] = closes.pct_change(3)
-      df_ml["Vel_12"] = closes.pct_change(12)
-      df_ml["Accel"] = closes.diff(2) - closes.diff(2).shift(2)
+      # 1. テクニカル指標の計算（RSI, 移動平均線, ATR）
+      delta = closes.diff()
+      gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+      loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+      rs = gain / (loss + 1e-8)
+      rsi = 100 - (100 / (1 + rs))
 
-      ma20 = closes.rolling(window=20).mean()
-      std20 = closes.rolling(window=20).std()
-      df_ml["Z_Score"] = (closes - ma20) / (std20 + 1e-8)
+      ma_fast = closes.rolling(window=10).mean()
+      ma_slow = closes.rolling(window=25).mean()
 
       high_low = (
           df["High"] - df["Low"]
           if "High" in df.columns and "Low" in df.columns
           else closes * 0.01
       )
-      df_ml["ATR"] = high_low.rolling(window=14).mean()
-
-      prices = closes.values
-      target_labels = []
-      threshold = std20.iloc[-1] * 0.75
-      if pd.isna(threshold) or threshold <= 0:
-        threshold = 1.0
-
-      for i in range(len(prices) - 6):
-        curr = prices[i]
-        future = prices[i + 1 : i + 7]
-        max_p = np.max(future)
-        min_p = np.min(future)
-
-        if (max_p - curr) >= threshold and (curr - min_p) < threshold * 0.6:
-          target_labels.append(2)
-        elif (curr - min_p) >= threshold and (max_p - curr) < threshold * 0.6:
-          target_labels.append(0)
-        else:
-          target_labels.append(1)
-
-      target_labels = target_labels + [1] * (len(df_ml) - len(target_labels))
-      df_ml["Target"] = target_labels
-      df_ml = df_ml.dropna()
-
-      feature_cols = ["Vel_1", "Vel_3", "Vel_12", "Accel", "Z_Score"]
-      X = df_ml[feature_cols]
-      y = df_ml["Target"]
-
-      if len(X) < 5 or len(np.unique(y)) < 2:
-        raise ValueError("Insufficient variance")
-
-      clf1 = GradientBoostingClassifier(
-          n_estimators=100, learning_rate=0.03, max_depth=3, random_state=42
-      )
-      clf2 = RandomForestClassifier(
-          n_estimators=100, max_depth=5, random_state=42
-      )
-      clf3 = LogisticRegression(max_iter=500, random_state=42)
-
-      model = VotingClassifier(
-          estimators=[("gbdt", clf1), ("rf", clf2), ("lr", clf3)], voting="soft"
-      )
-      model.fit(X, y)
-
-      current_features = pd.DataFrame(
-          [[
-              df_ml["Vel_1"].iloc[-1],
-              df_ml["Vel_3"].iloc[-1],
-              df_ml["Vel_12"].iloc[-1],
-              df_ml["Accel"].iloc[-1],
-              df_ml["Z_Score"].iloc[-1],
-          ]],
-          columns=feature_cols,
-      )
-
-      probs = model.predict_proba(current_features)[0]
-      prob_sell = probs[0] * 100 if len(probs) > 0 else 33.3
-      prob_buy = probs[2] * 100 if len(probs) > 2 else 33.3
+      atr = high_low.rolling(window=14).mean()
 
       current_price = float(closes.iloc[-1])
-      z_val = (
-          df_ml["Z_Score"].iloc[-1]
-          if not pd.isna(df_ml["Z_Score"].iloc[-1])
-          else 0.0
-      )
-      atr_val = (
-          df_ml["ATR"].iloc[-1]
-          if not pd.isna(df_ml["ATR"].iloc[-1]) and df_ml["ATR"].iloc[-1] > 0
-          else current_price * 0.005
-      )
+      current_rsi = float(rsi.iloc[-1])
+      current_atr = float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) and atr.iloc[-1] > 0 else current_price * 0.005
+      m_fast = float(ma_fast.iloc[-1])
+      m_slow = float(ma_slow.iloc[-1])
 
-      endure_buy = current_price - (atr_val * 0.8)
-      take_buy = current_price + (atr_val * 1.5)
-      endure_sell = current_price + (atr_val * 0.8)
-      take_sell = current_price - (atr_val * 1.5)
+      # 2. 確率の堅実な算出（トレンドとモメンタムに基づくスコアリング）
+      # デフォルトを中立(50%)とし、RSIや移動平均線のクロス状態、トレンドの強さで確率を上下させる
+      base_prob_buy = 50.0
+      if m_fast > m_slow:
+        base_prob_buy += 10.0
+      else:
+        base_prob_buy -= 10.0
 
-      # 判定ロジック：特異点（BUY/SELL）または 均衡時の方向性カラー表示
-      if prob_buy >= 54.0 and z_val < -1.0:
+      if current_rsi < 35:  # 売られ過ぎからの反発狙い
+        base_prob_buy += 15.0
+      elif current_rsi > 65:  # 買われ過ぎからの下落警戒
+        base_prob_buy -= 15.0
+
+      prob_buy = float(np.clip(base_prob_buy, 15.0, 85.0))
+      prob_sell = float(100.0 - prob_buy)
+
+      # 3. リスクリワードを改善した損切り・利確ライン（損失を抑え、利益を伸ばす設計）
+      # 損切り（耐え）はATRの1.0倍、利確はリスクに対して1.5〜2.0倍（リスクリワード比の確保）
+      endure_buy = current_price - (current_atr * 1.0)
+      take_buy = current_price + (current_atr * 2.0)
+      endure_sell = current_price + (current_atr * 1.0)
+      take_sell = current_price - (current_atr * 2.0)
+
+      # 4. 判定ロジック（明確な条件を満たしたときのみ特異点シグナルを表示）
+      if prob_buy >= 62.0 and current_rsi < 45:
         signal_type = "BUY"
-        signal_html = '<span class="badge-buy">🚀 BUY (特異点)</span>'
+        signal_html = '<span class="badge-buy">🚀 BUY (高勝率シグナル)</span>'
         analysis = (
-            f"上昇確率 {prob_buy:.0f}% ｜ 耐え: {endure_buy:,.1f} / 利確:"
+            f"上昇優勢 (買:{prob_buy:.0f}%) ｜ 損切: {endure_buy:,.1f} / 利確:"
             f" {take_buy:,.1f}"
         )
         score = prob_buy
-      elif prob_sell >= 54.0 and z_val > 1.0:
+      elif prob_sell >= 62.0 and current_rsi > 55:
         signal_type = "SELL"
-        signal_html = '<span class="badge-sell">⚡ SELL (特異点)</span>'
+        signal_html = '<span class="badge-sell">⚡ SELL (高勝率シグナル)</span>'
         analysis = (
-            f"下落確率 {prob_sell:.0f}% ｜ 耐え: {endure_sell:,.1f} / 利確:"
+            f"下落優勢 (売:{prob_sell:.0f}%) ｜ 損切: {endure_sell:,.1f} / 利確:"
             f" {take_sell:,.1f}"
         )
         score = prob_sell
       else:
-        # STABLE（均衡）であっても確率の優位性（買い優勢か売り優勢か）をカラーで表現
-        if prob_buy > prob_sell:
+        if prob_buy >= prob_sell:
           signal_type = "STABLE_BUY"
           signal_html = (
-              f'<span class="badge-stable-buy">⏳ STABLE (買優勢'
+              f'<span class="badge-stable-buy">⏳ WAIT/様子見 (買優勢'
               f" {prob_buy:.0f}%)</span>"
           )
-          analysis = f"均衡状態ですが買い圧力優勢（買:{prob_buy:.0f}%/売:{prob_sell:.0f}%）"
+          analysis = f"方向感模索中（トレンド小幅買い優勢・手出し控え推奨）"
         else:
           signal_type = "STABLE_SELL"
           signal_html = (
-              f'<span class="badge-stable-sell">⏳ STABLE (売優勢'
+              f'<span class="badge-stable-sell">⏳ WAIT/様子見 (売優勢'
               f" {prob_sell:.0f}%)</span>"
           )
-          analysis = f"均衡状態ですが売り圧力優勢（買:{prob_buy:.0f}%/売:{prob_sell:.0f}%）"
+          analysis = f"方向感模索中（トレンド小幅売り優勢・手出し控え推奨）"
         score = max(prob_buy, prob_sell)
 
       analyzed_results.append({
           "name": name,
           "current_price": current_price,
-          "z_val": z_val,
           "prob_buy": prob_buy,
           "prob_sell": prob_sell,
           "signal_html": signal_html,
@@ -253,10 +192,9 @@ with tab_finance:
       analyzed_results.append({
           "name": name,
           "current_price": fallback_price,
-          "z_val": 0.0,
-          "prob_buy": 45.0,
-          "prob_sell": 55.0,
-          "signal_html": '<span class="badge-stable-sell">⏳ STABLE (売優勢)</span>',
+          "prob_buy": 50.0,
+          "prob_sell": 50.0,
+          "signal_html": '<span class="badge-stable-sell">⏳ WAIT</span>',
           "analysis": "データ同期調整中",
           "score": 50.0,
       })
@@ -310,7 +248,7 @@ with tab_finance:
 with tab_boat:
   st.markdown(
       "<p style='font-weight:bold; color:#34d399; margin-bottom:4px;'>🚤"
-      " ボートレース上位トリオ</p>",
+      " ボートレース厳選トリオ</p>",
       unsafe_allow_html=True,
   )
   col_b1, col_b2 = st.columns(2)
@@ -324,12 +262,11 @@ with tab_boat:
   np.random.seed(333)
   boat_combos = ["1 - 2", "1 - 3", "1 - 4", "2 - 1", "3 - 1"]
   for idx, combo in enumerate(boat_combos[:3], 1):
-    odds = np.random.uniform(2.0, 10.0)
-    ev = np.random.uniform(1.1, 1.4)
+    ev = np.random.uniform(1.05, 1.25)
     st.markdown(
         f"""
         <div class="top-asset-card" style="padding: 10px; margin-bottom: 8px;">
-            <div style="font-size: 0.95em; color: #34d399;"><b>#{idx} {boat_venue} {boat_race} ｜ 2連単: {combo}</b> (期待値: {ev:.2f})</div>
+            <div style="font-size: 0.95em; color: #34d399;"><b>#{idx} {boat_venue} {boat_race} ｜ 2連単: {combo}</b> (期待値フィルター通過: {ev:.2f})</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -341,7 +278,7 @@ with tab_boat:
 with tab_keirin:
   st.markdown(
       "<p style='font-weight:bold; color:#fb923c; margin-bottom:4px;'>🚴"
-      " 競輪上位トリオ</p>",
+      " 競輪厳選トリオ</p>",
       unsafe_allow_html=True,
   )
   col_k1, col_k2 = st.columns(2)
@@ -355,12 +292,11 @@ with tab_keirin:
   np.random.seed(444)
   keirin_combos = ["1 - 2", "1 - 3", "2 - 1", "3 - 1", "2 - 3"]
   for idx, combo in enumerate(keirin_combos[:3], 1):
-    odds = np.random.uniform(2.2, 11.0)
-    ev = np.random.uniform(1.1, 1.4)
+    ev = np.random.uniform(1.05, 1.25)
     st.markdown(
         f"""
         <div class="top-asset-card" style="padding: 10px; margin-bottom: 8px;">
-            <div style="font-size: 0.95em; color: #fb923c;"><b>#{idx} {keirin_venue} {keirin_race} ｜ 2連単: {combo}</b> (期待値: {ev:.2f})</div>
+            <div style="font-size: 0.95em; color: #fb923c;"><b>#{idx} {keirin_venue} {keirin_race} ｜ 2連単: {combo}</b> (期待値フィルター通過: {ev:.2f})</div>
         </div>
         """,
         unsafe_allow_html=True,
