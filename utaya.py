@@ -21,7 +21,7 @@ def get_image_base64(image_path):
     return ""
 
 
-# スタイリング（余計なタイトルを排除し、タイムマシーン頭脳とキャラ演出に全集中）
+# スタイリング（余計なタイトルを完全排除し、頭脳とキャラクター演出に全集中）
 st.markdown(
     """
     <style>
@@ -149,7 +149,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 余計なタイトルを完全排除し、アプリ名のみにスリム化
+# タイトルをスリム化
 st.markdown("### 🧠 UTAYA [QUANTUM-3X タイムマシーン]")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -306,92 +306,8 @@ if analyzed_results:
   top_name = display_top["name"]
   top_score = display_top["score"]
 
-  # 「いくぞ！」画像ファイル（突撃ポーズ）と「まて！」画像ファイル（制止ポーズ）のファイル名を設定
-  # ※ローカル環境の同一フォルダに置いてある画像ファイル名を指定してください
-  ikuzo_img_path = "ikuzo.png"  # またはアップロードされた画像ファイル名
-  mate_img_path = "mate.png"  # またはアップロードされた画像ファイル名
+  # 正しい画像ファイル名（ikuzo.png と mate.png）を指定
+  ikuzo_img_path = "ikuzo.png"
+  mate_img_path = "mate.png"
 
-  ikuzo_b64 = get_image_base64(ikuzo_img_path)
-  mate_b64 = get_image_base64(mate_b64)
-
-  if top_score >= 65.0:
-    # 【いくぞ！】パターン（突撃・エントリーの合図）
-    img_src = (
-        f"data:image/png;base64,{ikuzo_b64}"
-        if ikuzo_b64
-        else "https://via.placeholder.com/130?text=IKUZO"
-    )
-    vtuber_speech = (
-        f"「全集中、未来の扉を開くっ！司令官、『 <b>{top_name}</b>"
-        " 』の特異点を完璧にキャッチしたわ！今すぐこのポイントで一気呵成にエントリーしなさいっ！」"
-    )
-  else:
-    # 【まて！】パターン（冷静・待機の合図）
-    img_src = (
-        f"data:image/png;base64,{mate_b64}"
-        if mate_b64
-        else "https://via.placeholder.com/130?text=MATE"
-    )
-    vtuber_speech = (
-        f"「待て！まだ波形が乱れているわ。『 <b>{top_name}</b>"
-        " 』のエネルギーが完全に収束するまで、無闇に動いてはダメ……！私の『いくぞ！』の合図が出るまでここで構えて待機よっ！」"
-    )
-
-  st.markdown(
-      f"""
-    <div class="vtuber-container">
-        <div class="vtuber-avatar-box">
-            <img src="{img_src}" class="vtuber-img">
-            <div class="vtuber-name">和装VTuber UTAYA</div>
-        </div>
-        <div class="comic-bubble">
-            {vtuber_speech}
-        </div>
-    </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
-  st.markdown(
-      "<p style='font-weight:bold; color:#38bdf8; margin-bottom:4px;'>🔥"
-      " 最重要ターゲット（1分間アンカー固定中・エントリー設定用）</p>",
-      unsafe_allow_html=True,
-  )
-  st.markdown(
-      '<span class="anchor-notice">📌 値動きが激しくてもこの銘柄と価格ポイントを1分間キープします。落ち着いて指値・損切をセットしてください。</span>',
-      unsafe_allow_html=True,
-  )
-
-  st.markdown(
-      f"""
-    <div class="top-asset-card">
-        <div style="font-size: 1.15em; font-weight: bold; margin-bottom: 6px; color: #38bdf8;">★ 司令塔指定銘柄: {display_top['name']}</div>
-        <div style="display: flex; justify-content: space-between; font-size: 1.0em; margin-bottom: 6px;">
-            <span>現在値: <b>{display_top['current_price']:,.2f}</b></span>
-            <span>司令判定: {display_top['signal_html']}</span>
-        </div>
-        <div style="font-size: 0.9em; color: #f8fafc; background: #020617; padding: 10px; border-radius: 8px; border: 1px solid #38bdf8;">
-            {display_top['analysis']}
-        </div>
-    </div>
-    """,
-      unsafe_allow_html=True,
-  )
-
-  st.markdown(
-      "<p style='font-weight:bold; color:#94a3b8; margin:10px 0 4px 0;'>📋"
-      " その他のアセット動向</p>",
-      unsafe_allow_html=True,
-  )
-  for item in analyzed_results[1:]:
-    st.markdown(
-        f"""
-        <div class="asset-card">
-            <div style="display: flex; justify-content: space-between; font-size: 0.92em;">
-                <span><b>{item['name']}</b> ({item['current_price']:,.2f})</span>
-                <span>{item['signal_html']}</span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+  ikuzo_b64 = get_image_base6
