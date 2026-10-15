@@ -164,10 +164,8 @@ st.markdown(
 
 analyzed_results = []
 
-# メモリ消費を抑えるため、期間を短くして一括ダウンロードを活用
 for name, symbol, fallback_price in ASSETS_LIST:
   try:
-    # データを軽量に取得（1ヶ月間の1時間足に変更してメモリ節約）
     df = yf.download(symbol, period="1mo", interval="1h", progress=False)
     if df.empty or len(df) < 10:
       raise ValueError("Empty data")
@@ -177,7 +175,6 @@ for name, symbol, fallback_price in ASSETS_LIST:
     closes = df["Close"]
     current_price = float(closes.iloc[-1])
 
-    # 簡易的かつ軽量なモメンタム計算
     returns = closes.pct_change().dropna()
     volatility = float(returns.std()) * 100 if len(returns) > 0 else 1.0
     mom = float((closes.iloc[-1] - closes.iloc[-5]) / closes.iloc[-5] * 100)
