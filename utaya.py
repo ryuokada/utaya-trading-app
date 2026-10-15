@@ -21,7 +21,7 @@ def get_image_base64(image_path):
     return ""
 
 
-# スタイリング（余計なタイトルを完全排除し、頭脳とキャラクター演出に全集中）
+# スタイリング
 st.markdown(
     """
     <style>
@@ -149,7 +149,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# タイトルをスリム化
+# タイトル
 st.markdown("### 🧠 UTAYA [QUANTUM-3X タイムマシーン]")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -318,7 +318,6 @@ if analyzed_results:
   mate_b64 = get_image_base64(mate_img_path)
 
   if top_score >= 65.0:
-    # 買い または 売り の「いくぞ！」判定
     img_src = (
         f"data:image/png;base64,{ikuzo_b64}"
         if ikuzo_b64
@@ -329,7 +328,6 @@ if analyzed_results:
     else:
       vtuber_speech = f"「いくぞ！ <b>{top_name}</b> を<b>【売り】</b>だ！ 今すぐ <b>{top_price:,.2f}</b> でショートを叩けっ！」"
   else:
-    # 待機の「まて！」判定
     img_src = (
         f"data:image/png;base64,{mate_b64}"
         if mate_b64
@@ -370,4 +368,14 @@ if analyzed_results:
             <span>現在値: <b>{display_top['current_price']:,.2f}</b></span>
             <span>司令判定: {display_top['signal_html']}</span>
         </div>
-        <div style="font-size: 0.9em; color: #f8fafc; background: #020617; padding: 10px; border-
+        <div style="font-size: 0.9em; color: #f8fafc; background: #020617; padding: 10px; border-radius: 8px; border: 1px solid #38bdf8;">
+            {display_top['analysis']}
+        </div>
+    </div>
+    """,
+      unsafe_allow_html=True,
+  )
+
+  st.markdown(
+      "<p style='font-weight:bold; color:#94a3b8; margin:10px 0 4px 0;'>📋"
+      " その他のアセット動向
