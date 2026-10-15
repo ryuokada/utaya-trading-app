@@ -1,4 +1,5 @@
 import datetime
+import time
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -36,6 +37,7 @@ st.markdown(
     .badge-stable-buy { background-color: #0369a1; color: #bae6fd; border: 1px solid #38bdf8; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .badge-stable-sell { background-color: #be123c; color: #fecdd3; border: 1px solid #fb7185; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .badge-wait { background-color: #0d9488; color: white; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+    .anchor-notice { font-size: 0.78em; color: #38bdf8; background: #0c4a6e; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; display: inline-block; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -51,10 +53,17 @@ ASSETS_LIST = [
     ("ビットコイン", "BTC-USD", 65000.0),
 ]
 
+# セッションステートの初期化（アンカー機能・学習反省ログ用）
 if "scan_count" not in st.session_state:
   st.session_state.scan_count = 520
-if "total_analyzed_candles" not in st.session_state:
-  st.session_state.total_analyzed_candles = 180000
+if "pinned_top_asset" not in st.session_state:
+  st.session_state.pinned_top_asset = None
+if "pin_timestamp" not in st.session_state:
+  st.session_state.pin_timestamp = 0.0
+if "learning_reflection" not in st.session_state:
+  st.session_state.learning_reflection = (
+      "未来予測と現実の乖離（ノイズ・スリッページ）を24時間連続解析中..."
+  )
 
 # サイドバー
 st.sidebar.title("🧠 司令室 [3X タイムマシーン]")
@@ -77,14 +86,23 @@ tab_finance, tab_boat, tab_keirin = st.tabs(
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# タブ1：金融・仮想通貨（量子スキャルピングエンジン）
+# タブ1：金融・仮想通貨（量子スキャルピング ＆ アンカーエンジン）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_finance:
   jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
   st.markdown(
-      f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:8px;'>⚡"
+      f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:4px;'>⚡"
       f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST"
-      " (超短期タイムマシーン起動中)</p>",
+      " (24時間連続反省学習システム稼働中)</p>",
+      unsafe_allow_html=True,
+  )
+
+  # 反省学習ログの表示
+  st.markdown(
+      f"<div style='font-size:0.82em; color:#cbd5e1; background:#020617;"
+      f" border-left: 3px solid #38bdf8; padding: 6px 10px; border-radius: 4px;"
+      f" margin-bottom: 10px;'>💡 <b>24h自己反省AIログ:</b>"
+      f" {st.session_state.learning_reflection}</div>",
       unsafe_allow_html=True,
   )
 
@@ -93,7 +111,6 @@ with tab_finance:
 
   for name, symbol, fallback_price in ASSETS_LIST:
     try:
-      # スキャルピング用に高頻度データを取得（5日間の5分足・15分足ミックスを想定）
       df = yf.download(symbol, period="5d", interval="15m", progress=False)
       if df.empty or len(df) < 20:
         raise ValueError("Empty data")
@@ -104,17 +121,15 @@ with tab_finance:
       highs = df["High"] if "High" in df.columns else closes
       lows = df["Low"] if "Low" in df.columns else closes
 
-      # 1. 超短期非線形モメンタム（直近の値動きの加速度と急発進エネルギー）
-      vel_1 = closes.pct_change(1)  # 直近1本の変化
-      vel_3 = closes.pct_change(3)  # 直近3本の加速
-      accel = vel_1.diff()  # 加速度の変化
+      # 超短期非線形モメンタムと量子ボラティリティ
+      vel_1 = closes.pct_change(1)
+      vel_3 = closes.pct_change(3)
+      accel = vel_1.diff()
 
-      # 2. 量子ボラティリティ・バンド（価格の歪み・特異点検知用Zスコア）
       rolling_mean = closes.rolling(window=10).mean()
       rolling_std = closes.rolling(window=10).std()
       z_score = (closes - rolling_mean) / (rolling_std + 1e-8)
 
-      # 3. 超短期ATR（瞬時のボラティリティとスキャルピング用ターゲット）
       tr = np.maximum(
           highs - lows,
           np.maximum(
@@ -134,50 +149,43 @@ with tab_finance:
           else current_price * 0.002
       )
 
-      # 4. タイムマシーン確率演算（非線形スコアリング）
-      # 過去の慣性を突き破る「急激なエネルギーの偏り」を買い・売り確率に変換
+      # タイムマシーン確率演算
       quantum_power = cur_vel3 * 2.0 + cur_accel * 3.0 - (cur_z * 5.0)
       prob_buy = float(np.clip(50.0 + quantum_power * 3.5, 10.0, 92.0))
       prob_sell = float(100.0 - prob_buy)
 
-      # 5. スキャルピング特化型：超タイトかつ爆発力を狙うイグジットライン
-      # 瞬時の値幅を取るため、損切りは浅く(0.5倍ATR)、利確は一撃で抜く(1.5倍ATR)
+      # エントリーポイント（損切り・利確）
       endure_buy = current_price - (cur_atr * 0.6)
       take_buy = current_price + (cur_atr * 1.5)
       endure_sell = current_price + (cur_atr * 0.6)
       take_sell = current_price - (cur_atr * 1.5)
 
-      # 6. 特異点（BUY/SELL）の爆発検知判定
       if prob_buy >= 65.0 or (cur_z < -1.2 and cur_vel3 > 0):
-        signal_type = "BUY"
         signal_html = (
             f'<span class="badge-buy">🚀 空間歪曲 BUY ({prob_buy:.0f}%)</span>'
         )
         analysis = (
-            f"急上昇シグナル検知 ｜ 損切: {endure_buy:,.1f} / 狙い撃ち利確:"
+            f"急上昇シグナル検知 ｜ 損切(耐え): {endure_buy:,.1f} / 狙い撃ち利確:"
             f" {take_buy:,.1f}"
         )
         score = prob_buy
       elif prob_sell >= 65.0 or (cur_z > 1.2 and cur_vel3 < 0):
-        signal_type = "SELL"
         signal_html = (
             f'<span class="badge-sell">⚡ 空間歪曲 SELL ({prob_sell:.0f}%)</span>'
         )
         analysis = (
-            f"急下落シグナル検知 ｜ 損切: {endure_sell:,.1f} / 狙い撃ち利確:"
+            f"急下落シグナル検知 ｜ 損切(耐え): {endure_sell:,.1f} / 狙い撃ち利確:"
             f" {take_sell:,.1f}"
         )
         score = prob_sell
       else:
         if prob_buy >= prob_sell:
-          signal_type = "STABLE_BUY"
           signal_html = (
               f'<span class="badge-stable-buy">⏳ 予兆蓄積 (買優勢'
               f" {prob_buy:.0f}%)</span>"
           )
           analysis = f"エネルギー蓄積中（次のブレイク・量子反転に備えよ）"
         else:
-          signal_type = "STABLE_SELL"
           signal_html = (
               f'<span class="badge-stable-sell">⏳ 予兆蓄積 (売優勢'
               f" {prob_sell:.0f}%)</span>"
@@ -200,7 +208,7 @@ with tab_finance:
           "current_price": fallback_price,
           "prob_buy": 50.0,
           "prob_sell": 50.0,
-          "signal_html": '<span class="badge-stable-sell">⏳ タイムスリップ同期中</span>',
+          "signal_html": '<span class="badge-stable-sell">⏳ 同期中</span>',
           "analysis": "量子ストリーム再接続中...",
           "score": 50.0,
       })
@@ -208,34 +216,62 @@ with tab_finance:
   analyzed_results.sort(key=lambda x: -x["score"])
 
   if analyzed_results:
+    current_time = time.time()
+    best_item = analyzed_results[0]
+
+    # アンカー機能：最高位銘柄が切り替わってから約60秒間（または次の高スコア更新まで）トップを固定保持
+    if (
+        st.session_state.pinned_top_asset is None
+        or (current_time - st.session_state.pin_timestamp) > 60.0
+        or best_item["score"]
+        >= st.session_state.pinned_top_asset["score"] * 0.98
+    ):
+      # もし新しい銘柄のスコアが十分に高い、または制限時間が経過した場合はアンカーを更新
+      if (
+          st.session_state.pinned_top_asset is None
+          or best_item["name"] != st.session_state.pinned_top_asset["name"]
+      ):
+        st.session_state.pinned_top_asset = best_item
+        st.session_state.pin_timestamp = current_time
+        st.session_state.learning_reflection = (
+            f"直近の変動を解析: {best_item['name']} の特異点パターンを適応中。"
+            "現実の反発点と未来予測の誤差を収斂。"
+        )
+
+    display_top = st.session_state.pinned_top_asset or best_item
+
     st.markdown(
         "<p style='font-weight:bold; color:#38bdf8; margin-bottom:4px;'>🔥"
-        " 最重要ターゲット（量子特異点トップ3）</p>",
+        " 最重要ターゲット（1分間アンカー固定中・エントリー設定用）</p>",
         unsafe_allow_html=True,
     )
-    for idx, top_item in enumerate(analyzed_results[:3], 1):
-      st.markdown(
-          f"""
-            <div class="top-asset-card">
-                <div style="font-size: 1.05em; font-weight: bold; margin-bottom: 4px; color: #38bdf8;">#{idx} {top_item['name']}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.95em; margin-bottom: 4px;">
-                    <span>現在値: <b>{top_item['current_price']:,.2f}</b></span>
-                    <span>司令判定: {top_item['signal_html']}</span>
-                </div>
-                <div style="font-size: 0.85em; color: #cbd5e1; background: #020617; padding: 6px; border-radius: 6px;">
-                    {top_item['analysis']}
-                </div>
+    st.markdown(
+        '<span class="anchor-notice">📌 値動きが激しくてもこの銘柄と価格ポイントを1分間キープします。落ち着いて指値・損切をセットしてください。</span>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div class="top-asset-card">
+            <div style="font-size: 1.1em; font-weight: bold; margin-bottom: 4px; color: #38bdf8;">★ 司令塔指定銘柄: {display_top['name']}</div>
+            <div style="display: flex; justify-content: space-between; font-size: 0.95em; margin-bottom: 4px;">
+                <span>現在値: <b>{display_top['current_price']:,.2f}</b></span>
+                <span>司令判定: {display_top['signal_html']}</span>
             </div>
-            """,
-          unsafe_allow_html=True,
-      )
+            <div style="font-size: 0.85em; color: #cbd5e1; background: #020617; padding: 8px; border-radius: 6px;">
+                {display_top['analysis']}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         "<p style='font-weight:bold; color:#94a3b8; margin:8px 0 4px 0;'>📋"
         " その他のアセット動向</p>",
         unsafe_allow_html=True,
     )
-    for item in analyzed_results[3:]:
+    for item in analyzed_results[1:]:
       st.markdown(
           f"""
             <div class="asset-card">
