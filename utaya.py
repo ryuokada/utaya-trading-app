@@ -1,3 +1,4 @@
+import base64
 import datetime
 import time
 import numpy as np
@@ -10,7 +11,17 @@ st.set_page_config(
     page_title="UTAYA 司令室 [QUANTUM-3X タイムマシーン]", layout="centered"
 )
 
-# スタイリング（鬼滅風和装VTuberキャラクターのポーズ切り替え ＆ コミックバブルのデザイン）
+
+# 画像をBase64にエンコードしてHTMLで確実に表示する関数
+def get_image_base64(image_path):
+  try:
+    with open(image_path, "rb") as img_file:
+      return base64.b64encode(img_file.read()).decode("utf-8")
+  except Exception:
+    return ""
+
+
+# スタイリング（余計なタイトルを排除し、タイムマシーン頭脳とキャラ演出に全集中）
 st.markdown(
     """
     <style>
@@ -37,7 +48,7 @@ st.markdown(
     .badge-stable-sell { background-color: #be123c; color: #fecdd3; border: 1px solid #fb7185; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .anchor-notice { font-size: 0.82em; color: #38bdf8; background: #0c4a6e; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px; display: inline-block; font-weight: bold; }
 
-    /* 鬼滅風和装VTuber専用コンテナ（ライブ配信映えする豪華な装飾） */
+    /* VTuber和装キャラクター専用ライブ配信用コンテナ */
     .vtuber-container {
         display: flex;
         align-items: center;
@@ -50,38 +61,28 @@ st.markdown(
     }
     .vtuber-avatar-box {
         text-align: center;
-        min-width: 130px;
+        min-width: 140px;
         margin-right: 18px;
     }
-    /* 和装VTuberキャラクターのポーズ切り替えフレーム */
-    .vtuber-chara-card {
-        background: radial-gradient(circle, #ffe4e6 0%, #f43f5e 100%);
+    .vtuber-img {
+        width: 130px;
+        height: 130px;
+        object-fit: cover;
+        border-radius: 14px;
         border: 3px solid #fff1f2;
-        border-radius: 16px;
-        padding: 12px 6px;
         box-shadow: 0 0 25px rgba(244, 63, 94, 0.7);
         animation: vtuber-pulse 2s infinite ease-in-out;
     }
     @keyframes vtuber-pulse {
         0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.04); }
+        50% { transform: scale(1.03); }
     }
-    .chara-pose-title {
-        font-size: 1.1em;
-        font-weight: 900;
-        color: #fff1f2;
-        background: #9f1239;
-        padding: 4px 8px;
-        border-radius: 8px;
-        margin-bottom: 6px;
-        display: inline-block;
-        box-shadow: 0 0 10px rgba(0,0,0,0.5);
-    }
-    .chara-sub {
-        font-size: 0.75em;
+    .vtuber-name {
+        font-size: 0.82em;
         color: #fbcfe8;
         font-weight: bold;
         margin-top: 6px;
+        letter-spacing: 1px;
     }
     /* 漫画の迫力ある吹き出し */
     .comic-bubble {
@@ -148,26 +149,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown(
-    "### 🧠 UTAYA [QUANTUM-3X タイムマシーン ＆ 和装VTuberライブ司令室]"
-)
+# 余計なタイトルを完全排除し、アプリ名のみにスリム化
+st.markdown("### 🧠 UTAYA [QUANTUM-3X タイムマシーン]")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 金融・仮想通貨特化型タイムマシーンエンジン
+# 金融・仮想通貨特化型タイムマシーンエンジン（全脳力集中）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
 st.markdown(
-    f"<p style='font-size:0.88em; color:#38bdf8; margin-bottom:6px;'>⚡"
-    f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST"
-    " (YouTube和装ライブ配信中・完全特化モード)</p>",
+    f"<p style='font-size:0.85em; color:#38bdf8; margin-bottom:6px;'>⚡"
+    f" 量子スキャン時刻: {jst_now.strftime('%H:%M:%S.%f')[:-4]} JST</p>",
     unsafe_allow_html=True,
 )
 
 # 反省学習ログの表示
 st.markdown(
-    f"<div style='font-size:0.85em; color:#cbd5e1; background:#020617;"
-    f" border-left: 4px solid #fb7185; padding: 8px 12px; border-radius: 6px;"
-    f" margin-bottom: 12px;'>💡 <b>24h自己反省AIログ:</b>"
+    f"<div style='font-size:0.82em; color:#cbd5e1; background:#020617;"
+    f" border-left: 4px solid #fb7185; padding: 6px 10px; border-radius: 6px;"
+    f" margin-bottom: 10px;'>💡 <b>24h自己反省AIログ:</b>"
     f" {st.session_state.learning_reflection}</div>",
     unsafe_allow_html=True,
 )
@@ -302,22 +301,37 @@ if analyzed_results:
   display_top = st.session_state.pinned_top_asset or best_item
 
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # ⚔️ 鬼滅風和装VTuber「UTAYAちゃん」のポーズ連動指示システム
+  # ⚔️ 鬼滅風和装VTuber「UTAYAちゃん」のポーズ連動システム（画像切替）
   # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   top_name = display_top["name"]
   top_score = display_top["score"]
 
-  # タイムマシーンの確率スコアに基づき、「いくぞ！」と「まて！」を完全連動
+  # 「いくぞ！」画像ファイル（突撃ポーズ）と「まて！」画像ファイル（制止ポーズ）のファイル名を設定
+  # ※ローカル環境の同一フォルダに置いてある画像ファイル名を指定してください
+  ikuzo_img_path = "ikuzo.png"  # またはアップロードされた画像ファイル名
+  mate_img_path = "mate.png"  # またはアップロードされた画像ファイル名
+
+  ikuzo_b64 = get_image_base64(ikuzo_img_path)
+  mate_b64 = get_image_base64(mate_b64)
+
   if top_score >= 65.0:
     # 【いくぞ！】パターン（突撃・エントリーの合図）
-    pose_call = "いくぞ！"
+    img_src = (
+        f"data:image/png;base64,{ikuzo_b64}"
+        if ikuzo_b64
+        else "https://via.placeholder.com/130?text=IKUZO"
+    )
     vtuber_speech = (
         f"「全集中、未来の扉を開くっ！司令官、『 <b>{top_name}</b>"
         " 』の特異点を完璧にキャッチしたわ！今すぐこのポイントで一気呵成にエントリーしなさいっ！」"
     )
   else:
     # 【まて！】パターン（冷静・待機の合図）
-    pose_call = "まて！"
+    img_src = (
+        f"data:image/png;base64,{mate_b64}"
+        if mate_b64
+        else "https://via.placeholder.com/130?text=MATE"
+    )
     vtuber_speech = (
         f"「待て！まだ波形が乱れているわ。『 <b>{top_name}</b>"
         " 』のエネルギーが完全に収束するまで、無闇に動いてはダメ……！私の『いくぞ！』の合図が出るまでここで構えて待機よっ！」"
@@ -327,11 +341,8 @@ if analyzed_results:
       f"""
     <div class="vtuber-container">
         <div class="vtuber-avatar-box">
-            <div class="vtuber-chara-card">
-                <div class="chara-pose-title">{pose_call}</div>
-                <div style="font-size: 2.2em;">👘⚔️</div>
-            </div>
-            <div class="chara-sub">和装VTuber UTAYA</div>
+            <img src="{img_src}" class="vtuber-img">
+            <div class="vtuber-name">和装VTuber UTAYA</div>
         </div>
         <div class="comic-bubble">
             {vtuber_speech}
