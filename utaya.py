@@ -14,7 +14,7 @@ def get_image_base64(image_path):
     return ""
 
 
-# スタイリング
+# スタイリングの定義
 st.markdown(
     """
     <style>
@@ -87,7 +87,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 厳選した3大アセット
+# アセットリスト
 ASSETS_LIST = [
     ("ドル円 (USD/JPY)", 154.85, 0.45),
     ("ゴールド・金", 2368.20, 0.92),
@@ -106,7 +106,7 @@ if st.sidebar.button("⚡ 即時量子スキャン実行"):
   st.session_state.scan_count += 1
   st.rerun()
 
-# タイトル
+# タイトルと時刻
 st.markdown("### 🧠 UTAYA 司令室 [QUANTUM-3X タイムマシーン]")
 jst_now = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
     hours=9
@@ -146,7 +146,7 @@ for name, base_price, change in ASSETS_LIST:
 analyzed_results.sort(key=lambda x: -x["score"])
 best_item = analyzed_results[0]
 
-# キャラクター画像読み込み
+# 画像読み込み（フォールバック対応）
 ikuzo_b64 = get_image_base64("ikuzo.png")
 img_src = (
     f"data:image/png;base64,{ikuzo_b64}"
