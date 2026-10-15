@@ -146,7 +146,7 @@ for name, base_price, change in ASSETS_LIST:
 analyzed_results.sort(key=lambda x: -x["score"])
 best_item = analyzed_results[0]
 
-# キャラクター画像読み込み（画像がない場合はプレースホルダーで安全にフォールバック）
+# キャラクター画像読み込み
 ikuzo_b64 = get_image_base64("ikuzo.png")
 img_src = (
     f"data:image/png;base64,{ikuzo_b64}"
