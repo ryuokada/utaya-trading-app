@@ -146,12 +146,12 @@ for name, base_price, change in ASSETS_LIST:
 analyzed_results.sort(key=lambda x: -x["score"])
 best_item = analyzed_results[0]
 
-# キャラクター画像読み込み
+# キャラクター画像読み込み（画像がない場合はプレースホルダーで安全にフォールバック）
 ikuzo_b64 = get_image_base64("ikuzo.png")
 img_src = (
     f"data:image/png;base64,{ikuzo_b64}"
     if ikuzo_b64
-    else "https://via.placeholder.com/130?text=IKUZO"
+    else "https://via.placeholder.com/130/ff4b4b/ffffff?text=UTAYA"
 )
 
 vtuber_speech = f"「司令官！ <b>{best_item['name']}</b> の特異点をキャッチしたわ！ 今すぐ <b>{best_item['current_price']:,.2f}</b> でエントリーの準備をしなさいっ！」"
