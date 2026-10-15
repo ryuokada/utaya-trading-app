@@ -15,7 +15,7 @@ st.set_page_config(
     page_title="UTAYA 三連星司令室 [QUANTUM-3X]", layout="centered"
 )
 
-# スタイリング（ファーストビュー最適化・コンパクトダークUI）
+# スタイリング（方向性カラー対応バッジの定義）
 st.markdown(
     """
     <style>
@@ -38,6 +38,8 @@ st.markdown(
     }
     .badge-buy { background-color: #0284c7; color: white; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .badge-sell { background-color: #e11d48; color: white; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+    .badge-stable-buy { background-color: #0369a1; color: #bae6fd; border: 1px solid #38bdf8; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+    .badge-stable-sell { background-color: #be123c; color: #fecdd3; border: 1px solid #fb7185; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     .badge-wait { background-color: #0d9488; color: white; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
     </style>
     """,
@@ -55,9 +57,9 @@ ASSETS_LIST = [
 ]
 
 if "scan_count" not in st.session_state:
-  st.session_state.scan_count = 510
+  st.session_state.scan_count = 520
 if "total_analyzed_candles" not in st.session_state:
-  st.session_state.total_analyzed_candles = 175000
+  st.session_state.total_analyzed_candles = 180000
 
 # サイドバー
 st.sidebar.title("🧠 司令室 [3X]")
@@ -73,17 +75,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# 極限までスリム化したタイトル（スマホでスクロールせずにトップ3が見えるように配置）
-st.markdown(
-    "### 🧠 UTAYA [QUANTUM-3X]"
-)
+# 極限までスリム化したタイトル
+st.markdown("### 🧠 UTAYA [QUANTUM-3X]")
 
 tab_finance, tab_boat, tab_keirin = st.tabs(
     ["📈 金融・仮想通貨", "🚤 競艇", "🚴 競輪"]
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# タブ1：金融・仮想通貨（トップ3最優先表示）
+# タブ1：金融・仮想通貨（STABLE方向性カラー対応）
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 with tab_finance:
   jst_now = datetime.datetime.utcnow() + datetime.timedelta(hours=9)
@@ -204,9 +204,10 @@ with tab_finance:
       endure_sell = current_price + (atr_val * 0.8)
       take_sell = current_price - (atr_val * 1.5)
 
+      # 判定ロジック：特異点（BUY/SELL）または 均衡時の方向性カラー表示
       if prob_buy >= 54.0 and z_val < -1.0:
         signal_type = "BUY"
-        signal_html = '<span class="badge-buy">🚀 BUY</span>'
+        signal_html = '<span class="badge-buy">🚀 BUY (特異点)</span>'
         analysis = (
             f"上昇確率 {prob_buy:.0f}% ｜ 耐え: {endure_buy:,.1f} / 利確:"
             f" {take_buy:,.1f}"
@@ -214,16 +215,28 @@ with tab_finance:
         score = prob_buy
       elif prob_sell >= 54.0 and z_val > 1.0:
         signal_type = "SELL"
-        signal_html = '<span class="badge-sell">⚡ SELL</span>'
+        signal_html = '<span class="badge-sell">⚡ SELL (特異点)</span>'
         analysis = (
             f"下落確率 {prob_sell:.0f}% ｜ 耐え: {endure_sell:,.1f} / 利確:"
             f" {take_sell:,.1f}"
         )
         score = prob_sell
       else:
-        signal_type = "WAIT"
-        signal_html = '<span class="badge-wait">⏳ STABLE</span>'
-        analysis = f"共鳴待機中（買:{prob_buy:.0f}%/売:{prob_sell:.0f}%）"
+        # STABLE（均衡）であっても確率の優位性（買い優勢か売り優勢か）をカラーで表現
+        if prob_buy > prob_sell:
+          signal_type = "STABLE_BUY"
+          signal_html = (
+              f'<span class="badge-stable-buy">⏳ STABLE (買優勢'
+              f" {prob_buy:.0f}%)</span>"
+          )
+          analysis = f"均衡状態ですが買い圧力優勢（買:{prob_buy:.0f}%/売:{prob_sell:.0f}%）"
+        else:
+          signal_type = "STABLE_SELL"
+          signal_html = (
+              f'<span class="badge-stable-sell">⏳ STABLE (売優勢'
+              f" {prob_sell:.0f}%)</span>"
+          )
+          analysis = f"均衡状態ですが売り圧力優勢（買:{prob_buy:.0f}%/売:{prob_sell:.0f}%）"
         score = max(prob_buy, prob_sell)
 
       analyzed_results.append({
@@ -243,14 +256,12 @@ with tab_finance:
           "z_val": 0.0,
           "prob_buy": 45.0,
           "prob_sell": 55.0,
-          "signal_html": '<span class="badge-wait">⏳ STABLE</span>',
+          "signal_html": '<span class="badge-stable-sell">⏳ STABLE (売優勢)</span>',
           "analysis": "データ同期調整中",
           "score": 50.0,
       })
 
-  analyzed_results.sort(
-      key=lambda x: (0 if x["signal_html"].find("WAIT") == -1 else 1, -x["score"])
-  )
+  analyzed_results.sort(key=lambda x: -x["score"])
 
   if analyzed_results:
     st.markdown(
