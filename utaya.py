@@ -166,7 +166,6 @@ analyzed_results = []
 
 for name, symbol, fallback_price in ASSETS_LIST:
   try:
-    # サーバー負荷とネットワークエラーを防ぎつつリアルタイムデータを取得
     df = yf.download(symbol, period="2d", interval="15m", progress=False)
     if df.empty or len(df) < 5:
       df = yf.download(symbol, period="5d", interval="1d", progress=False)
@@ -180,7 +179,6 @@ for name, symbol, fallback_price in ASSETS_LIST:
     closes = df["Close"].dropna()
     current_price = float(closes.iloc[-1])
 
-    returns = closes.pct_change().dropna()
     mom = (
         float((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100)
         if len(closes) > 1
