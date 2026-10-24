@@ -7,11 +7,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.class_weight import compute_class_weight
 
 # =========================================================
-# UTAYA 仮想平行宇宙・未来シナリオ分析AI (Pro - 修正・高速化完全版)
+# UTAYA 仮想平行宇宙・未来シナリオ分析AI (二択型 Pro Turbo)
+# 仕様: 必ず HIGH / LOW のどちらかを選択し検証・学習する
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Multiverse Scenario AI - Pro Turbo",
+    page_title="UTAYA Multiverse Scenario AI - Binary",
     page_icon="🌌",
     layout="wide",
 )
@@ -22,8 +23,7 @@ DEFAULT_TARGET_USD = 50.0
 DATA_DIR = Path("utaya_data")
 DATA_DIR.mkdir(exist_ok=True)
 
-SCENARIO_HISTORY = DATA_DIR / "multiverse_pro_turbo_history.csv"
-CLASSES = np.array(["HIGH", "LOW", "FLAT"])
+SCENARIO_HISTORY = DATA_DIR / "multiverse_binary_history.csv"
 
 # -------------------- CSS --------------------
 
@@ -39,21 +39,15 @@ st.markdown(
         margin-bottom: 20px;
         border: 1px solid #e43f5a;
     }
-    .scenario-card-up {
+    .scenario-card-high {
         background: rgba(0, 176, 155, 0.1);
         border-left: 5px solid #00b09b;
         padding: 15px;
         border-radius: 5px;
     }
-    .scenario-card-down {
+    .scenario-card-low {
         background: rgba(255, 65, 108, 0.1);
         border-left: 5px solid #ff416c;
-        padding: 15px;
-        border-radius: 5px;
-    }
-    .scenario-card-flat {
-        background: rgba(108, 91, 123, 0.1);
-        border-left: 5px solid #6c5b7b;
         padding: 15px;
         border-radius: 5px;
     }
@@ -62,9 +56,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🌌 UTAYA 仮想平行宇宙・未来シナリオ分析AI (Pro Turbo)")
+st.title("🌌 UTAYA 仮想平行宇宙・未来シナリオ分析AI (二択型)")
 st.caption(
-    "特徴量一括計算エンジン搭載 | 超高速ウォークフォワード検証 | 偏り・誤差診断"
+    "常時HIGH/LOW二択強制エンジン | 確率比較による決定論的選択 | 損益・勝率徹底検証"
 )
 
 
@@ -139,7 +133,8 @@ def build_feature_table(df_len, df):
     return features.replace([np.inf, -np.inf], np.nan)
 
 
-def make_label(df, i, horizon=1, neutral_band=0.0003):
+def make_label(df, i, horizon=1):
+    """将来の終値変化をHIGH／LOWの二択で分類する（同値はLOWに割り当て）"""
     if i + horizon >= len(df):
         return None
 
@@ -149,14 +144,9 @@ def make_label(df, i, horizon=1, neutral_band=0.0003):
     if current_price <= 0:
         return None
 
-    pct_diff = (future_price - current_price) / current_price
-
-    if abs(pct_diff) <= neutral_band:
-        return "FLAT"
-    elif pct_diff > 0:
+    if future_price > current_price:
         return "HIGH"
-    else:
-        return "LOW"
+    return "LOW"
 
 
 # -------------------- ③ 先着判定エンジン --------------------
@@ -194,7 +184,7 @@ def judge_first_touch(entry, direction, future, target=DEFAULT_TARGET_USD):
     return "LOSS", "判定期間内未到達 (タイムアウト)"
 
 
-# -------------------- ④ ウォークフォワード検証エンジン --------------------
+# -------------------- ④ 二択強制ウォークフォワード検証エンジン --------------------
 
 def run_multiverse_backtest(
     df,
@@ -203,7 +193,6 @@ def run_multiverse_backtest(
     hold_bars,
     retrain_every=120,
     min_train_samples=200,
-    min_confidence=0.45,
 ):
     if df is None or len(df) < 300:
         return pd.DataFrame()
@@ -269,31 +258,25 @@ def run_multiverse_backtest(
         classes = model.classes_
 
         prob_dict = dict(zip(classes, probs))
-        pred_class = classes[np.argmax(probs)]
-        max_prob = float(np.max(probs))
+        p_high = float(prob_dict.get("HIGH", 0.0))
+        p_low = float(prob_dict.get("LOW", 0.0))
 
-        if max_prob < min_confidence or pred_class == "FLAT":
-            direction = "SKIP"
-        else:
-            direction = pred_class
+        # 常に必ず HIGH か LOW の二択を強制決定
+        direction = "HIGH" if p_high >= p_low else "LOW"
+        max_prob = max(p_high, p_low)
 
         entry_index = i + 1
         entry_candle = df.iloc[entry_index]
         entry_price = float(entry_candle["Open"])
         future = df.iloc[entry_index : entry_index + hold_bars]
 
-        if direction in ("HIGH", "LOW"):
-            result, reason = judge_first_touch(
-                entry=entry_price,
-                direction=direction,
-                future=future,
-                target=target_usd,
-            )
-            pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
-        else:
-            result = "SKIP"
-            reason = "モデル見送り (低確信 or FLAT)"
-            pnl = 0.0
+        result, reason = judge_first_touch(
+            entry=entry_price,
+            direction=direction,
+            future=future,
+            target=target_usd,
+        )
+        pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
         records.append({
             "signal_time": str(df.index[i]),
@@ -301,9 +284,8 @@ def run_multiverse_backtest(
             "entry_price": entry_price,
             "direction": direction,
             "confidence": max_prob,
-            "prob_high": float(prob_dict.get("HIGH", 0.0)),
-            "prob_low": float(prob_dict.get("LOW", 0.0)),
-            "prob_flat": float(prob_dict.get("FLAT", 0.0)),
+            "prob_high": p_high,
+            "prob_low": p_low,
             "result": result,
             "reason": reason,
             "pnl_usd": pnl,
@@ -324,45 +306,33 @@ def display_dashboard(res_df):
         st.warning("検証結果がありません。")
         return
 
-    trades = res_df[res_df["result"].isin(["WIN", "LOSS"])].copy()
     total = len(res_df)
-    trade_count = len(trades)
-    
-    wins = int((trades["result"] == "WIN").sum())
-    losses = int((trades["result"] == "LOSS").sum())
-    win_rate = wins / trade_count * 100 if trade_count else 0.0
+    wins = int((res_df["result"] == "WIN").sum())
+    losses = int((res_df["result"] == "LOSS").sum())
+    win_rate = wins / total * 100 if total else 0.0
     total_pnl = float(res_df["pnl_usd"].sum())
 
-    st.subheader("📊 未来シナリオ検証・パフォーマンス評価")
+    st.subheader("📊 二択型シナリオ検証・パフォーマンス評価")
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("総予測件数", f"{total}")
-    c2.metric("実取引件数", f"{trade_count}")
-    c3.metric(
-        "取引勝率",
-        f"{win_rate:.2f}%" if trade_count else "—",
-        f"{wins}勝 {losses}敗" if trade_count else None,
-    )
-    c4.metric("仮想損益合計", f"${total_pnl:+.2f}")
+    c1.metric("総取引件数", f"{total}")
+    c2.metric("勝率", f"{win_rate:.2f}%", f"{wins}勝 {losses}敗")
+    c3.metric("仮想損益合計", f"${total_pnl:+.2f}")
+    c4.metric("損益分岐比較", f"理論値: 53.19%")
 
-    if trade_count > 0:
-        if win_rate >= 53.19:
-            st.success(f"🌟 実測勝率 ({win_rate:.2f}%) は理論損益分岐点 (53.19%) を上回っています。")
-        else:
-            st.warning(f"⚠️ 実測勝率 ({win_rate:.2f}%) は理論損益分岐点 (53.19%) を下回っています。")
+    if win_rate >= 53.19:
+        st.success(f"🌟 実測勝率 ({win_rate:.2f}%) は理論損益分岐点 (53.19%) を上回っています。")
+    else:
+        st.warning(f"⚠️ 実測勝率 ({win_rate:.2f}%) は理論損益分岐点 (53.19%) を下回っています。")
 
-    st.subheader("🧭 予測方向の偏り診断 (HIGH / LOW / SKIP)")
-    pred_counts = (
-        res_df["direction"]
-        .value_counts()
-        .reindex(["HIGH", "LOW", "SKIP"], fill_value=0)
-    )
+    st.subheader("🧭 選択方向の偏り診断 (HIGH / LOW)")
+    pred_counts = res_df["direction"].value_counts().reindex(["HIGH", "LOW"], fill_value=0)
     st.bar_chart(pred_counts)
 
     st.subheader("📊 HIGH／LOW別の実測勝率・成績")
     dir_stats = []
     for d in ["HIGH", "LOW"]:
-        sub = trades[trades["direction"] == d]
+        sub = res_df[res_df["direction"] == d]
         sub_total = len(sub)
         sub_wins = int((sub["result"] == "WIN").sum())
         sub_rate = sub_wins / sub_total * 100 if sub_total else 0.0
@@ -392,7 +362,7 @@ def display_dashboard(res_df):
 
 # -------------------- ⑥ サイドバー設定 --------------------
 
-st.sidebar.header("🌌 マルチバース設定 (Turbo)")
+st.sidebar.header("🌌 マルチバース設定 (Binary)")
 
 target_usd = st.sidebar.slider(
     "🎯 目標値幅 (±USD)",
@@ -417,14 +387,6 @@ hold_bars = st.sidebar.slider(
     value=1,
 )
 
-min_confidence = st.sidebar.slider(
-    "⚖️ 最小確信度閾値 (フィルター)",
-    min_value=0.35,
-    max_value=0.70,
-    value=0.45,
-    step=0.01,
-)
-
 period = st.sidebar.selectbox(
     "📅 分析データ期間",
     options=["1d", "2d", "5d", "7d"],
@@ -432,11 +394,11 @@ period = st.sidebar.selectbox(
 )
 
 
-# -------------------- ⑦ リアルタイム・マルチバース監視 --------------------
+# -------------------- ⑦ リアルタイム・二択予測監視 --------------------
 
-st.subheader("⚡ 現在の市場状態とモデル予測")
+st.subheader("⚡ 現在の市場状態と二択予測")
 
-with st.spinner("市場データを解析し、MLモデルで超高速予測中..."):
+with st.spinner("市場データを解析し、MLモデルで二択予測中..."):
     live_df = get_web_data("1d")
 
 if live_df is not None and len(live_df) >= 50:
@@ -460,46 +422,36 @@ if live_df is not None and len(live_df) >= 50:
             classes = clf.classes_
             p_dict = dict(zip(classes, probs))
         else:
-            p_dict = {"HIGH": 0.33, "LOW": 0.33, "FLAT": 0.34}
+            p_dict = {"HIGH": 0.5, "LOW": 0.5}
+
+        p_high = float(p_dict.get("HIGH", 0.0))
+        p_low = float(p_dict.get("LOW", 0.0))
+        live_direction = "HIGH" if p_high >= p_low else "LOW"
 
         signal_price = float(live_df["Close"].iloc[signal_i])
         signal_time = live_df.index[signal_i]
 
         st.caption(f"観測基準時刻: {signal_time} | 現在基準価格: ${signal_price:,.2f}")
 
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
+        # 二択の強制結果表示
+        if live_direction == "HIGH":
             st.markdown(
                 f"""
-                <div class="scenario-card-up">
-                    <h4>🚀 宇宙A: 上昇予測</h4>
-                    <p>確率: {p_dict.get('HIGH', 0)*100:.1f}%</p>
-                    <p>目標: ${signal_price + target_usd:,.2f}</p>
+                <div class="scenario-card-high">
+                    <h2>🚀 UTAYA 予測判定: HIGH</h2>
+                    <p>HIGH予測確率：<strong>{p_high:.1%}</strong> ｜ LOW予測確率：{p_low:.1%}</p>
+                    <p>上方向目標価格: ${signal_price + target_usd:,.2f}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-
-        with col2:
+        else:
             st.markdown(
                 f"""
-                <div class="scenario-card-down">
-                    <h4>📉 宇宙B: 下落予測</h4>
-                    <p>確率: {p_dict.get('LOW', 0)*100:.1f}%</p>
-                    <p>目標: ${signal_price - target_usd:,.2f}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        with col3:
-            st.markdown(
-                f"""
-                <div class="scenario-card-flat">
-                    <h4>⚖️ 宇宙C: 中立 (FLAT)</h4>
-                    <p>確率: {p_dict.get('FLAT', 0)*100:.1f}%</p>
-                    <p>判定: 横ばい見送り</p>
+                <div class="scenario-card-low">
+                    <h2>📉 UTAYA 予測判定: LOW</h2>
+                    <p>LOW予測確率：<strong>{p_low:.1%}</strong> ｜ HIGH予測確率：{p_high:.1%}</p>
+                    <p>下方向目標価格: ${signal_price - target_usd:,.2f}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -513,10 +465,10 @@ else:
 # -------------------- ⑧ バックテスト実行ボタン --------------------
 
 st.markdown("---")
-st.subheader("🚀 超高速ウォークフォワード検証の実行")
+st.subheader("🚀 二択型ウォークフォワード検証の実行")
 
-if st.button("▶️ 機械学習バックテストを開始 (Turbo)", use_container_width=True):
-    with st.spinner("特徴量一括計算および時系列ウォークフォワード検証を実行中..."):
+if st.button("▶️ 機械学習バックテストを開始 (Binary)", use_container_width=True):
+    with st.spinner("特徴量一括計算および二択型時系列検証を実行中..."):
         full_df = get_web_data(period)
 
         if full_df is None or len(full_df) < 300:
@@ -527,7 +479,6 @@ if st.button("▶️ 機械学習バックテストを開始 (Turbo)", use_conta
                 target_usd=target_usd,
                 stake_usd=stake_usd,
                 hold_bars=hold_bars,
-                min_confidence=min_confidence,
             )
             display_dashboard(res_df)
 elif SCENARIO_HISTORY.exists():
