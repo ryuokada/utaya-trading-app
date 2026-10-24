@@ -5,14 +5,14 @@ import numpy as np
 from pathlib import Path
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
+from datetime import datetime
 
 # =========================================================
-# UTAYA 仮想平行宇宙・未来シナリオ分析AI (天才育成完全版)
-# 統合仕様: 高速特徴量 + 二択強制 + オンライン自己学習(反省ループ)
+# UTAYA 仮想平行宇宙・未来シナリオ分析AI (連続監視モード搭載版)
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Multiverse Scenario AI - Genius Edition",
+    page_title="UTAYA Multiverse Scenario AI - Continuous Monitor",
     page_icon="🌌",
     layout="wide",
 )
@@ -24,6 +24,7 @@ DATA_DIR = Path("utaya_data")
 DATA_DIR.mkdir(exist_ok=True)
 
 GENIUS_HISTORY = DATA_DIR / "genius_ai_history.csv"
+LIVE_HISTORY = DATA_DIR / "genius_live_history.csv"
 
 # -------------------- CSS --------------------
 
@@ -55,15 +56,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🌌 UTAYA AI 天才育成統合システム")
+st.title("🌌 UTAYA 連続監視・二択予測システム")
 st.caption(
-    "高速一括演算エンジン | 二択強制決定 | オンライン連続学習 (1%のひらめきと99%の努力)"
+    "30秒自動更新モード | 二択強制決定 | オンライン連続学習検証"
 )
 
 
 # -------------------- ① データ取得 --------------------
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def get_web_data(period="7d"):
     try:
         df = yf.download(
@@ -105,10 +106,9 @@ def get_web_data(period="7d"):
         return None
 
 
-# -------------------- ② 特徴量一括計算エンジン (高速化) --------------------
+# -------------------- ② 特徴量一括計算エンジン --------------------
 
-@st.cache_data(ttl=60, show_spinner=False)
-def build_feature_table(df_len, df):
+def build_feature_table(df):
     close = df["Close"].astype(float)
     returns = close.pct_change()
     delta = close.diff()
@@ -162,13 +162,10 @@ def run_genius_simulation(df, target_usd, stake_usd, hold_bars):
     if df is None or len(df) < 300:
         return pd.DataFrame()
 
-    features_df = build_feature_table(len(df), df)
-    
-    # 逐次学習モデル (SGDClassifier) とスケーラー
+    features_df = build_feature_table(df)
     model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
     scaler = StandardScaler()
 
-    # 初期基礎教育
     init_end = int(len(df) * 0.2)
     X_init, y_init = [], []
     
@@ -209,11 +206,9 @@ def run_genius_simulation(df, target_usd, stake_usd, hold_bars):
         except Exception:
             p_low, p_high = 0.5, 0.5
 
-        # 🎯 二択の強制決定
         direction = "HIGH" if p_high >= p_low else "LOW"
         confidence = max(p_high, p_low)
 
-        # 実績の判定
         entry_index = i + 1
         entry_candle = df.iloc[entry_index]
         entry_price = float(entry_candle["Open"])
@@ -222,7 +217,6 @@ def run_genius_simulation(df, target_usd, stake_usd, hold_bars):
         result, reason = judge_first_touch(entry_price, direction, future, target_usd)
         pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
-        # 🧠 間違いからの即時反省・自己学習 (オンライン学習)
         actual_fut = float(df["Close"].iloc[entry_index + hold_bars - 1]) if entry_index + hold_bars - 1 < len(df) else entry_price
         actual_label = 1 if actual_fut > entry_price else 0
         model.partial_fit(X_pred, np.array([actual_label]))
@@ -270,9 +264,9 @@ def show_genius_dashboard(res_df):
     )
 
     if win_rate >= 53.19:
-        st.success(f"🌟 現在の勝率 ({win_rate:.2f}%) は損益分岐点 (53.19%) を超えています！天才への第一歩です。")
+        st.success(f"🌟 現在の勝率 ({win_rate:.2f}%) は損益分岐点 (53.19%) を超えています！")
     else:
-        st.warning(f"⚠️ 現在の勝率 ({win_rate:.2f}%) は損益分岐点を下回っています。さらなる反省とデータ学習が必要です。")
+        st.warning(f"⚠️ 現在の勝率 ({win_rate:.2f}%) は損益分岐点を下回っています。")
 
     st.subheader("🧭 選択方向の偏り診断 (HIGH / LOW)")
     pred_counts = res_df["direction"].value_counts().reindex(["HIGH", "LOW"], fill_value=0)
@@ -318,73 +312,114 @@ hold_bars = st.sidebar.slider("⏱️ 判定期間 (分足の本数)", 1, 5, 1)
 period = st.sidebar.selectbox("📅 学習データ期間", ["1d", "2d", "5d", "7d"], index=3)
 
 
-# -------------------- ⑥ リアルタイム・二択予測監視 --------------------
+# -------------------- ⑥ 連続監視・二択予測エンジン --------------------
 
-st.subheader("⚡ 現在の市場状態と天才AIの二択予測")
+if "utaya_monitoring" not in st.session_state:
+    st.session_state.utaya_monitoring = False
 
-with st.spinner("市場データを解析し、AIがリアルタイム予測中..."):
-    live_df = get_web_data("1d")
+st.subheader("♾️ UTAYA AI 連続監視モード")
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("▶ 連続監視を開始", use_container_width=True):
+        st.session_state.utaya_monitoring = True
+with col2:
+    if st.button("⏹ 連続監視を停止", use_container_width=True):
+        st.session_state.utaya_monitoring = False
 
-if live_df is not None and len(live_df) >= 50:
-    signal_i = len(live_df) - 2
-    features_table = build_feature_table(len(live_df), live_df)
-    feat_row = features_table.iloc[signal_i]
-    
-    if not feat_row.isna().any():
-        X_live, y_live = [], []
-        for j in range(30, signal_i - 1):
-            f_row = features_table.iloc[j]
-            curr = float(live_df["Close"].iloc[j])
-            fut = float(live_df["Close"].iloc[j + hold_bars]) if j + hold_bars < len(live_df) else curr
-            l_val = 1 if fut > curr else 0
-            if not f_row.isna().any():
-                X_live.append(f_row.values)
-                y_live.append(l_val)
-        
-        if len(X_live) > 50:
-            clf = SGDClassifier(loss="log_loss", random_state=42)
-            scaler_live = StandardScaler()
-            X_live_sc = scaler_live.fit_transform(np.array(X_live))
-            clf.fit(X_live_sc, np.array(y_live))
-            
-            feat_sc = scaler_live.transform(np.array([feat_row.values]))
-            probs = clf.predict_proba(feat_sc)[0]
-            p_low, p_high = probs[0], probs[1]
-        else:
-            p_low, p_high = 0.5, 0.5
-
-        live_direction = "HIGH" if p_high >= p_low else "LOW"
-        signal_price = float(live_df["Close"].iloc[signal_i])
-        signal_time = live_df.index[signal_i]
-
-        st.caption(f"観測基準時刻: {signal_time} | 現在基準価格: ${signal_price:,.2f}")
-
-        if live_direction == "HIGH":
-            st.markdown(
-                f"""
-                <div class="scenario-card-high">
-                    <h2>🚀 天才AI 予測判定: HIGH</h2>
-                    <p>HIGH確率：<strong>{p_high:.1%}</strong> ｜ LOW確率：{p_low:.1%}</p>
-                    <p>上方向目標価格: ${signal_price + target_usd:,.2f}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"""
-                <div class="scenario-card-low">
-                    <h2>📉 天才AI 予測判定: LOW</h2>
-                    <p>LOW確率：<strong>{p_low:.1%}</strong> ｜ HIGH確率：{p_high:.1%}</p>
-                    <p>下方向目標価格: ${signal_price - target_usd:,.2f}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-    else:
-        st.warning("特徴量計算用のデータが不足しています。")
+if st.session_state.utaya_monitoring:
+    st.success("連続監視中：30秒ごとに予測を更新します")
 else:
-    st.warning("市場データを取得できませんでした。")
+    st.info("停止中です。開始ボタンで連続監視を開始できます。")
+
+@st.fragment(run_every="30s")
+def continuous_prediction():
+    if not st.session_state.utaya_monitoring:
+        st.caption("監視は停止しています。")
+        return
+
+    with st.spinner("BTCデータを更新しています..."):
+        live_df = get_web_data("1d")
+
+    if live_df is None or len(live_df) < 100:
+        st.warning("データが不足しています。")
+        return
+
+    signal_i = len(live_df) - 2
+    features_table = build_feature_table(live_df)
+    feat_row = features_table.iloc[signal_i]
+
+    if feat_row.isna().any():
+        st.warning("特徴量計算エラー")
+        return
+
+    X_live, y_live = [], []
+    for j in range(30, signal_i - 1):
+        f_row = features_table.iloc[j]
+        curr = float(live_df["Close"].iloc[j])
+        fut = float(live_df["Close"].iloc[j + hold_bars]) if j + hold_bars < len(live_df) else curr
+        l_val = 1 if fut > curr else 0
+        if not f_row.isna().any():
+            X_live.append(f_row.values)
+            y_live.append(l_val)
+
+    if len(X_live) > 50:
+        clf = SGDClassifier(loss="log_loss", random_state=42)
+        scaler_live = StandardScaler()
+        X_live_sc = scaler_live.fit_transform(np.array(X_live))
+        clf.fit(X_live_sc, np.array(y_live))
+
+        feat_sc = scaler_live.transform(np.array([feat_row.values]))
+        probs = clf.predict_proba(feat_sc)[0]
+        p_low, p_high = probs[0], probs[1]
+    else:
+        p_low, p_high = 0.5, 0.5
+
+    live_direction = "HIGH" if p_high >= p_low else "LOW"
+    signal_price = float(live_df["Close"].iloc[signal_i])
+    signal_time = live_df.index[signal_i]
+
+    st.caption(f"最終更新時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 基準価格: ${signal_price:,.2f}")
+
+    if live_direction == "HIGH":
+        st.markdown(
+            f"""
+            <div class="scenario-card-high">
+                <h2>🚀 連続監視 予測判定: HIGH</h2>
+                <p>HIGH確率：<strong>{p_high:.1%}</strong> ｜ LOW確率：{p_low:.1%}</p>
+                <p>上方向目標価格: ${signal_price + target_usd:,.2f}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+            <div class="scenario-card-low">
+                <h2>📉 連続監視 予測判定: LOW</h2>
+                <p>LOW確率：<strong>{p_low:.1%}</strong> ｜ HIGH確率：{p_high:.1%}</p>
+                <p>下方向目標価格: ${signal_price - target_usd:,.2f}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # ライブ履歴の記録
+    live_record = pd.DataFrame([{
+        "time": str(signal_time),
+        "price": signal_price,
+        "direction": live_direction,
+        "p_high": p_high,
+        "p_low": p_low
+    }])
+    if LIVE_HISTORY.exists():
+        try:
+            old_live = pd.read_csv(LIVE_HISTORY)
+            live_record = pd.concat([old_live, live_record]).drop_duplicates(subset=["time"]).tail(200)
+        except Exception:
+            pass
+    live_record.to_csv(LIVE_HISTORY, index=False, encoding="utf-8-sig")
+
+continuous_prediction()
 
 
 # -------------------- ⑦ バックテスト実行ボタン --------------------
