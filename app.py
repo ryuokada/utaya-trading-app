@@ -1,4 +1,3 @@
-
 """
 UTAYA BTC HILO - CLI Backtest / Paper Trading
 判定方式: エントリー価格から ±50 USD の先着
@@ -43,7 +42,6 @@ def get_data(period: str = "7d") -> pd.DataFrame:
             "時間をおいて再実行してください。"
         )
 
-    # yfinanceのバージョンによるMultiIndex列に対応
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
@@ -67,10 +65,7 @@ def get_data(period: str = "7d") -> pd.DataFrame:
 
 
 def make_signal(df: pd.DataFrame, i: int) -> str:
-    """
-    i番目の足の終値までを使って方向を判定する。
-    未来の価格は参照しない。
-    """
+    """i番目の足の終値までを使って方向を判定する。"""
     close = df["Close"].iloc[: i + 1]
 
     if len(close) < 30:
@@ -82,7 +77,6 @@ def make_signal(df: pd.DataFrame, i: int) -> str:
     sma10 = float(close.tail(10).mean())
     sma30 = float(close.tail(30).mean())
 
-    # 直近の値動きが小さすぎる場合は見送る
     momentum = last - prev
     deviation = last - sma10
 
@@ -101,12 +95,6 @@ def judge_first_touch(
     future: pd.DataFrame,
     target: float = TARGET_USD,
 ) -> tuple[str, str]:
-    """
-    上下の目標価格への先着をOHLCで近似判定する。
-
-    1分足の同一バーで上下両方に触れた場合、
-    先着順が不明なのでAMBIGUOUSとする。
-    """
     upper = entry + target
     lower = entry - target
 
@@ -138,10 +126,8 @@ def run_backtest(
     payout: float,
     hold_bars: int,
 ) -> pd.DataFrame:
-    """時系列順に先着判定を行う。"""
     records = []
 
-    # 予測にはi番目まで、判定にはその後の足だけを使用
     for i in range(30, len(df) - hold_bars):
         direction = make_signal(df, i)
 
@@ -177,7 +163,6 @@ def run_backtest(
 
 
 def print_report(results: pd.DataFrame) -> None:
-    """勝率・損益・連敗を表示する。"""
     if results.empty:
         print("シグナルがありません。")
         return
@@ -191,7 +176,6 @@ def print_report(results: pd.DataFrame) -> None:
     win_rate = wins / decided * 100 if decided else 0.0
     pnl = float(results["pnl_usd"].sum())
 
-    # 勝ち・負けが確定した取引だけで最大連敗を計算
     max_losing_streak = 0
     current_streak = 0
 
@@ -214,8 +198,6 @@ def print_report(results: pd.DataFrame) -> None:
     print(f"最大連敗           : {max_losing_streak}")
     print(f"損益合計           : ${pnl:+.2f}")
     print("====================================")
-    print("※勝率は勝敗が確定した取引のみで計算")
-    print("※判定不能・未到達を勝ち負けに含めていません")
 
 
 def backtest_mode(args: argparse.Namespace) -> None:
@@ -244,17 +226,13 @@ def backtest_mode(args: argparse.Namespace) -> None:
 
 
 def paper_mode(args: argparse.Namespace) -> None:
-    """新しい確定足ごとに方向を表示する。注文は出さない。"""
     last_seen = None
     print("ペーパーモード開始。Ctrl+Cで終了します。")
-    print("このモードは予測表示のみで、取引を行いません。")
 
     try:
         while True:
             df = get_data("1d")
 
-            # 最新足は未確定の可能性があるため、
-            # ひとつ前の足を使ってシグナルを計算
             if len(df) < 32:
                 time.sleep(10)
                 continue
@@ -306,7 +284,7 @@ def main() -> None:
     parser.add_argument(
         "--period",
         default="7d",
-        help="バックテスト期間（例: 7d）",
+        help="バックテスト期間",
     )
     parser.add_argument(
         "--target",
@@ -324,13 +302,13 @@ def main() -> None:
         "--payout",
         type=float,
         default=88.0,
-        help="勝利時の利益率（%）",
+        help="勝利時の利益率",
     )
     parser.add_argument(
         "--hold-bars",
         type=int,
         default=1,
-        help="エントリー後の判定足数。1なら次の1分足",
+        help="エントリー後の判定足数",
     )
 
     args = parser.parse_args()
@@ -349,10 +327,6 @@ def main() -> None:
             paper_mode(args)
     except Exception as exc:
         print(f"\nエラー: {exc}")
-        print(
-            "通信状況、データ取得制限、"
-            "引数を確認してください。"
-        )
 
 
 if __name__ == "__main__":
