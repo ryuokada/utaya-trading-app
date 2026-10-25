@@ -7,15 +7,14 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 import joblib
 from datetime import datetime
-import requests
 import os
 
 # =========================================================
-# UTAYA ニュース・事業要因・関連市場統合 仮想取引分析AI (完全版)
+# UTAYA 30年熟練分析思想統合型・自律成長AIシステム (完全版)
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Multiverse Scenario AI - Pro Integrated",
+    page_title="UTAYA 30-Year Experienced AI Analyst",
     page_icon="🌌",
     layout="wide",
 )
@@ -30,13 +29,12 @@ DATA_DIR.mkdir(exist_ok=True)
 MARKET_HISTORY_1M = DATA_DIR / "btc_1m_history.csv"
 MARKET_HISTORY_1H = DATA_DIR / "btc_1h_history.csv"
 VIRTUAL_TRADES_FILE = DATA_DIR / "virtual_trades_history.csv"
-GENIUS_HISTORY = DATA_DIR / "genius_ai_history.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "deep_analysis_log.csv"
 
 MODEL_1M_FILE = DATA_DIR / "model_1m.joblib"
 SCALER_1M_FILE = DATA_DIR / "scaler_1m.joblib"
 MODEL_1H_FILE = DATA_DIR / "model_1h.joblib"
 SCALER_1H_FILE = DATA_DIR / "scaler_1h.joblib"
-STATE_FILE = DATA_DIR / "system_state.json"
 
 # -------------------- CSS --------------------
 st.markdown(
@@ -62,58 +60,62 @@ st.markdown(
         padding: 15px;
         border-radius: 5px;
     }
+    .reflection-box {
+        background: rgba(255, 193, 7, 0.1);
+        border-left: 5px solid #ffc107;
+        padding: 12px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("🌌 UTAYA 統合仮想取引・未来シナリオ分析AI")
+st.title("🌌 UTAYA 30年熟練分析・自律成長AIシステム")
 st.caption(
-    "長期(1時間足) / 短期(1分足)分離モデル | ニュース・事業要因統合分析 | 厳格な先着先勝判定・敗因検証"
+    "負けても学びを止めない分析エンジン | 逆行50$詳細原因究明・勝因分解 | 長期(1H)/短期(1M)完全分離"
 )
 
 
-# -------------------- ① ニュース・外部要因分析モジュール --------------------
+# -------------------- ① リアルタイム・外部要因分析 --------------------
 
-def fetch_crypto_news():
-    """
-    ニュースAPI（Gemini / 外部ニュース）から関連情報を取得する。
-    APIキーがない場合や失敗した場合は安全に空リストを返す（架空ニュースの生成を防止）。
-    """
+def fetch_market_news_safely():
+    """架空のニュースを作らず、取得可能な事実ベースの情報のみを扱う"""
     news_list = []
     api_key = os.environ.get("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", None)
-    
-    # ニュースAPI連携のプレースホルダー（実運用ではここにニュース取得ロジックを実装）
-    # ここでは事実とAI推測を分ける構造を担保するため、安全なフォールバックを返す。
+    # 外部API連携が無い場合は安全に空を返す
     return news_list
 
 
-def analyze_news_sentiment(news_list):
-    """ニュースからBTCへの影響（事実と推測の分離）を構造化する。"""
-    if not news_list:
-        return {
-            "status": "ニュース分析なし",
-            "summary": "現在有効な外部ニュースデータは取得されていません。純粋な価格・市場データに基づいて予測を行います。",
-            "impact": "NEUTRAL",
-            "score": 0.0
-        }
-    return {
-        "status": "ニュース統合済み",
-        "summary": f"{len(news_list)}件の関連ニュースを解析しました。",
-        "impact": "NEUTRAL",
-        "score": 0.0
-    }
+def analyze_market_context(df, news_list):
+    """市場環境（トレンドかレンジか、ボラティリティの異常など）を客観評価する"""
+    if df is None or len(df) < 30:
+        return "データ不足による不確実相場", "NEUTRAL", 0.0
+    
+    close = df["Close"].astype(float)
+    sma_short = close.rolling(10).mean().iloc[-1]
+    sma_long = close.rolling(30).mean().iloc[-1]
+    volatility = close.pct_change().rolling(14).std().iloc[-1]
+    
+    env_desc = "レンジ・通常変動"
+    if sma_short > sma_long * 1.002:
+        env_desc = "短期上昇トレンド"
+    elif sma_short < sma_long * 0.998:
+        env_desc = "短期下落トレンド"
+        
+    if volatility > 0.002:
+        env_desc += "（高ボラティリティ・急変警戒）"
+        
+    return env_desc, "NEUTRAL", float(volatility)
 
 
-# -------------------- ② 永続データ保存・取得エンジン (長期・短期分離) --------------------
+# -------------------- ② 永続データ保存・取得エンジン --------------------
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_market_data(interval="1m"):
-    """
-    1分足（短期）および1時間足（長期）の市場データを取得・蓄積する。
-    """
     file_path = MARKET_HISTORY_1M if interval == "1m" else MARKET_HISTORY_1H
-    period_val = "7d" if interval == "1m" else "730d"  # 1時間足は最大2年分を取得
+    period_val = "7d" if interval == "1m" else "730d"
     
     try:
         df_new = yf.download(
@@ -155,7 +157,7 @@ def fetch_market_data(interval="1m"):
         return None
 
 
-# -------------------- ③ 特徴量一括計算エンジン --------------------
+# -------------------- ③ 特徴量と厳格な先着判定エンジン --------------------
 
 def build_feature_table(df):
     close = df["Close"].astype(float)
@@ -181,17 +183,18 @@ def build_feature_table(df):
     return features.replace([np.inf, -np.inf], np.nan)
 
 
-def judge_first_touch_with_reason(entry, direction, future, target=DEFAULT_TARGET_USD):
+def detailed_cause_analysis(entry, direction, future, target=DEFAULT_TARGET_USD):
     """
-    厳格な ±USD 先着判定エンジン（未来情報の漏洩なし）。
+    逆方向50$変動や的中時について、詳細な「敗因・勝因」を分析・分類する。
+    戻り値: (win_flag (1/0), result ("WIN"/"LOSS"), detailed_reason, category)
     """
     if direction not in ("HIGH", "LOW") or future is None or future.empty:
-        return 0, "LOSS", "判定データ不足"
+        return 0, "LOSS", "判定データ不足", "DATA_ERROR"
 
     upper = float(entry) + float(target)
     lower = float(entry) - float(target)
 
-    for _, candle in future.iterrows():
+    for idx, candle in future.iterrows():
         high = float(candle["High"])
         low = float(candle["Low"])
 
@@ -199,22 +202,22 @@ def judge_first_touch_with_reason(entry, direction, future, target=DEFAULT_TARGE
         hit_down = low <= lower
 
         if hit_up and hit_down:
-            return 0, "LOSS", "同一足で上下両方到達 (順序不明・保守的処理)"
+            return 0, "LOSS", "同一足で上下両方到達（高ボラティリティ・ノイズ交差）", "VOLATILITY_NOISE"
         if hit_up:
             if direction == "HIGH":
-                return 1, "WIN", "上目標先着 (予測合致)"
+                return 1, "WIN", "上目標先着：トレンド順行による正常的中", "TREND_SUCCESS"
             else:
-                return 0, "LOSS", "逆方向到達 (上目標先着)"
+                return 0, "LOSS", "逆方向50$到達：急変・下落トレンドへの逆行失敗", "REVERSE_FAILURE_HIGH"
         if hit_down:
             if direction == "LOW":
-                return 1, "WIN", "下目標先着 (予測合致)"
+                return 1, "WIN", "下目標先着：下落予測の的中", "TREND_SUCCESS"
             else:
-                return 0, "LOSS", "逆方向到達 (下目標先着)"
+                return 0, "LOSS", "逆方向50$到達：上昇トレンドへの逆行失敗", "REVERSE_FAILURE_LOW"
 
-    return 0, "LOSS", "判定期間内未到達 (目標未到達)"
+    return 0, "LOSS", "判定期間内未到達：レンジ相場・モメンタム減衰", "TIMEOUT_RANGE"
 
 
-# -------------------- ④ モデル永続化管理 (長期・短期分離) --------------------
+# -------------------- ④ モデル永続化管理 --------------------
 
 def load_or_init_model(model_type="1m"):
     m_file = MODEL_1M_FILE if model_type == "1m" else MODEL_1H_FILE
@@ -238,9 +241,9 @@ def save_model_state(model, scaler, model_type="1m"):
     joblib.dump(scaler, s_file)
 
 
-# -------------------- ⑤ バックテスト・検証エンジン --------------------
+# -------------------- ⑤ バックテストとウォークフォワード検証 --------------------
 
-def run_backtest_engine(df, target_usd, stake_usd, hold_bars, model_type="1m"):
+def run_walkforward_simulation(df, target_usd, stake_usd, hold_bars, model_type="1m"):
     if df is None or len(df) < 300:
         return pd.DataFrame()
 
@@ -293,9 +296,10 @@ def run_backtest_engine(df, target_usd, stake_usd, hold_bars, model_type="1m"):
         entry_price = float(df["Open"].iloc[entry_index])
         future = df.iloc[entry_index : entry_index + hold_bars]
 
-        win_flag, result, reason = judge_first_touch_with_reason(entry_price, direction, future, target_usd)
+        win_flag, result, reason, category = detailed_cause_analysis(entry_price, direction, future, target_usd)
         pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
+        # オンライン学習による適応更新
         try:
             model.partial_fit(X_pred, np.array([win_flag]))
         except ValueError:
@@ -309,6 +313,7 @@ def run_backtest_engine(df, target_usd, stake_usd, hold_bars, model_type="1m"):
             "p_low": p_low,
             "result": result,
             "reason": reason,
+            "category": category,
             "pnl_usd": pnl,
         })
 
@@ -317,14 +322,14 @@ def run_backtest_engine(df, target_usd, stake_usd, hold_bars, model_type="1m"):
 
     res_df = pd.DataFrame(records)
     if not res_df.empty:
-        res_df.to_csv(GENIUS_HISTORY, index=False, encoding="utf-8-sig")
+        res_df.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
 
     return res_df
 
 
 # -------------------- ⑥ ダッシュボード描画 --------------------
 
-def show_dashboard(res_df):
+def show_analyst_dashboard(res_df):
     if res_df.empty:
         st.warning("検証データがありません。")
         return
@@ -334,44 +339,42 @@ def show_dashboard(res_df):
     losses = int((res_df["result"] == "LOSS").sum())
     win_rate = wins / total * 100 if total else 0.0
     total_pnl = float(res_df["pnl_usd"].sum())
-
     be_rate = (1 / (1 + PAYOUT_RATE)) * 100
 
     st.markdown(
         f"""
         <div class="genius-banner">
-            <h2>🏆 検証実績レポート（総検証数: {total}回）</h2>
-            <p>実践勝率: <strong>{win_rate:.2f}%</strong> (理論損益分岐: {be_rate:.2f}%) ｜ 獲得損益: <strong>${total_pnl:+.2f}</strong></p>
+            <h2>🧠 30年分析AI 検証・自己成長レポート（総検証数: {total}回）</h2>
+            <p>実践勝率: <strong>{win_rate:.2f}%</strong> (損益分岐基準: {be_rate:.2f}%) ｜ 累積損益: <strong>${total_pnl:+.2f}</strong></p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     if win_rate >= be_rate:
-        st.success(f"🌟 現在の勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を超えています！")
+        st.success(f"🌟 現在の勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を突破しています。")
     else:
-        st.warning(f"⚠️ 現在の勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を下回っています。")
+        st.warning(f"⚠️ 現在の勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を下回っています。敗因分析に基づく改善が必要です。")
 
-    st.subheader("🧭 選択方向の偏り診断 (HIGH / LOW)")
-    pred_counts = res_df["direction"].value_counts().reindex(["HIGH", "LOW"], fill_value=0)
-    st.bar_chart(pred_counts)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("🧭 選択方向の偏り (HIGH / LOW)")
+        pred_counts = res_df["direction"].value_counts().reindex(["HIGH", "LOW"], fill_value=0)
+        st.bar_chart(pred_counts)
+    with col2:
+        st.subheader("📊 失敗・成功の要因分類 (Category)")
+        if "category" in res_df.columns:
+            cat_counts = res_df["category"].value_counts()
+            st.bar_chart(cat_counts)
 
-    st.subheader("📊 敗因詳細の分析")
-    if "reason" in res_df.columns:
-        reason_counts = res_df[res_df["result"] == "LOSS"]["reason"].value_counts()
-        if not reason_counts.empty:
-            st.bar_chart(reason_counts)
-        else:
-            st.info("敗因データがまだありません。")
-
-    st.subheader("📈 累積損益の推移")
+    st.subheader("📈 累積損益の推移（成長曲線）")
     chart_df = res_df[["time", "pnl_usd"]].copy()
     chart_df["time"] = pd.to_datetime(chart_df["time"])
     chart_df["累積損益"] = chart_df["pnl_usd"].cumsum()
     chart_df = chart_df.set_index("time")
     st.line_chart(chart_df[["累積損益"]])
 
-    st.subheader("📝 検証・学習ログ (直近50件)")
+    st.subheader("📝 詳細な反省・敗因分析ログ (直近50件)")
     st.dataframe(
         res_df.sort_values("time", ascending=False).head(50),
         use_container_width=True,
@@ -379,10 +382,10 @@ def show_dashboard(res_df):
     )
 
 
-# -------------------- ⑦ サイドバー設定 & 安全管理 --------------------
+# -------------------- ⑦ サイドバー設定 --------------------
 
-st.sidebar.header("🌌 モデル・パラメータ設定")
-model_selection = st.sidebar.selectbox("🧠 使用モデルの選択", options=["短期モデル (1分足)", "長期モデル (1시간足)"], index=0)
+st.sidebar.header("🌌 分析・モデル設定")
+model_selection = st.sidebar.selectbox("🧠 モデル選択", options=["短期モデル (1分足)", "長期モデル (1時間足)"], index=0)
 model_type_key = "1m" if "1分足" in model_selection else "1h"
 
 target_usd = st.sidebar.slider("🎯 目標値幅 (±USD)", 10.0, 100.0, DEFAULT_TARGET_USD, 5.0)
@@ -390,28 +393,22 @@ stake_usd = st.sidebar.number_input("💵 仮想賭け金 ($)", 1.0, 10000.0, 5.
 hold_bars = st.sidebar.slider("⏱️ 判定期間 (足の本数)", 1, 10, 1)
 
 be_rate_disp = (1 / (1 + PAYOUT_RATE)) * 100
-st.sidebar.info(f"📊 損益分岐勝率目安: **{be_rate_disp:.2f}%** (配当 {PAYOUT_RATE*100:.0f}%)")
+st.sidebar.info(f"📊 損益分岐勝率: **{be_rate_disp:.2f}%** (ペ88%)")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🛡️ 安全・停止管理")
+st.sidebar.subheader("🛡️ 安全管理（学習を止めない設計）")
 if "force_stopped" not in st.session_state:
     st.session_state.force_stopped = False
 
-if st.session_state.force_stopped:
-    st.sidebar.warning("⚠️ 4連敗検知により自動停止中です。")
-    if st.sidebar.button("🔓 停止を手動解除して再開", use_container_width=True):
-        st.session_state.force_stopped = False
-        st.sidebar.success("停止状態を解除しました！")
-        st.rerun()
-else:
-    st.sidebar.success("正常稼働中（安全装置有効）")
+# 4連敗時の安全管理（エントリーは一時見送り、分析・学習は継続）
+st.sidebar.info("💡 4連敗時も分析・検証・学習ループは停止せず、リスク管理として自動仮想エントリーのみ一時見送り（見守りモード）にします。")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🧹 データ・学習状態の管理")
 reset_market_data = st.sidebar.checkbox("蓄積した市場データも削除する", value=False)
 if st.sidebar.button("🔄 AI履歴・学習状態をリセット", use_container_width=True):
     st.session_state.utaya_monitoring = False
-    files_to_delete = [VIRTUAL_TRADES_FILE, GENIUS_HISTORY, MODEL_1M_FILE, SCALER_1M_FILE, MODEL_1H_FILE, SCALER_1H_FILE]
+    files_to_delete = [VIRTUAL_TRADES_FILE, ANALYSIS_LOG_FILE, MODEL_1M_FILE, SCALER_1M_FILE, MODEL_1H_FILE, SCALER_1H_FILE]
     if reset_market_data:
         files_to_delete.extend([MARKET_HISTORY_1M, MARKET_HISTORY_1H])
     for file_path in files_to_delete:
@@ -424,42 +421,40 @@ if st.sidebar.button("🔄 AI履歴・学習状態をリセット", use_containe
     st.rerun()
 
 
-# -------------------- ⑧ 連続監視・自動仮想トレードエンジン --------------------
+# -------------------- ⑧ 連続監視・分析・自動学習エンジン --------------------
 
 if "utaya_monitoring" not in st.session_state:
     st.session_state.utaya_monitoring = False
 
-st.subheader("♾️ UTAYA 連続監視・自動仮想トレードモード")
+st.subheader("♾️ 30年分析AI 連続監視・自己成長モード")
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("▶ 連続監視を開始", use_container_width=True):
+    if st.button("▶ 連続監視・学習を開始", use_container_width=True):
         st.session_state.utaya_monitoring = True
 with col2:
     if st.button("⏹ 連続監視を停止", use_container_width=True):
         st.session_state.utaya_monitoring = False
 
-if st.session_state.utaya_monitoring and not st.session_state.force_stopped:
-    st.success(f"連続監視中 [{model_selection}]：30秒ごとにシグナルを判定し、仮想トレードを実行します")
-elif st.session_state.force_stopped:
-    st.error("🚨 4連敗安全停止発動中。サイドバーの「停止を手動解除して再開」を押してください。")
+if st.session_state.utaya_monitoring:
+    st.success(f"連続監視中 [{model_selection}]：30秒ごとに予測、結果照合、敗因分析、オンライン学習を実行中")
 else:
-    st.info("停止中です。開始ボタンで連続監視を開始できます。")
+    st.info("停止中です。開始ボタンで連続監視・分析を開始できます。")
 
 @st.fragment(run_every="30s")
-def continuous_virtual_trading():
-    if not st.session_state.utaya_monitoring or st.session_state.force_stopped:
-        st.caption("監視は停止しているか、安全装置によって一時中断されています。")
+def continuous_learning_loop():
+    if not st.session_state.utaya_monitoring:
+        st.caption("監視は停止しています。")
         return
 
     interval_str = "1m" if model_type_key == "1m" else "1h"
-    with st.spinner(f"BTC市場データ({model_selection})を更新し、判定中..."):
+    with st.spinner(f"BTC市場データ({model_selection})を更新し、深層分析中..."):
         live_df = fetch_market_data(interval_str)
 
     if live_df is None or len(live_df) < 50:
         st.warning("データが不足しています。")
         return
 
-    news_data = analyze_news_sentiment(fetch_crypto_news())
+    env_desc, news_impact, vol = analyze_market_context(live_df, fetch_market_news_safely())
 
     signal_i = len(live_df) - 2
     features_table = build_feature_table(live_df)
@@ -487,7 +482,20 @@ def continuous_virtual_trading():
     signal_price = float(live_df["Close"].iloc[signal_i])
     signal_time = live_df.index[signal_i]
 
-    st.caption(f"最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 基準価格: ${signal_price:,.2f} | ニュース分析: {news_data['status']}")
+    st.caption(f"最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 基準価格: ${signal_price:,.2f} | 相場環境: {env_desc}")
+
+    # 4連敗チェック（エントリーは慎重に見送り、分析・学習は継続する設計）
+    skip_entry = False
+    if VIRTUAL_TRADES_FILE.exists():
+        try:
+            past_trades = pd.read_csv(VIRTUAL_TRADES_FILE)
+            if len(past_trades) >= 4:
+                recent_4 = past_trades["result"].tail(4).tolist()
+                if all(r == "LOSS" for r in recent_4):
+                    skip_entry = True
+                    st.warning("🛡️ 直近4連敗を検知：安全のため新規の仮想エントリーは見送り、原因分析とモデルの適応学習のみ継続します。")
+        except Exception:
+            pass
 
     if live_direction == "HIGH":
         st.markdown(
@@ -516,43 +524,39 @@ def continuous_virtual_trading():
         try:
             trades_df = pd.read_csv(VIRTUAL_TRADES_FILE)
         except Exception:
-            trades_df = pd.DataFrame(columns=["time", "price", "direction", "result", "reason", "pnl_usd"])
+            trades_df = pd.DataFrame(columns=["time", "price", "direction", "result", "reason", "category", "pnl_usd"])
     else:
-        trades_df = pd.DataFrame(columns=["time", "price", "direction", "result", "reason", "pnl_usd"])
+        trades_df = pd.DataFrame(columns=["time", "price", "direction", "result", "reason", "category", "pnl_usd"])
 
     time_str = str(signal_time)
     if trades_df.empty or time_str not in trades_df["time"].values:
         future_window = live_df.loc[signal_time:].iloc[1 : hold_bars + 1]
         if len(future_window) >= hold_bars:
-            win_flag, result, reason = judge_first_touch_with_reason(signal_price, live_direction, future_window, target_usd)
-            pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
-
+            win_flag, result, reason, category = detailed_cause_analysis(signal_price, live_direction, future_window, target_usd)
+            
+            # 常にオンライン学習を回して「失敗からの学習」を継続する
             try:
                 model.partial_fit(feat_sc, np.array([win_flag]))
             except ValueError:
                 model.partial_fit(feat_sc, np.array([win_flag]), classes=np.array([0, 1]))
-
             save_model_state(model, scaler, model_type_key)
 
-            new_trade = pd.DataFrame([{
-                "time": time_str,
-                "price": signal_price,
-                "direction": live_direction,
-                "result": result,
-                "reason": reason,
-                "pnl_usd": pnl
-            }])
-            trades_df = pd.concat([trades_df, new_trade]).tail(500)
-            trades_df.to_csv(VIRTUAL_TRADES_FILE, index=False, encoding="utf-8-sig")
-
-            recent_results = trades_df["result"].tail(4).tolist()
-            if len(recent_results) == 4 and all(r == "LOSS" for r in recent_results):
-                st.session_state.force_stopped = True
-                st.warning("⚠️ 4連続で敗北を検知したため、安全のために自動仮想トレードを停止しました。")
-                st.rerun()
+            if not skip_entry:
+                pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
+                new_trade = pd.DataFrame([{
+                    "time": time_str,
+                    "price": signal_price,
+                    "direction": live_direction,
+                    "result": result,
+                    "reason": reason,
+                    "category": category,
+                    "pnl_usd": pnl
+                }])
+                trades_df = pd.concat([trades_df, new_trade]).tail(500)
+                trades_df.to_csv(VIRTUAL_TRADES_FILE, index=False, encoding="utf-8-sig")
 
     if not trades_df.empty:
-        st.subheader("📋 自律仮想トレード履歴・敗因ログ")
+        st.subheader("📋 自律学習・敗因分析ログ")
         st.dataframe(trades_df.sort_values("time", ascending=False).head(20), use_container_width=True, hide_index=True)
         
         v_wins = int((trades_df["result"] == "WIN").sum())
@@ -561,34 +565,34 @@ def continuous_virtual_trading():
         v_pnl = float(trades_df["pnl_usd"].sum())
         st.caption(f"仮想実績: {v_wins}勝 {v_losses}敗 (勝率: {v_rate:.1f}%) | 累積損益: ${v_pnl:+.2f}")
 
-continuous_virtual_trading()
+continuous_learning_loop()
 
 
 # -------------------- ⑨ バックテスト実行ボタン --------------------
 
 st.markdown("---")
-st.subheader("🚀 バックテスト検証の実行")
+st.subheader("🚀 30年分析ウォークフォワード検証の実行")
 
-if st.button("▶️ バックテストトレーニングを開始", use_container_width=True):
+if st.button("▶️ 検証トレーニングを開始", use_container_width=True):
     interval_str = "1m" if model_type_key == "1m" else "1h"
-    with st.spinner(f"市場データ({model_selection})を取得し、ウォークフォワード検証を実行中..."):
+    with st.spinner(f"市場データ({model_selection})を取得し、時系列ウォークフォワード検証を実行中..."):
         full_df = fetch_market_data(interval_str)
 
         if full_df is None or len(full_df) < 300:
             st.error("データ件数が不足しています（最低300本必要です）。期間を長くしてください。")
         else:
-            res_df = run_backtest_engine(
+            res_df = run_walkforward_simulation(
                 full_df,
                 target_usd=target_usd,
                 stake_usd=stake_usd,
                 hold_bars=hold_bars,
                 model_type=model_type_key,
             )
-            show_dashboard(res_df)
-elif GENIUS_HISTORY.exists():
+            show_analyst_dashboard(res_df)
+elif ANALYSIS_LOG_FILE.exists():
     try:
-        saved_df = pd.read_csv(GENIUS_HISTORY)
+        saved_df = pd.read_csv(ANALYSIS_LOG_FILE)
         if not saved_df.empty:
-            show_dashboard(saved_df)
+            show_analyst_dashboard(saved_df)
     except Exception:
         pass
