@@ -10,17 +10,18 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA 30年熟練分析思想統合型・自律成長AIシステム (完全改修版)
+# UTAYA 潜在意識×科学的検証統合型・自律成長AIシステム (完全版)
+# 理念: 失敗を恐れず全データを資産化し、客観的検証で改善を証明する
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA 30-Year Experienced AI Analyst (Pro-Full)",
+    page_title="UTAYA Murphy-Scientific AI Analyst",
     page_icon="🌌",
     layout="wide",
 )
 
 SYMBOL = "BTC-USD"
-PAYOUT_RATE = 0.88  # ペイアウト率88% -> 損益分岐勝率 約53.19%
+PAYOUT_RATE = 0.88  # 配当88% -> 損益分岐勝率 約53.19%
 DEFAULT_TARGET_USD = 50.0
 DATA_DIR = Path("utaya_data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -71,24 +72,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🌌 UTAYA 自律成長AI分析システム (無制限検証・完全版)")
+st.title("🌌 UTAYA 潜在意識×科学的検証 自律成長AIシステム")
 st.caption(
-    "4連敗制限完全撤廃 | 全予測・見送り予測の全件追跡検証 | 公平な時系列ウォークフォワード検証"
+    "目標勝率53.19%突破を目指す無制限検証 | 実取引と見送り予測の完全分離 | 全件永久保存"
 )
 
 
-# -------------------- ① 市場環境・外部要因分析（事実ベース） --------------------
-
-def fetch_market_news_safely():
-    """架空のニュースを作らず、取得可能な事実ベースの情報のみを扱う"""
-    try:
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            api_key = st.secrets.get("GEMINI_API_KEY", None)
-    except Exception:
-        api_key = None
-    return []
-
+# -------------------- ① 市場環境・外部要因分析 --------------------
 
 def analyze_market_context(df):
     """市場環境（トレンド、ボラティリティ、偏りリスク）を客観評価する"""
@@ -114,7 +104,7 @@ def analyze_market_context(df):
     return env_desc, float(volatility), risk_state
 
 
-# -------------------- ② 永続データ保存・取得エンジン --------------------
+# -------------------- ② 永続データ保存・取得エンジン (全件保持) --------------------
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_market_data(interval="1m"):
@@ -145,7 +135,8 @@ def fetch_market_data(interval="1m"):
                         df_old = pd.read_csv(file_path, index_col=0, parse_dates=True)
                         df_combined = pd.concat([df_old, df_new])
                         df_combined = df_combined[~df_combined.index.duplicated(keep="last")].sort_index()
-                        df_combined.tail(20000).to_csv(file_path, encoding="utf-8-sig")
+                        # 容量制限なく永久保存
+                        df_combined.to_csv(file_path, encoding="utf-8-sig")
                     except Exception:
                         df_new.to_csv(file_path, encoding="utf-8-sig")
                 else:
@@ -161,7 +152,7 @@ def fetch_market_data(interval="1m"):
         return None
 
 
-# -------------------- ③ 特徴量と厳格な勝敗判定エンジン --------------------
+# -------------------- ③ 特徴量と先着判定エンジン --------------------
 
 def build_feature_table(df):
     close = df["Close"].astype(float)
@@ -187,9 +178,9 @@ def build_feature_table(df):
     return features.replace([np.inf, -np.inf], np.nan)
 
 
-def evaluate_trade_outcome(entry, direction, future, target=DEFAULT_TARGET_USD):
+def evaluate_target_touch(entry, direction, future, target=DEFAULT_TARGET_USD):
     """
-    目標値幅（±50$）への先着順ルールに基づき、勝敗と敗因カテゴリを判定する。
+    ±50$目標値幅への先着順判定（勝敗評価用）
     """
     if direction not in ("HIGH", "LOW") or future is None or future.empty:
         return 0, "LOSS", "判定データ不足", "DATA_ERROR"
@@ -210,7 +201,7 @@ def evaluate_trade_outcome(entry, direction, future, target=DEFAULT_TARGET_USD):
             if direction == "HIGH":
                 return 1, "WIN", "上目標先着：トレンド順行による的中", "TREND_SUCCESS"
             else:
-                return 0, "LOSS", "逆方向50$到達：急変・下落トレンドへの逆行失敗", "REVERSE_FAILURE_HIGH"
+                return 0, "LOSS", "逆方向50$到達：下落トレンドへの逆行失敗", "REVERSE_FAILURE_HIGH"
         if hit_down:
             if direction == "LOW":
                 return 1, "WIN", "下目標先着：下落予測の的中", "TREND_SUCCESS"
@@ -247,20 +238,17 @@ def save_model_state(model, scaler, model_type="1m"):
 # -------------------- ⑤ 公平なウォークフォワード検証エンジン --------------------
 
 def run_walkforward_simulation(df, target_usd, stake_usd, hold_bars, model_type="1m"):
-    """
-    本番モデルを汚染せず、専用の独立インスタンスで公平な時系列検証を行う。
-    """
     if df is None or len(df) < 300:
         return pd.DataFrame()
 
     features_df = build_feature_table(df)
-    
     model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
     scaler = StandardScaler()
 
     init_end = int(len(df) * 0.25)
     X_init, y_init = [], []
     
+    # 教師ラベル：次足の終値が上昇=1, 下落=0
     for j in range(30, init_end):
         feat_row = features_df.iloc[j]
         if j + 1 < len(df) and not feat_row.isna().any():
@@ -300,7 +288,7 @@ def run_walkforward_simulation(df, target_usd, stake_usd, hold_bars, model_type=
 
         confidence = max(p_high, p_low)
         
-        if abs(p_high - p_low) < 0.04:  # 閾値
+        if abs(p_high - p_low) < 0.04:
             direction = "HOLD"
         else:
             direction = "HIGH" if p_high >= p_low else "LOW"
@@ -310,13 +298,13 @@ def run_walkforward_simulation(df, target_usd, stake_usd, hold_bars, model_type=
         future = df.iloc[entry_index : entry_index + hold_bars]
 
         eval_dir = direction if direction != "HOLD" else ("HIGH" if p_high >= p_low else "LOW")
-        win_flag, result, reason, category = evaluate_trade_outcome(entry_price, eval_dir, future, target_usd)
+        win_flag, result, reason, category = evaluate_target_touch(entry_price, eval_dir, future, target_usd)
         
         pnl = 0.0
         if direction != "HOLD":
             pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
-        # オンライン学習更新
+        # オンライン学習更新（次足の方向を教師信号とする）
         actual_next_c = float(df["Close"].iloc[entry_index])
         actual_curr_c = float(df["Close"].iloc[entry_index - 1])
         direction_label = 1 if actual_next_c > actual_curr_c else 0
@@ -346,17 +334,19 @@ def run_walkforward_simulation(df, target_usd, stake_usd, hold_bars, model_type=
     return res_df
 
 
-# -------------------- ⑥ ダッシュボード描画 (詳細分析・連敗統計) --------------------
+# -------------------- ⑥ ダッシュボード描画 (実取引と見送り予測の完全分離表示) --------------------
 
 def show_analyst_dashboard(res_df):
     if res_df.empty:
         st.warning("検証データがありません。")
         return
 
+    # 実取引（Executed）と見送り（HOLD）の分離
     executed_df = res_df[res_df["direction"] != "HOLD"].copy()
+    hold_df = res_df[res_df["direction"] == "HOLD"].copy()
+
     total_exec = len(executed_df)
-    total_all = len(res_df)
-    holds = total_all - total_exec
+    holds = len(hold_df)
     
     wins = int((executed_df["result"] == "WIN").sum())
     losses = int((executed_df["result"] == "LOSS").sum())
@@ -364,43 +354,27 @@ def show_analyst_dashboard(res_df):
     total_pnl = float(executed_df["pnl_usd"].sum())
     be_rate = (1 / (1 + PAYOUT_RATE)) * 100
 
-    # 連勝・連敗集計の計算
-    current_streak = 0
-    max_win_streak = 0
-    max_loss_streak = 0
-    streak_type = None
-
-    for r in executed_df["result"]:
-        if r == "WIN":
-            if streak_type == "WIN":
-                current_streak += 1
-            else:
-                streak_type = "WIN"
-                current_streak = 1
-            max_win_streak = max(max_win_streak, current_streak)
-        elif r == "LOSS":
-            if streak_type == "LOSS":
-                current_streak += 1
-            else:
-                streak_type = "LOSS"
-                current_streak = 1
-            max_loss_streak = max(max_loss_streak, current_streak)
+    # 見送り予測の仮想成績
+    hold_wins = int(hold_df["result"].str.contains("WIN").sum()) if not hold_df.empty else 0
+    hold_losses = int(hold_df["result"].str.contains("LOSS").sum()) if not hold_df.empty else 0
+    hold_total = hold_wins + hold_losses
+    hold_win_rate = hold_wins / hold_total * 100 if hold_total > 0 else 0.0
 
     st.markdown(
         f"""
         <div class="genius-banner">
-            <h2>🧠 30年分析AI 検証・自己成長レポート (無制限検証)</h2>
-            <p>実取引数: <strong>{total_exec}回</strong> (見送り/HOLD: {holds}回) ｜ 実践勝率: <strong>{win_rate:.2f}%</strong> (損益分岐: {be_rate:.2f}%) ｜ 累積損益: <strong>${total_pnl:+.2f}</strong></p>
-            <p>最大連勝: <strong>{max_win_streak}回</strong> ｜ 最大連敗: <strong>{max_loss_streak}回</strong></p>
+            <h2>🧠 潜在意識×科学的検証 AIレポート (無制限全件記録)</h2>
+            <p>実取引勝率: <strong>{win_rate:.2f}%</strong> (取引数: {total_exec}回 | 損益分岐: {be_rate:.2f}%) ｜ 実取引損益: <strong>${total_pnl:+.2f}</strong></p>
+            <p>見送り(HOLD)予測の参考勝率: <strong>{hold_win_rate:.2f}%</strong> (見送り検証数: {holds}回)</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     if win_rate >= be_rate:
-        st.success(f"🌟 検証勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を突破しています。")
+        st.success(f"🌟 実取引勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を突破しています。")
     else:
-        st.warning(f"⚠️ 検証勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を下回っています。")
+        st.warning(f"⚠️ 実取引勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を下回っています。")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -408,15 +382,15 @@ def show_analyst_dashboard(res_df):
         dir_counts = res_df["direction"].value_counts().reindex(["HIGH", "LOW", "HOLD"], fill_value=0)
         st.bar_chart(dir_counts)
     with col2:
-        st.subheader("📊 失敗・成功要因分類")
-        if "category" in res_df.columns:
-            cat_counts = res_df["category"].value_counts()
+        st.subheader("📊 失敗・成功要因分類 (実取引)")
+        if not executed_df.empty and "category" in executed_df.columns:
+            cat_counts = executed_df["category"].value_counts()
             st.bar_chart(cat_counts)
     with col3:
         st.subheader("🎯 確信度(Confidence)の分布")
         st.line_chart(res_df["confidence"].tail(50))
 
-    st.subheader("📈 累積損益の推移（成長曲線）")
+    st.subheader("📈 累積損益の推移（実取引の成長曲線）")
     chart_df = executed_df[["time", "pnl_usd"]].copy()
     if not chart_df.empty:
         chart_df["time"] = pd.to_datetime(chart_df["time"])
@@ -449,7 +423,7 @@ st.sidebar.info(f"📊 損益分岐勝率: **{be_rate_disp:.2f}%** (ペ88%)")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🛡️ 安全管理（無制限学習モード）")
-st.sidebar.success("✅ 4連敗制限完全撤廃：連敗時も停止せず、全予測および見送り予測の追跡・学習を無限に継続します。")
+st.sidebar.success("✅ 制限完全撤廃：連敗時も停止せず、全予測および見送り予測の追跡・学習を無限に継続します。")
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🧹 データ・学習状態の管理")
@@ -474,7 +448,7 @@ if st.sidebar.button("🔄 AI履歴・学習状態をリセット", use_containe
 if "utaya_monitoring" not in st.session_state:
     st.session_state.utaya_monitoring = False
 
-st.subheader("♾️ 30年分析AI 連続監視・無制限自己成長モード")
+st.subheader("♾️ 潜在意識×検証 AI 連続監視・無制限自己成長モード")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("▶ 連続監視・学習を開始", use_container_width=True):
@@ -484,7 +458,7 @@ with col2:
         st.session_state.utaya_monitoring = False
 
 if st.session_state.utaya_monitoring:
-    st.success(f"連続監視中 [{model_selection}]：30秒ごとに予測、全件追跡、オンライン学習を無制限に実行中")
+    st.success(f"連続監視中 [{model_selection}]：30秒ごとに予測、全件永久保存、オンライン学習を実行中")
 else:
     st.info("停止中です。開始ボタンで連続監視・分析を開始できます。")
 
@@ -566,7 +540,7 @@ def continuous_learning_loop():
             f"""
             <div class="scenario-card-hold">
                 <h2>⏸️ 連続監視 判断保留: HOLD ({model_selection})</h2>
-                <p>確率差僅少のため取引を見送りますが、検証用に全件追跡記録します (HIGH: {p_high:.1%} / LOW: {p_low:.1%})</p>
+                <p>確率差僅少のため取引を見送りますが、検証用に全件永久保存して追跡します (HIGH: {p_high:.1%} / LOW: {p_low:.1%})</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -585,9 +559,9 @@ def continuous_learning_loop():
         future_window = live_df.loc[signal_time:].iloc[1 : hold_bars + 1]
         if len(future_window) >= hold_bars:
             eval_dir = live_direction if live_direction != "HOLD" else ("HIGH" if p_high >= p_low else "LOW")
-            win_flag, result, reason, category = evaluate_trade_outcome(signal_price, eval_dir, future_window, target_usd)
+            win_flag, result, reason, category = evaluate_target_touch(signal_price, eval_dir, future_window, target_usd)
             
-            # オンライン学習：次足の実際の方向を教師信号として常時更新
+            # オンライン学習更新
             actual_next_c = float(live_df["Close"].iloc[signal_i + 1])
             actual_curr_c = float(live_df["Close"].iloc[signal_i])
             direction_label = 1 if actual_next_c > actual_curr_c else 0
@@ -609,7 +583,7 @@ def continuous_learning_loop():
                     "category": category,
                     "pnl_usd": pnl
                 }])
-                trades_df = pd.concat([trades_df, new_trade]).tail(500)
+                trades_df = pd.concat([trades_df, new_trade])
                 trades_df.to_csv(VIRTUAL_TRADES_FILE, index=False, encoding="utf-8-sig")
             else:
                 hold_pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
@@ -622,11 +596,11 @@ def continuous_learning_loop():
                     "category": f"TRACKED_{category}",
                     "pnl_usd": hold_pnl
                 }])
-                trades_df = pd.concat([trades_df, new_trade]).tail(500)
+                trades_df = pd.concat([trades_df, new_trade])
                 trades_df.to_csv(VIRTUAL_TRADES_FILE, index=False, encoding="utf-8-sig")
 
     if not trades_df.empty:
-        st.subheader("📋 自律学習・全件追跡ログ")
+        st.subheader("📋 自律学習・全件永久保存ログ")
         st.dataframe(trades_df.sort_values("time", ascending=False).head(20), use_container_width=True, hide_index=True)
         
         executed_logs = trades_df[~trades_df["direction"].str.contains("HOLD", na=False)]
@@ -634,7 +608,7 @@ def continuous_learning_loop():
         v_losses = int((executed_logs["result"] == "LOSS").sum())
         v_rate = v_wins / len(executed_logs) * 100 if len(executed_logs) > 0 else 0.0
         v_pnl = float(executed_logs["pnl_usd"].sum())
-        st.caption(f"仮想実行実績: {v_wins}勝 {v_losses}敗 (勝率: {v_rate:.1f}%) | 累積損益: ${v_pnl:+.2f}")
+        st.caption(f"実取引実績: {v_wins}勝 {v_losses}敗 (勝率: {v_rate:.1f}%) | 累積損益: ${v_pnl:+.2f} | 記録総数: {len(trades_df)}件")
 
 continuous_learning_loop()
 
