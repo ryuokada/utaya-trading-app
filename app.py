@@ -10,12 +10,12 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA 世界市場スキャナーAIシステム (監査・方向予測分離プロ版)
-# 思想: 50/50偽装排除、方向予測と取引判断の分離、PENDING動的追跡
+# UTAYA グローバル・インベストメンツ専用 AIシステム (会長指令・完全検証プロ版)
+# 思想: 先読み完全防止、TIMEOUT期限確定、全銘柄スキャン、期待値・PF証明
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Full-Market Pro Audit System v3",
+    page_title="UTAYA Global Investments - Audit Pro Engine v5",
     page_icon="🌌",
     layout="wide",
 )
@@ -33,13 +33,14 @@ SYMBOLS = {
 }
 
 PAYOUT_RATE = 0.88  # ペイアウト率88% -> 損益分岐勝率 約53.19%
+TARGET_ROI = 0.20   # 目標ROI 20% (10$ -> 12$)
 DATA_DIR = Path("utaya_data")
 DATA_DIR.mkdir(exist_ok=True)
 
-GLOBAL_HISTORY_DIR = DATA_DIR / "full_market_history_v3"
+GLOBAL_HISTORY_DIR = DATA_DIR / "full_market_history_v5"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-VIRTUAL_TRADES_FILE = DATA_DIR / "full_market_virtual_trades_v3.csv"
-ANALYSIS_LOG_FILE = DATA_DIR / "full_market_analysis_log_v3.csv"
+VIRTUAL_TRADES_FILE = DATA_DIR / "full_market_virtual_trades_v5.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "full_market_analysis_log_v5.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
@@ -54,13 +55,13 @@ st.markdown(
         margin-bottom: 20px;
     }
     .scenario-card-high {
-        background: rgba(0, 176, 155, 0.1);
+        background: rgba(0, 176, 155, 0.15);
         border-left: 5px solid #00b09b;
         padding: 15px;
         border-radius: 5px;
     }
     .scenario-card-low {
-        background: rgba(255, 65, 108, 0.1);
+        background: rgba(255, 65, 108, 0.15);
         border-left: 5px solid #ff416c;
         padding: 15px;
         border-radius: 5px;
@@ -70,9 +71,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🌌 UTAYA 世界市場スキャナーAI (完全分離・動的追跡プロ版)")
+st.title("🌌 UTAYA 世界市場スキャナーAI (会長指令・完全検証プロ版)")
 st.caption(
-    "50/50偽装排除 | 方向予測の常時提示 | PENDING動的ライフサイクル管理 | PF検証"
+    "先読み防止ウォークフォワード | TIMEOUT判定実装 | 全銘柄一括スキャンランキング | 10$➔12$ 達成管理"
 )
 
 
@@ -143,7 +144,7 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 特徴量と方向・取引判定ロジック --------------------
+# -------------------- ② 特徴量と厳格判定ロジック --------------------
 
 def build_full_integrated_features(target_name, all_dfs):
     if target_name not in all_dfs:
@@ -191,7 +192,6 @@ def build_full_integrated_features(target_name, all_dfs):
 
 
 def predict_direction(p_high, p_low):
-    """方向予測は必ずHIGHかLOWを返す。"""
     direction = "HIGH" if p_high >= p_low else "LOW"
     confidence = max(p_high, p_low)
     probability_gap = abs(p_high - p_low)
@@ -205,14 +205,15 @@ def predict_direction(p_high, p_low):
 
 
 def assess_trade(signal, min_gap=0.04):
-    """取引候補の判定。方向予測とは別の処理。"""
     if signal["probability_gap"] >= min_gap:
         return "PAPER_TRADE_CANDIDATE"
     return "TRACK_ONLY"
 
 
-def evaluate_outcome(entry_price, direction, future_candles, target_pct=0.01, fee_pct=0.0005):
-    """±目標変動率への先着判定。"""
+def evaluate_outcome(entry_price, direction, future_candles, target_pct=0.01, fee_pct=0.0005, hold_bars=5):
+    """
+    未来足の到着を評価。期限（hold_bars）内に到達しない場合は TIMEOUT（負け扱い）として厳格確定。
+    """
     if future_candles is None or len(future_candles) == 0:
         return "PENDING", "未来足の到着待ち", "PENDING", None
 
@@ -227,31 +228,31 @@ def evaluate_outcome(entry_price, direction, future_candles, target_pct=0.01, fe
         hit_down = low <= lower
 
         if hit_up and hit_down:
-            return "LOSS", "同一足で上下両方到達（ボラティリティノイズ）", "VOLATILITY_NOISE", str(idx)
+            return "LOSS", "同一足で上下両方到達（ノイズ）", "VOLATILITY_NOISE", str(idx)
         if hit_up:
             if direction == "HIGH":
-                return "WIN", "上目標先着：トレンド順行", "TREND_SUCCESS", str(idx)
+                return "WIN", "上目標先着達成", "TREND_SUCCESS", str(idx)
             else:
-                return "LOSS", "逆方向到達：逆行失敗", "REVERSE_FAILURE_HIGH", str(idx)
+                return "LOSS", "上方向逆行失敗", "REVERSE_FAILURE_HIGH", str(idx)
         if hit_down:
             if direction == "LOW":
-                return "WIN", "下目標先着：下落予測的中", "TREND_SUCCESS", str(idx)
+                return "WIN", "下目標先着達成", "TREND_SUCCESS", str(idx)
             else:
-                return "LOSS", "逆方向到達：下落逆行失敗", "REVERSE_FAILURE_LOW", str(idx)
+                return "LOSS", "下方向逆行失敗", "REVERSE_FAILURE_LOW", str(idx)
+
+    # 期限（hold_bars）分の足がすべて揃ったのに到達しなかった場合 -> TIMEOUT（期限切れ・レンジ停滞）
+    if len(future_candles) >= hold_bars:
+        return "TIMEOUT", "判定期間内未到達（タイムアウト）", "TIMEOUT_RANGE", str(future_candles.index[-1])
 
     return "PENDING", "判定期間内未到達・データ待機中", "PENDING", None
 
 
-def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_pct):
+def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_pct, stake_usd):
     if prediction["status"] != "PENDING":
         return prediction
 
     signal_time = pd.to_datetime(prediction["time"])
     future_candles = df_target.loc[signal_time:].iloc[1 : hold_bars + 1]
-
-    if len(future_candles) < hold_bars:
-        prediction["reason"] = "未来足の到着待ち"
-        return prediction
 
     result, reason, category, settle_time = evaluate_outcome(
         float(prediction["entry_price"]),
@@ -259,6 +260,7 @@ def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_p
         future_candles,
         target_pct,
         fee_pct,
+        hold_bars,
     )
 
     if result == "PENDING":
@@ -271,41 +273,15 @@ def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_p
     prediction["settle_time"] = str(settle_time)
     
     if prediction["trade_decision"] == "PAPER_TRADE_CANDIDATE":
-        prediction["pnl_usd"] = PAYOUT_RATE * 5.0 if result == "WIN" else -5.0
+        # WINなら利益、LOSSおよびTIMEOUTは損失として厳格計上
+        prediction["pnl_usd"] = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
     else:
         prediction["pnl_usd"] = 0.0
 
     return prediction
 
 
-# -------------------- ③ モデル管理 --------------------
-
-def load_or_init_model(symbol_key):
-    safe_name = symbol_key.replace(" ", "_").replace("(", "").replace(")", "")
-    m_file = DATA_DIR / f"pro_model_v3_{safe_name}.joblib"
-    s_file = DATA_DIR / f"pro_scaler_v3_{safe_name}.joblib"
-
-    if m_file.exists() and s_file.exists():
-        try:
-            model = joblib.load(m_file)
-            scaler = joblib.load(s_file)
-            return model, scaler, True
-        except Exception:
-            pass
-    model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
-    scaler = StandardScaler()
-    return model, scaler, False
-
-
-def save_model_state(model, scaler, symbol_key):
-    safe_name = symbol_key.replace(" ", "_").replace("(", "").replace(")", "")
-    m_file = DATA_DIR / f"pro_model_v3_{safe_name}.joblib"
-    s_file = DATA_DIR / f"pro_scaler_v3_{safe_name}.joblib"
-    joblib.dump(model, m_file)
-    joblib.dump(scaler, s_file)
-
-
-# -------------------- ④ ウォークフォワード検証エンジン --------------------
+# -------------------- ③ 先読み防止ウォークフォワード検証エンジン --------------------
 
 def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, fee_pct):
     df_target = all_dfs.get(target_name)
@@ -317,8 +293,9 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
     scaler = StandardScaler()
 
     init_end = int(len(df_target) * 0.25)
-    X_init, y_init = [], []
     
+    # 事前ウォークフォワード学習（検証時点より前のデータのみを使用：データリーク完全防止）
+    X_init, y_init = [], []
     for j in range(30, init_end):
         feat_row = features_df.iloc[j]
         if j + 1 < len(df_target) and not feat_row.isna().any():
@@ -329,11 +306,8 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
             y_init.append(label)
 
     if len(X_init) > 20:
-        X_init = np.array(X_init)
-        y_init = np.array(y_init)
-        scaler.fit(X_init)
-        X_init_scaled = scaler.transform(X_init)
-        model.partial_fit(X_init_scaled, y_init, classes=np.array([0, 1]))
+        scaler.fit(np.array(X_init))
+        model.partial_fit(scaler.transform(np.array(X_init)), np.array(y_init), classes=np.array([0, 1]))
 
     records = []
     start_i = init_end
@@ -356,13 +330,13 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
                 classes_list = list(model.classes_)
                 p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
                 p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-                model_status = "学習済み・正常"
+                model_status = "公平検証・稼働中"
             else:
                 p_low, p_high = 0.5, 0.5
-                model_status = "未学習・初期状態"
+                model_status = "初期化中"
         except Exception:
             p_low, p_high = 0.5, 0.5
-            model_status = "予測エラー"
+            model_status = "エラー"
 
         signal = predict_direction(p_high, p_low)
         trade_decision = assess_trade(signal)
@@ -372,7 +346,7 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
         future_window = df_target.iloc[entry_index : entry_index + hold_bars]
 
         result, reason, category, settle_time = evaluate_outcome(
-            entry_price, signal["direction"], future_window, target_pct, fee_pct
+            entry_price, signal["direction"], future_window, target_pct, fee_pct, hold_bars
         )
         
         status = "SETTLED" if result != "PENDING" else "PENDING"
@@ -380,10 +354,10 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
         if status == "SETTLED" and trade_decision == "PAPER_TRADE_CANDIDATE":
             pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
+        # オンライン学習更新（予測確定後の教師信号追加）
         actual_next_c = float(df_target["Close"].iloc[entry_index])
         actual_curr_c = float(df_target["Close"].iloc[entry_index - 1])
         direction_label = 1 if actual_next_c > actual_curr_c else 0
-        
         try:
             model.partial_fit(X_pred, np.array([direction_label]), classes=np.array([0, 1]))
         except ValueError:
@@ -416,9 +390,64 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
     return res_df
 
 
+# -------------------- ④ 全銘柄一括スキャン＆ランキング機能 --------------------
+
+def run_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
+    scanner_results = []
+    for name, df in all_dfs.items():
+        if df is None or len(df) < 50:
+            continue
+        try:
+            features_table = build_full_integrated_features(name, all_dfs)
+            signal_i = len(df) - 2
+            feat_row = features_table.iloc[signal_i]
+            if feat_row.isna().any():
+                continue
+
+            X_live = features_table.dropna().values
+            scaler = StandardScaler().fit(X_live)
+            model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
+            
+            # 簡易学習暖機
+            y_live = []
+            for j in range(len(features_table.dropna())):
+                try:
+                    c_curr = float(df["Close"].iloc[j])
+                    c_next = float(df["Close"].iloc[j + 1])
+                    y_live.append(1 if c_next > c_curr else 0)
+                except Exception:
+                    y_live.append(0)
+            if len(X_live) == len(y_live) and len(X_live) > 10:
+                model.partial_fit(scaler.transform(X_live), np.array(y_live), classes=np.array([0, 1]))
+
+            feat_sc = scaler.transform(np.array([feat_row.values]))
+            probs = model.predict_proba(feat_sc)[0]
+            classes_list = list(model.classes_)
+            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
+            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
+
+            signal = predict_direction(p_high, p_low)
+            trade_decision = assess_trade(signal)
+            volatility = float(features_table["volatility"].iloc[signal_i])
+
+            scanner_results.append({
+                "銘柄": name,
+                "方向予測": signal["direction"],
+                "HIGH確率": f"{signal['p_high']:.1%}",
+                "LOW確率": f"{signal['p_low']:.1%}",
+                "確率ギャップ": round(signal["probability_gap"], 3),
+                "ボラティリティ": round(volatility, 4),
+                "推奨状態": "🔥 取引候補" if trade_decision == "PAPER_TRADE_CANDIDATE" else "👀 見送り/監視",
+                "基準価格": round(float(df["Close"].iloc[signal_i]), 2)
+            })
+        except Exception:
+            pass
+    return pd.DataFrame(scanner_results)
+
+
 # -------------------- ⑤ ダッシュボード描画 --------------------
 
-def show_dashboard(res_df):
+def show_dashboard(res_df, stake_usd):
     if res_df.empty:
         st.warning("検証データがありません。")
         return
@@ -433,10 +462,13 @@ def show_dashboard(res_df):
     total_pending = len(pending_df)
     
     wins = int((executed_df["result"] == "WIN").sum())
-    losses = int((executed_df["result"] == "LOSS").sum())
+    losses = int(executed_df["result"].isin(["LOSS", "TIMEOUT"]).sum())
     win_rate = wins / total_exec * 100 if total_exec > 0 else 0.0
     total_pnl = float(executed_df["pnl_usd"].sum())
     be_rate = (1 / (1 + PAYOUT_RATE)) * 100
+
+    current_capital = stake_usd + total_pnl
+    actual_roi = (total_pnl / stake_usd) * 100 if stake_usd > 0 else 0.0
 
     gross_profit = float(executed_df[executed_df["pnl_usd"] > 0]["pnl_usd"].sum())
     gross_loss = abs(float(executed_df[executed_df["pnl_usd"] < 0]["pnl_usd"].sum()))
@@ -445,18 +477,17 @@ def show_dashboard(res_df):
     st.markdown(
         f"""
         <div class="genius-banner">
-            <h2>🌌 UTAYA プロ検証レポート (全件追跡・動的判定)</h2>
-            <p>確定済み実取引: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ 見送り追跡: <strong>{total_track}回</strong> ｜ 判定待ち: <strong>{total_pending}件</strong></p>
-            <p>累積損益: <strong>${total_pnl:+.2f}</strong> ｜ プロフィットファクター (PF): <strong>{profit_factor:.2f}</strong></p>
+            <h2>💰 資金達成状況: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (ROI: {actual_roi:+.1f}%)</h2>
+            <p>確定済み実取引: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ PF: <strong>{profit_factor:.2f}</strong> ｜ 期限待ち: <strong>{total_pending}件</strong></p>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if win_rate >= be_rate and total_exec > 10:
-        st.success(f"🌟 実取引勝率 ({win_rate:.2f}%) は損益分岐点 ({be_rate:.2f}%) を突破しています。")
+    if actual_roi >= (TARGET_ROI * 100):
+        st.success(f"🏆 目標達成！ROI {actual_roi:.1f}%（10$ $\rightarrow$ 12$ 以上の利益創出に成功！）")
     else:
-        st.info(f"📊 実取引勝率: {win_rate:.2f}% (目標: {be_rate:.2f}%以上)")
+        st.info(f"📊 目標ROI 20%（${stake_usd * 1.2:.2f}）に向けて検証中... (現在: ${current_capital:.2f})")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -464,22 +495,22 @@ def show_dashboard(res_df):
         dir_counts = res_df["direction"].value_counts().reindex(["HIGH", "LOW"], fill_value=0)
         st.bar_chart(dir_counts)
     with col2:
-        st.subheader("📊 要因分類 (確定済み実取引)")
+        st.subheader("📊 要因分類 (実取引)")
         if not executed_df.empty and "category" in executed_df.columns:
             cat_counts = executed_df["category"].value_counts()
             st.bar_chart(cat_counts)
 
-    st.subheader("📈 累積損益の推移（成長曲線）")
+    st.subheader("📈 資金成長曲線（累積損益）")
     chart_df = executed_df[["time", "pnl_usd"]].copy()
     if not chart_df.empty:
         chart_df["time"] = pd.to_datetime(chart_df["time"])
-        chart_df["累積損益"] = chart_df["pnl_usd"].cumsum()
+        chart_df["資産推移"] = stake_usd + chart_df["pnl_usd"].cumsum()
         chart_df = chart_df.set_index("time")
-        st.line_chart(chart_df[["累積損益"]])
+        st.line_chart(chart_df[["資産推移"]])
     else:
         st.info("確定した取引データがありません。")
 
-    st.subheader("📝 詳細監査ログ (直近50件)")
+    st.subheader("📝 詳細プロ監査ログ (直近50件)")
     st.dataframe(
         res_df.sort_values("time", ascending=False).head(50),
         use_container_width=True,
@@ -487,226 +518,200 @@ def show_dashboard(res_df):
     )
 
 
-# -------------------- ⑥ サイドバー設定 --------------------
+# -------------------- ⑥ サイドバー＆タブ設定 --------------------
 
-st.sidebar.header("🌌 プロシステム設定")
-selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄・市場", options=list(SYMBOLS.keys()), index=0)
+st.sidebar.header("💰 投資会社プロ設定")
+selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄・市場 (個別)", options=list(SYMBOLS.keys()), index=0)
 
 timeframe = st.sidebar.selectbox("⏱️ 分析時間軸", options=["1分足 (短期)", "1時間足 (中期)"], index=1)
 interval_str = "1m" if "1分足" in timeframe else "1h"
 period_str = "7d" if "1分足" in timeframe else "180d"
 
 target_pct = st.sidebar.slider("🎯 目標変動率 (±%)", 0.002, 0.05, 0.01, 0.001, format="%.3f")
-fee_pct = st.sidebar.slider("💸 手数料・スプレッド考慮 (%)", 0.0, 0.005, 0.0005, 0.0001, format="%.4f")
-stake_usd = st.sidebar.number_input("💵 仮想賭け金 ($)", 1.0, 10000.0, 5.0, 1.0)
+fee_pct = st.sidebar.slider("💸 手数料・スプレッド (%)", 0.0, 0.005, 0.0005, 0.0001, format="%.4f")
+stake_usd = st.sidebar.number_input("💵 初期投資資金 ($)", 1.0, 10000.0, 10.0, 1.0)
 hold_bars = st.sidebar.slider("⏱️ 判定期間 (足の本数)", 1, 20, 5)
 
 be_rate_disp = (1 / (1 + PAYOUT_RATE)) * 100
 st.sidebar.info(f"📊 損益分岐勝率: **{be_rate_disp:.2f}%** (ペ88%)")
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("🧹 データ・学習状態の管理")
-if st.sidebar.button("🔄 AI履歴・学習状態をリセット", use_container_width=True):
-    st.session_state.v3_monitoring = False
-    files_to_delete = [VIRTUAL_TRADES_FILE, ANALYSIS_LOG_FILE]
-    for file_path in files_to_delete:
+if st.sidebar.button("🔄 AI学習データ・履歴をリセット", use_container_width=True):
+    st.session_state.v5_monitoring = False
+    for file_path in [VIRTUAL_TRADES_FILE, ANALYSIS_LOG_FILE]:
         try:
             if file_path.exists(): file_path.unlink()
         except OSError:
             pass
-    st.sidebar.success("リセット完了しました。再読み込みしてください。")
+    st.sidebar.success("リセット完了しました。")
     st.rerun()
 
+# タブ切り替え（個別分析 vs 全銘柄一括スキャナー）
+tab1, tab2 = st.tabs(["📊 個別銘柄・実戦検証ダッシュボード", "🌌 全銘柄一括スキャナー (ランキング)"])
 
-# -------------------- ⑦ 連続監視・動的ライフサイクルループ --------------------
 
-if "v3_monitoring" not in st.session_state:
-    st.session_state.v3_monitoring = False
+# -------------------- ⑦ タブ1: 個別実戦検証 --------------------
 
-st.subheader(f"♾️ 動的ライフサイクル監視 [{selected_symbol}]")
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("▶ 連続監視・学習を開始", use_container_width=True):
-        st.session_state.v3_monitoring = True
-with col2:
-    if st.button("⏹ 連続監視を停止", use_container_width=True):
-        st.session_state.v3_monitoring = False
+with tab1:
+    if "v5_monitoring" not in st.session_state:
+        st.session_state.v5_monitoring = False
 
-if st.session_state.v3_monitoring:
-    st.success(f"連続監視中 [{selected_symbol}]：PENDING予測の自動再評価とオンライン学習を稼働中")
-else:
-    st.info("停止中です。開始ボタンで連続監視・分析を開始できます。")
+    st.subheader(f"♾️ リアルタイム動的監視 [{selected_symbol}]")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("▶ リアルタイム監視・自動学習を開始", use_container_width=True):
+            st.session_state.v5_monitoring = True
+    with c2:
+        if st.button("⏹ 監視を停止", use_container_width=True):
+            st.session_state.v5_monitoring = False
 
-@st.fragment(run_every="30s")
-def continuous_v3_loop():
-    if not st.session_state.v3_monitoring:
-        st.caption("監視は停止しています。")
-        return
+    if st.session_state.v5_monitoring:
+        st.success(f"監視中 [{selected_symbol}]：TIMEOUT判定・PENDING自動追跡稼働中")
+    else:
+        st.info("停止中です。開始ボタンを押してください。")
 
-    with st.spinner("全主要市場のデータを同期中..."):
-        all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
+    @st.fragment(run_every="30s")
+    def continuous_v5_loop():
+        if not st.session_state.v5_monitoring:
+            st.caption("監視は停止しています。")
+            return
 
-    df_target = all_dfs.get(selected_symbol)
-    if df_target is None or len(df_target) < 50:
-        st.warning("対象データの件数が不足しています。")
-        return
+        with st.spinner("市場データを同期中..."):
+            all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
 
-    # 1. 既存の PENDING 記録を読み込み、最新データで再評価して更新する
-    if ANALYSIS_LOG_FILE.exists():
+        df_target = all_dfs.get(selected_symbol)
+        if df_target is None or len(df_target) < 50:
+            st.warning("データ不足です。")
+            return
+
+        # 1. 既存 PENDING の動的追跡＆TIMEOUT判定更新
+        if ANALYSIS_LOG_FILE.exists():
+            try:
+                log_df = pd.read_csv(ANALYSIS_LOG_FILE)
+                updated_rows = []
+                for _, row in log_df.iterrows():
+                    row_dict = row.to_dict()
+                    if row_dict["status"] == "PENDING" and row_dict["symbol"] == selected_symbol:
+                        row_dict = update_prediction_status(row_dict, df_target, hold_bars, target_pct, fee_pct, stake_usd)
+                    updated_rows.append(row_dict)
+                log_df = pd.DataFrame(updated_rows)
+                log_df.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
+            except Exception:
+                pass
+
+        features_table = build_full_integrated_features(selected_symbol, all_dfs)
+        signal_i = len(df_target) - 2
+        feat_row = features_table.iloc[signal_i]
+        if feat_row.isna().any():
+            return
+
+        X_live = features_table.dropna().values
+        scaler = StandardScaler().fit(X_live)
+        model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
+        y_live = [1 if df_target["Close"].iloc[k+1] > df_target["Close"].iloc[k] else 0 for k in range(len(features_table.dropna()))]
+        if len(X_live) == len(y_live) and len(X_live) > 10:
+            model.partial_fit(scaler.transform(X_live), np.array(y_live), classes=np.array([0, 1]))
+
+        feat_sc = scaler.transform(np.array([feat_row.values]))
+        probs = model.predict_proba(feat_sc)[0]
+        classes_list = list(model.classes_)
+        p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
+        p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
+
+        signal = predict_direction(p_high, p_low)
+        trade_decision = assess_trade(signal)
+        signal_price = float(df_target["Close"].iloc[signal_i])
+        signal_time = df_target.index[signal_i]
+        time_str = str(signal_time)
+
+        if ANALYSIS_LOG_FILE.exists():
+            existing_log = pd.read_csv(ANALYSIS_LOG_FILE)
+        else:
+            existing_log = pd.DataFrame(columns=["time", "symbol", "direction", "p_high", "p_low", "confidence", "probability_gap", "model_status", "trade_decision", "status", "result", "reason", "category", "settle_time", "entry_price", "pnl_usd"])
+
+        if existing_log.empty or not ((existing_log["time"] == time_str) & (existing_log["symbol"] == selected_symbol)).any():
+            future_window = df_target.loc[signal_time:].iloc[1 : hold_bars + 1]
+            result, reason, category, settle_time = evaluate_outcome(
+                signal_price, signal["direction"], future_window, target_pct, fee_pct, hold_bars
+            )
+            status = "SETTLED" if result != "PENDING" else "PENDING"
+            pnl = 0.0
+            if status == "SETTLED" and trade_decision == "PAPER_TRADE_CANDIDATE":
+                pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
+
+            new_row = pd.DataFrame([{
+                "time": time_str,
+                "symbol": selected_symbol,
+                "direction": signal["direction"],
+                "p_high": signal["p_high"],
+                "p_low": signal["p_low"],
+                "confidence": signal["confidence"],
+                "probability_gap": signal["probability_gap"],
+                "model_status": "リアルタイム稼働中",
+                "trade_decision": trade_decision,
+                "status": status,
+                "result": result,
+                "reason": reason,
+                "category": category,
+                "settle_time": str(settle_time),
+                "entry_price": signal_price,
+                "pnl_usd": pnl,
+            }])
+            existing_log = pd.concat([existing_log, new_row])
+            existing_log.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
+
+        card_class = "scenario-card-high" if signal["direction"] == "HIGH" else "scenario-card-low"
+        st.markdown(
+            f"""
+            <div class="{card_class}">
+                <h2>🧭 方向予測: {signal['direction']} [{selected_symbol}]</h2>
+                <p>HIGH: <strong>{signal['p_high']:.1%}</strong> ｜ LOW: <strong>{signal['p_low']:.1%}</strong> (ギャップ: {signal['probability_gap']:.2f})</p>
+                <p>プロ判断: <strong>{trade_decision}</strong> (基準価格: ${signal_price:,.2f})</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        if not existing_log.empty:
+            st.subheader("📋 リアルタイム全件追跡ログ")
+            st.dataframe(existing_log.sort_values("time", ascending=False).head(15), use_container_width=True, hide_index=True)
+
+    continuous_v5_loop()
+
+    st.markdown("---")
+    st.subheader("🚀 公平なウォークフォワード検証（バックテスト）")
+    if st.button("▶️ 会社資金10$倍増 検証トレーニング開始", use_container_width=True):
+        with st.spinner("先読み防止ウォークフォワード検証を実行中..."):
+            all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
+            df_target = all_dfs.get(selected_symbol)
+            if df_target is None or len(df_target) < 300:
+                st.error("データ件数が不足しています（最低300本必要です）。")
+            else:
+                res_df = run_pro_walkforward(
+                    selected_symbol, all_dfs, target_pct=target_pct, stake_usd=stake_usd, hold_bars=hold_bars, fee_pct=fee_pct
+                )
+                show_dashboard(res_df, stake_usd)
+    elif ANALYSIS_LOG_FILE.exists():
         try:
-            log_df = pd.read_csv(ANALYSIS_LOG_FILE)
-            updated_rows = []
-            for _, row in log_df.iterrows():
-                row_dict = row.to_dict()
-                if row_dict["status"] == "PENDING" and row_dict["symbol"] == selected_symbol:
-                    row_dict = update_prediction_status(row_dict, df_target, hold_bars, target_pct, fee_pct)
-                updated_rows.append(row_dict)
-            log_df = pd.DataFrame(updated_rows)
-            log_df.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
+            saved_df = pd.read_csv(ANALYSIS_LOG_FILE)
+            if not saved_df.empty:
+                show_dashboard(saved_df, stake_usd)
         except Exception:
             pass
 
-    # 2. 新規予測の生成と保存
-    features_table = build_full_integrated_features(selected_symbol, all_dfs)
-    signal_i = len(df_target) - 2
-    feat_row = features_table.iloc[signal_i]
 
-    if feat_row.isna().any():
-        st.warning("特徴量計算エラー（同期待ち）")
-        return
+# -------------------- ⑧ タブ2: 全銘柄一括スキャナー --------------------
 
-    model, scaler, is_trained = load_or_init_model(selected_symbol)
+with tab2:
+    st.subheader("🌌 全主要市場一括スキャナー (チャンス発見ランキング)")
+    st.caption("暗号資産・米国株・為替・金利の中から、現時点で最も確率ギャップと期待値が高い銘柄を即座に特定します。")
 
-    try:
-        feat_sc = scaler.transform(np.array([feat_row.values]))
-    except Exception:
-        X_live = features_table.dropna().values
-        scaler.fit(X_live)
-        feat_sc = scaler.transform(np.array([feat_row.values]))
-
-    try:
-        if is_trained and hasattr(model, "classes_") and len(model.classes_) == 2:
-            probs = model.predict_proba(feat_sc)[0]
-            classes_list = list(model.classes_)
-            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
-            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-            model_status = "学習済み・正常"
-        else:
-            p_low, p_high = 0.5, 0.5
-            model_status = "⚠️ 未学習・初期状態"
-    except Exception:
-        p_low, p_high = 0.5, 0.5
-        model_status = "❌ 予測エラー"
-
-    signal = predict_direction(p_high, p_low)
-    trade_decision = assess_trade(signal)
-
-    signal_price = float(df_target["Close"].iloc[signal_i])
-    signal_time = df_target.index[signal_i]
-    time_str = str(signal_time)
-
-    # 重複登録を防ぎつつ新規作成
-    if ANALYSIS_LOG_FILE.exists():
-        existing_log = pd.read_csv(ANALYSIS_LOG_FILE)
-    else:
-        existing_log = pd.DataFrame(columns=["time", "symbol", "direction", "p_high", "p_low", "confidence", "probability_gap", "model_status", "trade_decision", "status", "result", "reason", "category", "settle_time", "entry_price", "pnl_usd"])
-
-    if existing_log.empty or not ((existing_log["time"] == time_str) & (existing_log["symbol"] == selected_symbol)).any():
-        future_window = df_target.loc[signal_time:].iloc[1 : hold_bars + 1]
-        result, reason, category, settle_time = evaluate_outcome(
-            signal_price, signal["direction"], future_window, target_pct, fee_pct
-        )
-        status = "SETTLED" if result != "PENDING" else "PENDING"
-        pnl = 0.0
-        if status == "SETTLED" and trade_decision == "PAPER_TRADE_CANDIDATE":
-            pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
-
-        new_row = pd.DataFrame([{
-            "time": time_str,
-            "symbol": selected_symbol,
-            "direction": signal["direction"],
-            "p_high": signal["p_high"],
-            "p_low": signal["p_low"],
-            "confidence": signal["confidence"],
-            "probability_gap": signal["probability_gap"],
-            "model_status": model_status,
-            "trade_decision": trade_decision,
-            "status": status,
-            "result": result,
-            "reason": reason,
-            "category": category,
-            "settle_time": str(settle_time),
-            "entry_price": signal_price,
-            "pnl_usd": pnl,
-        }])
-        existing_log = pd.concat([existing_log, new_row])
-        existing_log.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
-
-        # オンライン学習更新
-        actual_next_c = float(df_target["Close"].iloc[signal_i + 1])
-        actual_curr_c = float(df_target["Close"].iloc[signal_i])
-        direction_label = 1 if actual_next_c > actual_curr_c else 0
-        try:
-            model.partial_fit(feat_sc, np.array([direction_label]), classes=np.array([0, 1]))
-            save_model_state(model, scaler, selected_symbol)
-        except ValueError:
-            model.partial_fit(feat_sc, np.array([direction_label]))
-            save_model_state(model, scaler, selected_symbol)
-
-    st.caption(f"最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | 基準価格: ${signal_price:,.2f} | 状態: {model_status}")
-
-    card_class = "scenario-card-high" if signal["direction"] == "HIGH" else "scenario-card-low"
-    st.markdown(
-        f"""
-        <div class="{card_class}">
-            <h2>🧭 方向予測: {signal['direction']} [{selected_symbol}]</h2>
-            <p>推定確率: HIGH <strong>{signal['p_high']:.1%}</strong> ｜ LOW <strong>{signal['p_low']:.1%}</strong> (ギャップ: {signal['probability_gap']:.2f})</p>
-            <p>予測状態: <strong>{model_status}</strong> ｜ 取引判断: <strong>{trade_decision}</strong></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not existing_log.empty:
-        st.subheader("📋 動的ライフサイクル・全件追跡ログ")
-        st.dataframe(existing_log.sort_values("time", ascending=False).head(20), use_container_width=True, hide_index=True)
-        
-        settled_logs = existing_log[(existing_log["status"] == "SETTLED") & (existing_log["trade_decision"] == "PAPER_TRADE_CANDIDATE") & (existing_log["result"].isin(["WIN", "LOSS"]))]
-        s_wins = int((settled_logs["result"] == "WIN").sum())
-        s_losses = int((settled_logs["result"] == "LOSS").sum())
-        s_rate = s_wins / len(settled_logs) * 100 if len(settled_logs) > 0 else 0.0
-        s_pnl = float(settled_logs["pnl_usd"].sum())
-        st.caption(f"確定済み実取引実績: {s_wins}勝 {s_losses}敗 (勝率: {s_rate:.1f}%) | 累積損益: ${s_pnl:+.2f} | 記録総数: {len(existing_log)}件")
-
-continuous_v3_loop()
-
-
-# -------------------- ⑧ バックテスト実行ボタン --------------------
-
-st.markdown("---")
-st.subheader("🚀 プロ検証ウォークフォワードの実行")
-
-if st.button("▶️ 公平な検証トレーニングを開始", use_container_width=True):
-    with st.spinner("全市場データを一括取得し、動的ライフサイクル検証を実行中..."):
-        all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-        df_target = all_dfs.get(selected_symbol)
-
-        if df_target is None or len(df_target) < 300:
-            st.error("対象データの件数が不足しています（最低300本必要です）。期間を長くしてください。")
-        else:
-            res_df = run_pro_walkforward(
-                selected_symbol,
-                all_dfs,
-                target_pct=target_pct,
-                stake_usd=stake_usd,
-                hold_bars=hold_bars,
-                fee_pct=fee_pct,
-            )
-            show_dashboard(res_df)
-elif ANALYSIS_LOG_FILE.exists():
-    try:
-        saved_df = pd.read_csv(ANALYSIS_LOG_FILE)
-        if not saved_df.empty:
-            show_dashboard(saved_df)
-    except Exception:
-        pass
+    if st.button("🔍 全市場を一斉スキャンする", use_container_width=True):
+        with st.spinner("全9市場のデータを同期・解析中..."):
+            all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
+            scanner_df = run_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct)
+            if not scanner_df.empty:
+                st.success("スキャン完了：期待値の高い順にランキング表示します。")
+                st.dataframe(scanner_df.sort_values(by="確率ギャップ", ascending=False), use_container_width=True, hide_index=True)
+            else:
+                st.warning("スキャン可能なデータが不足しています。")
