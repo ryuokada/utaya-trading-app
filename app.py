@@ -10,13 +10,13 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ専用 AIシステム (プロ心理戦・オッズ構造統合版 v6)
-# 思想: 大口・小口の塊（マネーフロー）、群集心理（過熱感）、構造的歪みの完全攻略
+# UTAYA グローバル・インベストメンツ (v7 心理・資金フロー分析エンジン)
+# 思想: 先読み完全防止、TIMEOUT判定、心理・需給分析、公正検証
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - Pro Psychology & Flow Engine v6",
-    page_icon="🔥",
+    page_title="UTAYA Global Investments - v7 Psychology & Flow Engine",
+    page_icon="🌌",
     layout="wide",
 )
 
@@ -37,23 +37,22 @@ TARGET_ROI = 0.20   # 目標ROI 20% (10$ -> 12$)
 DATA_DIR = Path("utaya_data")
 DATA_DIR.mkdir(exist_ok=True)
 
-GLOBAL_HISTORY_DIR = DATA_DIR / "full_market_history_v6"
+GLOBAL_HISTORY_DIR = DATA_DIR / "full_market_history_v7"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-VIRTUAL_TRADES_FILE = DATA_DIR / "full_market_virtual_trades_v6.csv"
-ANALYSIS_LOG_FILE = DATA_DIR / "full_market_analysis_log_v6.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "full_market_analysis_log_v7.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
     """
     <style>
     .genius-banner {
-        background: linear-gradient(135deg, #232526, #414345);
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
         padding: 20px;
         border-radius: 15px;
-        color: #fff;
+        color: white;
         text-align: center;
         margin-bottom: 20px;
-        border: 1px solid #ffd700;
+        border: 1px solid #00b09b;
     }
     .scenario-card-high {
         background: rgba(0, 176, 155, 0.15);
@@ -72,9 +71,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🔥 UTAYA グローバル・インベストメンツ (プロ心理戦・オッズ構造統合版)")
+st.title("🌌 UTAYA v7 心理・資金フロー分析エンジン (プロ検証版)")
 st.caption(
-    "大口マネーフロー検知 | 群集心理（過熱感）分析 | 構造的歪みハック | 10$➔12$ 達成管理"
+    "先読み防止ウォークフォワード | 心理・需給分析特徴量 | TIMEOUT厳格判定 | 10$➔12$ 達成管理"
 )
 
 
@@ -99,7 +98,7 @@ def fetch_single_market_data(ticker, period="60d", interval="1h"):
             if all(c in df_new.columns for c in ["Open", "High", "Low", "Close"]):
                 df_new = df_new[cols].copy()
                 if "Volume" not in df_new.columns:
-                    df_new["Volume"] = 1000.0  # 出来高がない場合のフォールバック
+                    df_new["Volume"] = 1000.0
                 df_new = df_new.apply(pd.to_numeric, errors="coerce").dropna()
                 df_new.index = pd.to_datetime(df_new.index)
                 if df_new.index.tz is not None:
@@ -147,11 +146,11 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 心理戦・オッズ構造 特徴量エンジニアリング --------------------
+# -------------------- ② 心理・需給分析特徴量エンジン (v7) --------------------
 
-def build_psychology_flow_features(target_name, all_dfs):
+def build_v7_psychology_features(target_name, all_dfs):
     """
-    大口の塊（出来高急増）、群集心理（RSI・乖離率）、市場間資金フローを統合したプロ仕様特徴量
+    出来高の標準化、ローソク足の実体・ヒゲ比率、短期モメンタム、群集心理（RSI）、資金フローを統合
     """
     if target_name not in all_dfs:
         return pd.DataFrame()
@@ -161,8 +160,12 @@ def build_psychology_flow_features(target_name, all_dfs):
     if df_target.index.tz is not None:
         df_target.index = df_target.index.tz_localize(None)
 
+    open_p = df_target["Open"].astype(float)
+    high = df_target["High"].astype(float)
+    low = df_target["Low"].astype(float)
     close = df_target["Close"].astype(float)
     volume = df_target["Volume"].astype(float)
+
     returns = close.pct_change()
     delta = close.diff()
     
@@ -174,19 +177,30 @@ def build_psychology_flow_features(target_name, all_dfs):
     rsi = rsi.where(losses != 0, 100.0)
     rsi = rsi.where(gains != 0, 50.0)
 
-    # 出来高フロー（大口の塊の検知：直近平均に対する出来高の倍率）
-    vol_ma = volume.rolling(14).mean()
-    volume_shock = volume / vol_ma.replace(0, np.nan)
+    # 出来高の標準化（z-score風の相対的変化）
+    vol_mean = volume.rolling(14).mean()
+    vol_std = volume.rolling(14).std().replace(0, 1.0)
+    volume_z = (volume - vol_mean) / vol_std
+
+    # ローソク足構造（実体 vs 上ヒゲ・下ヒゲ：参加者の攻防心理）
+    body_size = (close - open_p).abs()
+    candle_range = (high - low).replace(0, 0.0001)
+    body_ratio = body_size / candle_range
+    upper_shadow = (high - pd.concat([open_p, close], axis=1).max(axis=1)) / candle_range
+    lower_shadow = (pd.concat([open_p, close], axis=1).min(axis=1) - low) / candle_range
 
     features = pd.DataFrame(index=df_target.index)
     features["return_1"] = close.pct_change(1)
     features["return_3"] = close.pct_change(3)
     features["sma_ratio_10"] = (close - close.rolling(10).mean()) / close.rolling(10).mean()
     features["rsi"] = rsi
-    features["volume_shock"] = volume_shock.fillna(1.0) # 大口・小口の塊の指標
+    features["volume_z"] = volume_z.fillna(0.0)
+    features["body_ratio"] = body_ratio
+    features["upper_shadow"] = upper_shadow
+    features["lower_shadow"] = lower_shadow
     features["volatility"] = returns.rolling(14).std()
 
-    # 他市場との資金連動フロー
+    # 他市場との連動フロー
     for name, df_other in all_dfs.items():
         if name == target_name:
             continue
@@ -216,7 +230,6 @@ def predict_direction(p_high, p_low):
 
 
 def assess_trade(signal, min_gap=0.035):
-    """プロの勝負基準（過剰人気や心理的歪みを考慮した厳格フィルタ）"""
     if signal["probability_gap"] >= min_gap:
         return "PAPER_TRADE_CANDIDATE"
     return "TRACK_ONLY"
@@ -240,17 +253,17 @@ def evaluate_outcome(entry_price, direction, future_candles, target_pct=0.01, fe
             return "LOSS", "同一足で上下両方到達（ノイズ・騙し）", "VOLATILITY_NOISE", str(idx)
         if hit_up:
             if direction == "HIGH":
-                return "WIN", "上目標先着達成（心理戦勝利）", "TREND_SUCCESS", str(idx)
+                return "WIN", "上目標先着達成", "TREND_SUCCESS", str(idx)
             else:
-                return "LOSS", "上方向逆行失敗（大口の罠）", "REVERSE_FAILURE_HIGH", str(idx)
+                return "LOSS", "上方向逆行失敗", "REVERSE_FAILURE_HIGH", str(idx)
         if hit_down:
             if direction == "LOW":
-                return "WIN", "下目標先着達成（心理戦勝利）", "TREND_SUCCESS", str(idx)
+                return "WIN", "下目標先着達成", "TREND_SUCCESS", str(idx)
             else:
-                return "LOSS", "下方向逆行失敗（大口の罠）", "REVERSE_FAILURE_LOW", str(idx)
+                return "LOSS", "下方向逆行失敗", "REVERSE_FAILURE_LOW", str(idx)
 
     if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "判定期間内未到達（膠着・タイムアウト）", "TIMEOUT_RANGE", str(future_candles.index[-1])
+        return "TIMEOUT", "判定期間内未到達（タイムアウト）", "TIMEOUT_RANGE", str(future_candles.index[-1])
 
     return "PENDING", "判定期間内未到達・データ待機中", "PENDING", None
 
@@ -288,14 +301,14 @@ def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_p
     return prediction
 
 
-# -------------------- ③ 検証・ウォークフォワードエンジン --------------------
+# -------------------- ③ 先読み防止ウォークフォワード検証エンジン (v7) --------------------
 
-def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, fee_pct):
+def run_v7_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, fee_pct):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df = build_psychology_flow_features(target_name, all_dfs)
+    features_df = build_v7_psychology_features(target_name, all_dfs)
     model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
     scaler = StandardScaler()
 
@@ -335,7 +348,7 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
                 classes_list = list(model.classes_)
                 p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
                 p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-                model_status = "プロ心理戦・稼働中"
+                model_status = "v7公平検証・稼働中"
             else:
                 p_low, p_high = 0.5, 0.5
                 model_status = "初期化中"
@@ -394,15 +407,15 @@ def run_pro_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, 
     return res_df
 
 
-# -------------------- ④ 全市場一括スキャナー --------------------
+# -------------------- ④ 全市場スキャナー (v7) --------------------
 
-def run_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
+def run_v7_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
     scanner_results = []
     for name, df in all_dfs.items():
         if df is None or len(df) < 50:
             continue
         try:
-            features_table = build_psychology_flow_features(name, all_dfs)
+            features_table = build_v7_psychology_features(name, all_dfs)
             signal_i = len(df) - 2
             feat_row = features_table.iloc[signal_i]
             if feat_row.isna().any():
@@ -425,7 +438,7 @@ def run_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
             signal = predict_direction(p_high, p_low)
             trade_decision = assess_trade(signal)
             volatility = float(features_table["volatility"].iloc[signal_i])
-            vol_shock = float(features_table["volume_shock"].iloc[signal_i])
+            vol_z = float(features_table["volume_z"].iloc[signal_i])
 
             scanner_results.append({
                 "銘柄": name,
@@ -433,7 +446,7 @@ def run_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
                 "HIGH確率": f"{signal['p_high']:.1%}",
                 "LOW確率": f"{signal['p_low']:.1%}",
                 "確率ギャップ": round(signal["probability_gap"], 3),
-                "大口マネーフロー(衝撃度)": round(vol_shock, 2),
+                "出来高Zスコア": round(vol_z, 2),
                 "推奨状態": "🔥 勝負候補" if trade_decision == "PAPER_TRADE_CANDIDATE" else "👀 様子見",
                 "基準価格": round(float(df["Close"].iloc[signal_i]), 2)
             })
@@ -517,7 +530,7 @@ def show_dashboard(res_df, stake_usd):
 
 # -------------------- ⑥ サイドバー設定 --------------------
 
-st.sidebar.header("🔥 プロ投資会社設定")
+st.sidebar.header("🌌 v7 プロ投資会社設定")
 selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄・市場 (個別)", options=list(SYMBOLS.keys()), index=0)
 
 timeframe = st.sidebar.selectbox("⏱️ 分析時間軸", options=["1分足 (短期)", "1時間足 (中期)"], index=1)
@@ -534,41 +547,41 @@ st.sidebar.info(f"📊 損益分岐勝率: **{be_rate_disp:.2f}%** (ペ88%)")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 AI学習データ・履歴をリセット", use_container_width=True):
-    st.session_state.v6_monitoring = False
-    for file_path in [VIRTUAL_TRADES_FILE, ANALYSIS_LOG_FILE]:
+    st.session_state.v7_monitoring = False
+    if ANALYSIS_LOG_FILE.exists():
         try:
-            if file_path.exists(): file_path.unlink()
+            ANALYSIS_LOG_FILE.unlink()
         except OSError:
             pass
     st.sidebar.success("リセット完了しました。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["📊 個別銘柄・プロ実戦検証", "🌌 全市場マネーフロー・ランキング"])
+tab1, tab2 = st.tabs(["📊 個別銘柄・v7実戦検証", "🌌 全市場需給・ランキング"])
 
 
 # -------------------- ⑦ タブ1: 個別実戦検証 --------------------
 
 with tab1:
-    if "v6_monitoring" not in st.session_state:
-        st.session_state.v6_monitoring = False
+    if "v7_monitoring" not in st.session_state:
+        st.session_state.v7_monitoring = False
 
-    st.subheader(f"♾️ プロ心理戦リアルタイム監視 [{selected_symbol}]")
+    st.subheader(f"♾️ v7 心理・需給リアルタイム監視 [{selected_symbol}]")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ プロ監視・自動学習を開始", use_container_width=True):
-            st.session_state.v6_monitoring = True
+        if st.button("▶ v7監視・自動学習を開始", use_container_width=True):
+            st.session_state.v7_monitoring = True
     with c2:
         if st.button("⏹ 監視を停止", use_container_width=True):
-            st.session_state.v6_monitoring = False
+            st.session_state.v7_monitoring = False
 
-    if st.session_state.v6_monitoring:
-        st.success(f"プロ監視中 [{selected_symbol}]：大口マネーフロー＆TIMEOUT判定稼働中")
+    if st.session_state.v7_monitoring:
+        st.success(f"v7監視中 [{selected_symbol}]：需給特徴量＆TIMEOUT判定稼働中")
     else:
         st.info("停止中です。開始ボタンを押してください。")
 
     @st.fragment(run_every="30s")
-    def continuous_v6_loop():
-        if not st.session_state.v6_monitoring:
+    def continuous_v7_loop():
+        if not st.session_state.v7_monitoring:
             st.caption("監視は停止しています。")
             return
 
@@ -594,7 +607,7 @@ with tab1:
             except Exception:
                 pass
 
-        features_table = build_psychology_flow_features(selected_symbol, all_dfs)
+        features_table = build_v7_psychology_features(selected_symbol, all_dfs)
         signal_i = len(df_target) - 2
         feat_row = features_table.iloc[signal_i]
         if feat_row.isna().any():
@@ -642,7 +655,7 @@ with tab1:
                 "p_low": signal["p_low"],
                 "confidence": signal["confidence"],
                 "probability_gap": signal["probability_gap"],
-                "model_status": "リアルタイム心理戦稼働中",
+                "model_status": "v7リアルタイム稼働中",
                 "trade_decision": trade_decision,
                 "status": status,
                 "result": result,
@@ -659,7 +672,7 @@ with tab1:
         st.markdown(
             f"""
             <div class="{card_class}">
-                <h2>🧭 プロ心理予測: {signal['direction']} [{selected_symbol}]</h2>
+                <h2>🧭 v7 方向予測: {signal['direction']} [{selected_symbol}]</h2>
                 <p>HIGH: <strong>{signal['p_high']:.1%}</strong> ｜ LOW: <strong>{signal['p_low']:.1%}</strong> (ギャップ: {signal['probability_gap']:.2f})</p>
                 <p>プロ判断: <strong>{trade_decision}</strong> (基準価格: ${signal_price:,.2f})</p>
             </div>
@@ -671,18 +684,18 @@ with tab1:
             st.subheader("📋 リアルタイム全件追跡ログ")
             st.dataframe(existing_log.sort_values("time", ascending=False).head(15), use_container_width=True, hide_index=True)
 
-    continuous_v6_loop()
+    continuous_v7_loop()
 
     st.markdown("---")
     st.subheader("🚀 公平なウォークフォワード検証（バックテスト）")
-    if st.button("▶️ 会社資金10$倍増 検証トレーニング開始", use_container_width=True):
+    if st.button("▶️ 会社資金10$倍増 v7検証開始", use_container_width=True):
         with st.spinner("先読み防止ウォークフォワード検証を実行中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
             df_target = all_dfs.get(selected_symbol)
             if df_target is None or len(df_target) < 300:
                 st.error("データ件数が不足しています（最低300本必要です）。")
             else:
-                res_df = run_pro_walkforward(
+                res_df = run_v7_walkforward(
                     selected_symbol, all_dfs, target_pct=target_pct, stake_usd=stake_usd, hold_bars=hold_bars, fee_pct=fee_pct
                 )
                 show_dashboard(res_df, stake_usd)
@@ -695,18 +708,18 @@ with tab1:
             pass
 
 
-# -------------------- ⑧ タブ2: 全市場マネーフローランキング --------------------
+# -------------------- ⑧ タブ2: 全市場需給ランキング --------------------
 
 with tab2:
-    st.subheader("🌌 全市場マネーフロー・オッズ構造ランキング")
-    st.caption("大口の塊（出来高急変）と群集心理（RSI・過熱感）を同期させ、今最も歪んでいる市場をあぶり出します。")
+    st.subheader("🌌 v7 全市場需給・ランキング")
+    st.caption("出来高の相対的変化（Zスコア）やローソク足の実体・ヒゲ比率から、市場参加者の攻防心理が最も歪んでいる銘柄をあぶり出します。")
 
-    if st.button("🔍 全市場マネーフローを一斉スキャン", use_container_width=True):
-        with st.spinner("全9市場のオッズ構造・マネーフローを解析中..."):
+    if st.button("🔍 全市場需給を一斉スキャン", use_container_width=True):
+        with st.spinner("全9市場の需給・心理特徴量を解析中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-            scanner_df = run_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct)
+            scanner_df = run_v7_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct)
             if not scanner_df.empty:
-                st.success("スキャン完了：大口マネーフローが流入している歪み度の高い順にランキング表示します。")
+                st.success("スキャン完了：確率ギャップの高い順にランキング表示します。")
                 st.dataframe(scanner_df.sort_values(by="確率ギャップ", ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.warning("スキャン可能なデータが不足しています。")
