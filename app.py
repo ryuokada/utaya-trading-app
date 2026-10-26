@@ -10,22 +10,26 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v8 大口危機察知・プロ防御版)
-# 思想: 大口衝突・価格摩擦の検知、緊急警報（EMERGENCY WARNING）、リスク強制遮断
+# UTAYA グローバル・インベストメンツ (v9 オイル・金・日経追加・完全防御版)
+# 思想: マルチアセット拡張（原油・金・日経）、大口衝突・価格摩擦の自動検知、強制防御
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v8 Emergency Risk Engine",
-    page_icon="🚨",
+    page_title="UTAYA Global Investments - v9 Multi-Asset Ultimate Engine",
+    page_icon="🛡️",
     layout="wide",
 )
 
+# 会長のご指示により「原油(OIL)」「金(GOLD)」「日経平均(N225)」を新規追加
 SYMBOLS = {
     "BTC (暗号資産)": "BTC-USD",
     "ETH (暗号資産)": "ETH-USD",
     "SOL (暗号資産)": "SOL-USD",
     "XRP (暗号資産)": "XRP-USD",
     "BNB (暗号資産)": "BNB-USD",
+    "WTI原油 (エネルギー)": "CL=F",
+    "金スポット (貴金属)": "GC=F",
+    "日経平均 (日本株)": "^N225",
     "S&P 500 (米国株)": "^GSPC",
     "Nasdaq 100 (米国株)": "^NDX",
     "USD/JPY (為替)": "USDJPY=X",
@@ -37,9 +41,9 @@ TARGET_ROI = 0.20   # 目標ROI 20% (10$ -> 12$)
 DATA_DIR = Path("utaya_data")
 DATA_DIR.mkdir(exist_ok=True)
 
-GLOBAL_HISTORY_DIR = DATA_DIR / "full_market_history_v8"
+GLOBAL_HISTORY_DIR = DATA_DIR / "full_market_history_v9"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "full_market_analysis_log_v8.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "full_market_analysis_log_v9.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
@@ -61,7 +65,6 @@ st.markdown(
         border-radius: 8px;
         color: #fff;
         margin-bottom: 20px;
-        animation: pulse 1.5s infinite;
     }
     .scenario-card-high {
         background: rgba(0, 176, 155, 0.15);
@@ -80,9 +83,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🚨 UTAYA v8 大口危機察知・緊急防御エンジン")
+st.title("🛡️ UTAYA v9 マルチアセット完全防御エンジン (オイル・金・日経追加)")
 st.caption(
-    "大口衝突・価格摩擦の自動検知 | 危険シグナル強制シャットダウン | 10$➔12$ 達成管理"
+    "原油・金・日経対応 | 大口衝突・価格摩擦の自動強制防御 | TIMEOUT厳格管理 | 10$➔12$ 達成管理"
 )
 
 
@@ -155,11 +158,11 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 危機察知・価格摩擦 特徴量エンジン (v8) --------------------
+# -------------------- ② マルチアセット危機防御 特徴量エンジン (v9) --------------------
 
-def build_v8_emergency_features(target_name, all_dfs):
+def build_v9_emergency_features(target_name, all_dfs):
     """
-    大口の衝突（出来高急増かつ実体が小さい＝価格摩擦）や、急激なボラティリティ跳ね上がりを検出
+    原油・金・日経などの急変動や、大口衝突による価格摩擦（出来高爆発×実体極小）を検出
     """
     if target_name not in all_dfs:
         return pd.DataFrame()
@@ -202,9 +205,7 @@ def build_v8_emergency_features(target_name, all_dfs):
     features["body_ratio"] = body_ratio
     features["volatility"] = returns.rolling(14).std()
 
-    # --- 🚨 危機察知フラグ（大口の衝突・価格摩擦インジケータ） ---
-    # 出来高が平均から大きく乖離（Z > 2.0）しているのに、ローソク足の実体が極端に小さい（body_ratio < 0.2）状態
-    # ＝「大口同士が激しくぶつかり合い、どちらに抜けるか分からない極限の危険ゾーン」
+    # 🚨 危機察知安全装置（大口の衝突・価格摩擦インジケータ）
     friction_signal = ((volume_z > 2.0) & (body_ratio < 0.25)).astype(float)
     features["emergency_friction"] = friction_signal
 
@@ -238,11 +239,10 @@ def predict_direction(p_high, p_low):
 
 def assess_trade(signal, is_emergency=False, min_gap=0.035):
     """
-    🚨 緊急警報（is_emergency=True）が点灯している場合は、
-    確率ギャップに関わらず「強制見送り（TRACK_ONLY / EMERGENCY_HOLD）」にする。
+    🚨 緊急警報（is_emergency=True）点灯時は強制的にトレードをシャットダウン
     """
     if is_emergency:
-        return "EMERGENCY_HOLD (大口衝突・危険回避の為強制見送り)"
+        return "EMERGENCY_HOLD (大口衝突・価格急変の危険回避の為強制見送り)"
     if signal["probability_gap"] >= min_gap:
         return "PAPER_TRADE_CANDIDATE"
     return "TRACK_ONLY"
@@ -263,7 +263,7 @@ def evaluate_outcome(entry_price, direction, future_candles, target_pct=0.01, fe
         hit_down = low <= lower
 
         if hit_up and hit_down:
-            return "LOSS", "同一足で上下両方到達（大口の乱高下・ノイズ）", "VOLATILITY_NOISE", str(idx)
+            return "LOSS", "同一足で上下両方到達（価格急変・ノイズ）", "VOLATILITY_NOISE", str(idx)
         if hit_up:
             if direction == "HIGH":
                 return "WIN", "上目標先着達成", "TREND_SUCCESS", str(idx)
@@ -306,7 +306,6 @@ def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_p
     prediction["category"] = category
     prediction["settle_time"] = str(settle_time)
     
-    # 緊急見送りの場合は損益発生ナシ（0ドル）
     if "EMERGENCY_HOLD" in str(prediction["trade_decision"]):
         prediction["pnl_usd"] = 0.0
     elif prediction["trade_decision"] == "PAPER_TRADE_CANDIDATE":
@@ -319,12 +318,12 @@ def update_prediction_status(prediction, df_target, hold_bars, target_pct, fee_p
 
 # -------------------- ③ 検証・ウォークフォワードエンジン --------------------
 
-def run_v8_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, fee_pct):
+def run_v9_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, fee_pct):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df = build_v8_emergency_features(target_name, all_dfs)
+    features_df = build_v9_emergency_features(target_name, all_dfs)
     model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
     scaler = StandardScaler()
 
@@ -365,7 +364,7 @@ def run_v8_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, f
                 classes_list = list(model.classes_)
                 p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
                 p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-                model_status = "v8緊急防御・稼働中"
+                model_status = "v9マルチ防御稼働中"
             else:
                 p_low, p_high = 0.5, 0.5
                 model_status = "初期化中"
@@ -427,15 +426,15 @@ def run_v8_walkforward(target_name, all_dfs, target_pct, stake_usd, hold_bars, f
     return res_df
 
 
-# -------------------- ④ 全市場スキャナー (v8) --------------------
+# -------------------- ④ 全市場スキャナー (v9) --------------------
 
-def run_v8_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
+def run_v9_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct):
     scanner_results = []
     for name, df in all_dfs.items():
         if df is None or len(df) < 50:
             continue
         try:
-            features_table = build_v8_emergency_features(name, all_dfs)
+            features_table = build_v9_emergency_features(name, all_dfs)
             signal_i = len(df) - 2
             feat_row = features_table.iloc[signal_i]
             if feat_row.isna().any():
@@ -511,7 +510,7 @@ def show_dashboard(res_df, stake_usd):
         f"""
         <div class="genius-banner">
             <h2>💰 資金達成状況: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (ROI: {actual_roi:+.1f}%)</h2>
-            <p>確定勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong>) ｜ 🚨 **緊急回避（大口衝突防衛）: {total_emergency}回** ｜ PF: <strong>{profit_factor:.2f}</strong></p>
+            <p>確定勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong>) ｜ 🚨 **緊急回避（価格急変防衛）: {total_emergency}回** ｜ PF: <strong>{profit_factor:.2f}</strong></p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -553,7 +552,7 @@ def show_dashboard(res_df, stake_usd):
 
 # -------------------- ⑥ サイドバー設定 --------------------
 
-st.sidebar.header("🚨 v8 大口危機防御設定")
+st.sidebar.header("🛡️ v9 マルチアセット防御設定")
 selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄・市場 (個別)", options=list(SYMBOLS.keys()), index=0)
 
 timeframe = st.sidebar.selectbox("⏱️ 分析時間軸", options=["1分足 (短期)", "1時間足 (中期)"], index=1)
@@ -570,7 +569,7 @@ st.sidebar.info(f"📊 損益分岐勝率: **{be_rate_disp:.2f}%** (ペ88%)")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 AI学習データ・履歴をリセット", use_container_width=True):
-    st.session_state.v8_monitoring = False
+    st.session_state.v9_monitoring = False
     if ANALYSIS_LOG_FILE.exists():
         try:
             ANALYSIS_LOG_FILE.unlink()
@@ -579,36 +578,36 @@ if st.sidebar.button("🔄 AI学習データ・履歴をリセット", use_conta
     st.sidebar.success("リセット完了しました。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["📊 個別銘柄・v8緊急防御検証", "🌌 全市場危機スキャナー"])
+tab1, tab2 = st.tabs(["📊 個別銘柄・v9防御検証", "🌌 全市場マルチアセット危機スキャナー"])
 
 
 # -------------------- ⑦ タブ1: 個別実戦検証 --------------------
 
 with tab1:
-    if "v8_monitoring" not in st.session_state:
-        st.session_state.v8_monitoring = False
+    if "v9_monitoring" not in st.session_state:
+        st.session_state.v9_monitoring = False
 
-    st.subheader(f"♾️ v8 危機防御リアルタイム監視 [{selected_symbol}]")
+    st.subheader(f"♾️ v9 マルチ防御リアルタイム監視 [{selected_symbol}]")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ v8緊急防御監視を開始", use_container_width=True):
-            st.session_state.v8_monitoring = True
+        if st.button("▶ v9マルチ防御監視を開始", use_container_width=True):
+            st.session_state.v9_monitoring = True
     with c2:
         if st.button("⏹ 監視を停止", use_container_width=True):
-            st.session_state.v8_monitoring = False
+            st.session_state.v9_monitoring = False
 
-    if st.session_state.v8_monitoring:
-        st.success(f"v8監視中 [{selected_symbol}]：大口衝突・価格摩擦の緊急警報が稼働中")
+    if st.session_state.v9_monitoring:
+        st.success(f"v9監視中 [{selected_symbol}]：原油・金・日経含むマルチ市場の価格急変防御が稼働中")
     else:
         st.info("停止中です。開始ボタンを押してください。")
 
     @st.fragment(run_every="30s")
-    def continuous_v8_loop():
-        if not st.session_state.v8_monitoring:
+    def continuous_v9_loop():
+        if not st.session_state.v9_monitoring:
             st.caption("監視は停止しています。")
             return
 
-        with st.spinner("市場データを同期中..."):
+        with st.spinner("マルチ市場データを同期中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
 
         df_target = all_dfs.get(selected_symbol)
@@ -630,7 +629,7 @@ with tab1:
             except Exception:
                 pass
 
-        features_table = build_v8_emergency_features(selected_symbol, all_dfs)
+        features_table = build_v9_emergency_features(selected_symbol, all_dfs)
         signal_i = len(df_target) - 2
         feat_row = features_table.iloc[signal_i]
         if feat_row.isna().any():
@@ -656,13 +655,12 @@ with tab1:
         signal_time = df_target.index[signal_i]
         time_str = str(signal_time)
 
-        # 🚨 緊急警報の発動表示
         if is_emergency:
             st.markdown(
                 """
                 <div class="emergency-alert-card">
-                    <h2>🚨 【緊急警報】大口衝突・価格摩擦の異常検知！</h2>
-                    <p>現在、出来高が爆発しているにもかかわらず価格が膠着（実体が極小）しています。<strong>大口同士の激しい玉のぶつかり合い（あるいは仕掛け前の罠）が発生中</strong>です。すべての新規エントリーを強制シャットダウンします！</p>
+                    <h2>🚨 【緊急警報】マルチアセット価格急変・大口衝突の異常検知！</h2>
+                    <p>原油・金・日経などの主要アセットにおいて、異常な出来高の膨張と価格の膠着（価格摩擦）が発生しました。<strong>相場のトレンド急変やダマしのリスクが極限まで高まっているため、すべての新規エントリーを強制シャットダウンします！</strong></p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -694,7 +692,7 @@ with tab1:
                 "p_low": signal["p_low"],
                 "confidence": signal["confidence"],
                 "probability_gap": signal["probability_gap"],
-                "model_status": "v8緊急防御稼働中",
+                "model_status": "v9マルチ防御稼働中",
                 "trade_decision": trade_decision,
                 "status": status,
                 "result": result,
@@ -711,9 +709,9 @@ with tab1:
         st.markdown(
             f"""
             <div class="{card_class}">
-                <h2>🧭 v8 方向予測: {signal['direction']} [{selected_symbol}]</h2>
+                <h2>🧭 v9 方向予測: {signal['direction']} [{selected_symbol}]</h2>
                 <p>HIGH: <strong>{signal['p_high']:.1%}</strong> ｜ LOW: <strong>{signal['p_low']:.1%}</strong> (ギャップ: {signal['probability_gap']:.2f})</p>
-                <p>プロ防衛判断: <strong>{trade_decision}</strong> (基準価格: ${signal_price:,.2f})</p>
+                <p>防衛判断: <strong>{trade_decision}</strong> (基準価格: ${signal_price:,.2f})</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -723,18 +721,18 @@ with tab1:
             st.subheader("📋 リアルタイム全件追跡ログ（防衛記録含む）")
             st.dataframe(existing_log.sort_values("time", ascending=False).head(15), use_container_width=True, hide_index=True)
 
-    continuous_v8_loop()
+    continuous_v9_loop()
 
     st.markdown("---")
-    st.subheader("🚀 公平なウォークフォワード検証（大口防御バックテスト）")
-    if st.button("▶️ 会社資金10$倍増 v8緊急防御検証開始", use_container_width=True):
-        with st.spinner("大口衝突フィルターを適用したウォークフォワード検証を実行中..."):
+    st.subheader("🚀 公平なウォークフォワード検証（マルチ防御バックテスト）")
+    if st.button("▶️ 会社資金10$倍増 v9マルチ防御検証開始", use_container_width=True):
+        with st.spinner("マルチアセット防御フィルターを適用した検証を実行中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
             df_target = all_dfs.get(selected_symbol)
             if df_target is None or len(df_target) < 300:
                 st.error("データ件数が不足しています（最低300本必要です）。")
             else:
-                res_df = run_v8_walkforward(
+                res_df = run_v9_walkforward(
                     selected_symbol, all_dfs, target_pct=target_pct, stake_usd=stake_usd, hold_bars=hold_bars, fee_pct=fee_pct
                 )
                 show_dashboard(res_df, stake_usd)
@@ -747,18 +745,18 @@ with tab1:
             pass
 
 
-# -------------------- ⑧ タブ2: 全市場危機スキャナー --------------------
+# -------------------- ⑧ タブ2: 全市場マルチアセット危機スキャナー --------------------
 
 with tab2:
-    st.subheader("🌌 v8 全市場危機察知スキャナー")
-    st.caption("全9市場を同時に監視し、現在「大口同士の衝突（価格摩擦）」が発生している危険な銘柄を赤色の緊急警報としてあぶり出します。")
+    st.subheader("🌌 v9 マルチアセット危機スキャナー")
+    st.caption("暗号資産・原油・金・日経・米国株・為替の全12市場を同時に監視し、価格急変や大口衝突の危険がある銘柄を赤色警報で検知します。")
 
-    if st.button("🔍 全市場の危機・大口衝突を一斉スキャン", use_container_width=True):
-        with st.spinner("全9市場の摩擦・危機特徴量を解析中..."):
+    if st.button("🔍 全12市場の危機・価格急変を一斉スキャン", use_container_width=True):
+        with st.spinner("全12市場のマルチアセット特徴量を解析中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-            scanner_df = run_v8_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct)
+            scanner_df = run_v9_multi_market_scanner(all_dfs, target_pct, hold_bars, fee_pct)
             if not scanner_df.empty:
-                st.success("スキャン完了：市場の危機状況を一覧表示します。")
+                st.success("スキャン完了：全12市場の安全・危険状況を一覧表示します。")
                 st.dataframe(scanner_df, use_container_width=True, hide_index=True)
             else:
                 st.warning("スキャン可能なデータが不足しています。")
