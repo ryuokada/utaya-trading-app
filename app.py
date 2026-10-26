@@ -11,57 +11,56 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v11 クイックモード値幅スコープ完全同期版)
-# 思想: XTrend等クイックモードの銘柄別値幅（BTC=50$等）を反映した実践防御エンジン
+# UTAYA グローバル・インベストメンツ (v12 v10ベース・クイックモード値幅完全統合版)
+# 思想: v10のデータリーク完全防止・監査基盤 ＋ XTrend等クイックモード値幅（BTC=50$等）の融合
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v11 Quick Mode Scope Engine",
+    page_title="UTAYA Global Investments - v10/v12 Quick Mode Audit Engine",
     page_icon="🎯",
     layout="wide",
 )
 
-# 銘柄ごとのクイックモード想定値幅（エントリーから上下に動く基準幅: ドル/ポイント単位）
+# 銘柄ごとのクイックモード想定値幅（エントリーから上下に動く基準ドル/ポイント単位）
 SYMBOLS_CONFIG = {
-    "BTC (暗号資産)": {"ticker": "BTC-USD", "quick_range_usd": 50.0, "type": "crypto"},
-    "ETH (暗号資産)": {"ticker": "ETH-USD", "quick_range_usd": 15.0, "type": "crypto"},
-    "SOL (暗号資産)": {"ticker": "SOL-USD", "quick_range_usd": 2.0, "type": "crypto"},
-    "XRP (暗号資産)": {"ticker": "XRP-USD", "quick_range_usd": 0.05, "type": "crypto"},
-    "BNB (暗号資産)": {"ticker": "BNB-USD", "quick_range_usd": 5.0, "type": "crypto"},
-    "WTI原油 (エネルギー)": {"ticker": "CL=F", "quick_range_usd": 0.40, "type": "commodity"},
-    "金スポット (貴金属)": {"ticker": "GC=F", "quick_range_usd": 5.0, "type": "commodity"},
-    "日経平均 (日本株)": {"ticker": "^N225", "quick_range_usd": 100.0, "type": "index"},
-    "S&P 500 (米国株)": {"ticker": "^GSPC", "quick_range_usd": 15.0, "type": "index"},
-    "Nasdaq 100 (米国株)": {"ticker": "^NDX", "quick_range_usd": 50.0, "type": "index"},
-    "USD/JPY (為替)": {"ticker": "USDJPY=X", "quick_range_usd": 0.15, "type": "forex"},
-    "米10年債利回り (金利)": {"ticker": "^TNX", "quick_range_usd": 0.05, "type": "rates"},
+    "BTC (暗号資産)": {"ticker": "BTC-USD", "quick_range_usd": 50.0},
+    "ETH (暗号資産)": {"ticker": "ETH-USD", "quick_range_usd": 15.0},
+    "SOL (暗号資産)": {"ticker": "SOL-USD", "quick_range_usd": 2.0},
+    "XRP (暗号資産)": {"ticker": "XRP-USD", "quick_range_usd": 0.05},
+    "BNB (暗号資産)": {"ticker": "BNB-USD", "quick_range_usd": 5.0},
+    "WTI原油 (エネルギー)": {"ticker": "CL=F", "quick_range_usd": 0.40},
+    "金スポット (貴金属)": {"ticker": "GC=F", "quick_range_usd": 5.0},
+    "日経平均 (日本株)": {"ticker": "^N225", "quick_range_usd": 100.0},
+    "S&P 500 (米国株)": {"ticker": "^GSPC", "quick_range_usd": 15.0},
+    "Nasdaq 100 (米国株)": {"ticker": "^NDX", "quick_range_usd": 50.0},
+    "USD/JPY (為替)": {"ticker": "USDJPY=X", "quick_range_usd": 0.15},
+    "米10年債利回り (金利)": {"ticker": "^TNX", "quick_range_usd": 0.05},
 }
 
 PAYOUT_RATE = 0.88  # ペイアウト率88% (損益分岐勝率 約53.19%)
 TARGET_ROI = 0.20   # 目標ROI 20% (10$ -> 12$)
-DATA_DIR = Path("utaya_data_v11")
+DATA_DIR = Path("utaya_data_v10")  # v10のデータをそのまま継承・活用
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v11.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v10.csv"  # 既存ログファイルを維持
 
 # -------------------- CSS --------------------
 st.markdown(
     """
     <style>
     .genius-banner {
-        background: linear-gradient(135deg, #11998e, #38ef7d);
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
         padding: 20px;
         border-radius: 15px;
-        color: #000;
+        color: white;
         text-align: center;
         margin-bottom: 20px;
-        font-weight: bold;
-        border: 1px solid #fff;
+        border: 1px solid #00b09b;
     }
     .emergency-alert-card {
-        background: rgba(255, 0, 0, 0.25);
+        background: rgba(255, 0, 0, 0.2);
         border-left: 6px solid #ff0000;
         padding: 20px;
         border-radius: 8px;
@@ -85,9 +84,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🎯 UTAYA v11 クイックモード値幅スコープ同期エンジン")
+st.title("🎯 UTAYA v12 (v10ベース・クイックモード値幅スコープ統合エンジン)")
 st.caption(
-    "銘柄別クイック範囲（BTC=50$等）反映 | 逆発防止・価格摩擦防御 | 10$➔12$ 統計検証"
+    "データリーク完全防止 | 銘柄別クイック値幅スコープ（BTC=50$等）同期 | Brierスコア校正"
 )
 
 
@@ -160,9 +159,9 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② クイックモード値幅スコープを反映した判定エンジン --------------------
+# -------------------- ② v10インデックス整合 ＋ クイック値幅スコープ評価 --------------------
 
-def build_v11_features_and_labels(target_name, all_dfs):
+def build_v12_features_and_labels(target_name, all_dfs):
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -204,7 +203,6 @@ def build_v11_features_and_labels(target_name, all_dfs):
     features["body_ratio"] = body_ratio
     features["volatility"] = returns.rolling(14).std()
 
-    # 摩擦・逆発防止の安全弁
     friction_signal = ((volume_z > 2.0) & (body_ratio < 0.25)).astype(float)
     features["emergency_friction"] = friction_signal
 
@@ -217,7 +215,6 @@ def build_v11_features_and_labels(target_name, all_dfs):
             short_tag = name.split(" ")[0].lower()
             features[f"{short_tag}_ret1"] = other_close.pct_change(1)
 
-    # 次足の終値が上がるか下がるかの正解ラベル
     labels = (close.shift(-1) > close).astype(int)
 
     combined = features.copy()
@@ -227,10 +224,9 @@ def build_v11_features_and_labels(target_name, all_dfs):
     return combined.drop(columns=["target"]), combined["target"].astype(int)
 
 
-def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_range_usd, fee_usd=0.02, hold_bars=5):
+def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
     """
     クイックモード固有の値幅スコープ（例: BTCなら上下50$）を基準に勝敗を判定。
-    目標幅に先に到達すれば WIN、逆行すれば LOSS、期間内未到達は TIMEOUT。
     """
     if future_candles is None or len(future_candles) == 0:
         return "PENDING", "未来足の到着待ち", "PENDING", None
@@ -298,14 +294,14 @@ def update_prediction_status(prediction, df_target, hold_bars, fixed_range_usd, 
     return prediction
 
 
-# -------------------- ③ 検証・ウォークフォワードエンジン --------------------
+# -------------------- ③ v10厳格ウォークフォワード検証エンジン --------------------
 
-def run_v11_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+def run_v12_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v11_features_and_labels(target_name, all_dfs)
+    features_df, labels_s = build_v12_features_and_labels(target_name, all_dfs)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -339,7 +335,7 @@ def run_v11_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
                 classes_list = list(model.classes_)
                 p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
                 p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-                model_status = "v11スコープ検証稼働中"
+                model_status = "v12スコープ監査稼働中"
             else:
                 p_low, p_high = 0.5, 0.5
                 model_status = "初期化中"
@@ -402,7 +398,7 @@ def run_v11_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
     return res_df
 
 
-# -------------------- ④ ダッシュボード描画 --------------------
+# -------------------- ④ ダッシュボード・監査指標描画 --------------------
 
 def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
     if res_df.empty:
@@ -428,12 +424,21 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
     gross_loss = abs(float(executed_df[executed_df["pnl_usd"] < 0]["pnl_usd"].sum()))
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
 
+    # Brierスコア（確率校正評価）
+    brier = 0.0
+    if not settled_df.empty and "actual_label" in settled_df.columns:
+        try:
+            brier = brier_score_loss(settled_df["actual_label"], settled_df["p_high"])
+        except Exception:
+            brier = 0.0
+
     st.markdown(
         f"""
         <div class="genius-banner">
-            <h2>🎯 クイックモード値幅スコープ運用 (${fixed_range_usd}幅)</h2>
-            <p>資金状況: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (実績ROI: {actual_roi:+.1f}%)</p>
+            <h2>🎯 クイックモード値幅スコープ運用 (目標±${fixed_range_usd})</h2>
+            <p>資金オーディット: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (実績ROI: {actual_roi:+.1f}%)</p>
             <p>確定勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ 🚨 **逆発・摩擦防御: {total_emergency}回** ｜ PF: <strong>{profit_factor:.2f}</strong></p>
+            <p>確率校正 (Brier Score): <strong>{brier:.4f}</strong> (※0に近いほど確率予測が正確)</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -464,13 +469,13 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
 
 # -------------------- ⑤ サイドバー設定 --------------------
 
-st.sidebar.header("🎯 v11 クイックモード設定")
+st.sidebar.header("🎯 v12 クイックモード監査設定")
 selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄 (個別)", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
 default_range = cfg["quick_range_usd"]
 
-# クイックモードの上下変動幅（ドル/ポイント）をここで直接調整可能に！
+# 会長がいつでも微調整できるクイックモード目標値幅
 fixed_range_usd = st.sidebar.number_input(
     f"📏 クイックモード目標値幅 (±$ / pt)", 
     min_value=0.001, max_value=10000.0, value=float(default_range), step=0.01,
@@ -485,7 +490,7 @@ period_str = "1d" if "1分足" in timeframe else "60d"
 stake_usd = st.sidebar.number_input("💵 初期投資資金 ($)", 1.0, 10000.0, 10.0, 1.0)
 hold_bars = st.sidebar.slider("⏱️ 判定期間 (足の本数)", 1, 20, 5)
 
-if st.sidebar.button("🔄 ログをリセット", use_container_width=True):
+if st.sidebar.button("🔄 学習ログをリセット", use_container_width=True):
     if ANALYSIS_LOG_FILE.exists():
         try:
             ANALYSIS_LOG_FILE.unlink()
@@ -496,10 +501,10 @@ if st.sidebar.button("🔄 ログをリセット", use_container_width=True):
 
 st.markdown(f"### 現在選択中の銘柄: **{selected_symbol}** (クイック基準スコープ: **±{fixed_range_usd}**)")
 
-if st.button("▶️ クイックモード値幅スコープ検証を実行", use_container_width=True):
+if st.button("▶️ クイックモード値幅スコープ監査を実行", use_container_width=True):
     with st.spinner(f"{selected_symbol} のクイックモード検証（±{fixed_range_usd}幅）を実行中..."):
         all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-        res_df = run_v11_walkforward(selected_symbol, all_dfs, stake_usd=stake_usd, hold_bars=hold_bars, fixed_range_usd=fixed_range_usd)
+        res_df = run_v12_walkforward(selected_symbol, all_dfs, stake_usd=stake_usd, hold_bars=hold_bars, fixed_range_usd=fixed_range_usd)
         show_audit_dashboard(res_df, stake_usd, fixed_range_usd)
 elif ANALYSIS_LOG_FILE.exists():
     try:
