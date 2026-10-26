@@ -6,22 +6,19 @@ from pathlib import Path
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import brier_score_loss
-import joblib
 from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v13 全市場自動ループ・クイック値幅完全統合版)
-# 思想: v10厳格監査 ＋ v9全市場自動ループスキャン ＋ XTrendクイック値幅判定
+# UTAYA グローバル・インベストメンツ (v15.1 NaN完全防御・方向判定パネル搭載版)
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v13 Multi-Market Auto-Loop Engine",
-    page_icon="🌌",
+    page_title="UTAYA Global Investments - v15.1 Multi-Universe Direction Engine",
+    page_icon="🎯",
     layout="wide",
 )
 
-# 12主要銘柄のクイックモード想定値幅（ドル/ポイント単位）
 SYMBOLS_CONFIG = {
     "BTC (暗号資産)": {"ticker": "BTC-USD", "quick_range_usd": 50.0},
     "ETH (暗号資産)": {"ticker": "ETH-USD", "quick_range_usd": 15.0},
@@ -37,14 +34,14 @@ SYMBOLS_CONFIG = {
     "米10年債利回り (金利)": {"ticker": "^TNX", "quick_range_usd": 0.05},
 }
 
-PAYOUT_RATE = 0.88  # ペイアウト率88% (損益分岐勝率 約53.19%)
-TARGET_ROI = 0.20   # 目標ROI 20% (10$ -> 12$)
-DATA_DIR = Path("utaya_data_v10")
+PAYOUT_RATE = 0.88  
+TARGET_ROI = 0.20   
+DATA_DIR = Path("utaya_data_v15")
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v13.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v15.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
@@ -59,34 +56,56 @@ st.markdown(
         margin-bottom: 20px;
         border: 1px solid #00b09b;
     }
-    .emergency-alert-card {
-        background: rgba(255, 0, 0, 0.2);
-        border-left: 6px solid #ff0000;
-        padding: 20px;
-        border-radius: 8px;
-        color: #fff;
+    .direction-panel-container {
+        display: flex;
+        gap: 20px;
         margin-bottom: 20px;
     }
-    .scenario-card-high {
+    .panel-high {
+        flex: 1;
         background: rgba(0, 176, 155, 0.15);
+        border: 2px solid #00b09b;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+    }
+    .panel-low {
+        flex: 1;
+        background: rgba(255, 65, 108, 0.15);
+        border: 2px solid #ff416c;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+    }
+    .tier-card-normal {
+        background: rgba(0, 176, 155, 0.1);
         border-left: 5px solid #00b09b;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
+        margin-bottom: 15px;
     }
-    .scenario-card-low {
-        background: rgba(255, 65, 108, 0.15);
+    .tier-card-cond {
+        background: rgba(255, 193, 7, 0.1);
+        border-left: 5px solid #ffc107;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+    }
+    .tier-card-stop {
+        background: rgba(255, 65, 108, 0.1);
         border-left: 5px solid #ff416c;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
+        margin-bottom: 15px;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("🌌 UTAYA v13 全市場自動ループ・クイックオーディットエンジン")
+st.title("🎯 UTAYA v15.1 多角性宇宙論・方向判定エンジン (NaN防御版)")
 st.caption(
-    "全12市場自動無限ループ監視 | v10データリーク完全防止 | クイック値幅スコープ（BTC=50$等）同期"
+    "NaN完全排除ガード | ハイロー値幅到達直接学習 | 上下独立確率パネル常時表示"
 )
 
 
@@ -159,9 +178,9 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② v10インデックス整合 ＋ クイック値幅スコープ評価 --------------------
+# -------------------- ② 特徴量とラベル生成 (NaN完全浄化ガード) --------------------
 
-def build_v13_features_and_labels(target_name, all_dfs):
+def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -215,14 +234,45 @@ def build_v13_features_and_labels(target_name, all_dfs):
             short_tag = name.split(" ")[0].lower()
             features[f"{short_tag}_ret1"] = other_close.pct_change(1)
 
-    labels = (close.shift(-1) > close).astype(int)
+    # ラベル生成
+    labels = []
+    for idx in range(len(df_target) - hold_bars):
+        entry_price = float(df_target["Open"].iloc[idx + 1])
+        future_window = df_target.iloc[idx + 1 : idx + 1 + hold_bars]
+        
+        upper_target = entry_price + fixed_range_usd
+        lower_target = entry_price - fixed_range_usd
+        
+        lbl = np.nan
+        for _, candle in future_window.iterrows():
+            h = float(candle["High"])
+            l = float(candle["Low"])
+            hit_up = h >= upper_target
+            hit_down = l <= lower_target
+            
+            if hit_up and not hit_down:
+                lbl = 1
+                break
+            elif hit_down and not hit_up:
+                lbl = 0
+                break
+            elif hit_up and hit_down:
+                break
+        labels.append(lbl)
 
-    combined = features.copy()
-    combined["target"] = labels
-    combined = combined.dropna()
+    features_trimmed = features.iloc[:len(labels)].copy()
+    features_trimmed["target"] = labels
+    
+    # 🚨 ここで NaN を完全浄化（無限大や欠損行をすべてドロップし、予測時にNaNが混入するのを根絶）
+    features_trimmed = features_trimmed.replace([np.inf, -np.inf], np.nan).dropna()
 
-    return combined.drop(columns=["target"]), combined["target"].astype(int)
+    if features_trimmed.empty:
+        return pd.DataFrame(), pd.Series(dtype=int)
 
+    return features_trimmed.drop(columns=["target"]), features_trimmed["target"].astype(int)
+
+
+# -------------------- ③ 評価関数 --------------------
 
 def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
     if future_candles is None or len(future_candles) == 0:
@@ -239,7 +289,7 @@ def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_ra
         hit_down = low <= lower_target
 
         if hit_up and hit_down:
-            return "LOSS", "同一足で上下両方到達（クイックノイズ・逆発）", "VOLATILITY_NOISE", str(idx)
+            return "LOSS", "同一足で上下両方到達（ノイズ・逆発）", "VOLATILITY_NOISE", str(idx)
         if hit_up:
             if direction == "HIGH":
                 return "WIN", "上方スコープ先着達成", "TREND_SUCCESS", str(idx)
@@ -252,7 +302,7 @@ def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_ra
                 return "LOSS", "下方逆行（反発被弾）", "REVERSE_FAILURE_LOW", str(idx)
 
     if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "スコープ未到達（タイムアウト・膠着）", "TIMEOUT_RANGE", str(future_candles.index[-1])
+        return "TIMEOUT", "スコープ未到達（膠着）", "TIMEOUT_RANGE", str(future_candles.index[-1])
 
     return "PENDING", "判定期間内未到達・データ待機中", "PENDING", None
 
@@ -281,9 +331,9 @@ def update_prediction_status(prediction, df_target, hold_bars, fixed_range_usd, 
     prediction["category"] = category
     prediction["settle_time"] = str(settle_time)
     
-    if "EMERGENCY_HOLD" in str(prediction["trade_decision"]):
+    if "一時停止" in str(prediction["tier"]):
         prediction["pnl_usd"] = 0.0
-    elif prediction["trade_decision"] == "PAPER_TRADE_CANDIDATE":
+    elif prediction["tier"] == "通常候補":
         prediction["pnl_usd"] = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
     else:
         prediction["pnl_usd"] = 0.0
@@ -291,14 +341,28 @@ def update_prediction_status(prediction, df_target, hold_bars, fixed_range_usd, 
     return prediction
 
 
-# -------------------- ③ v10厳格ウォークフォワード検証エンジン --------------------
+def classify_trading_tier(feat_row, p_high, p_low):
+    is_emergency = bool(feat_row.get("emergency_friction", 0) > 0)
+    volatility = float(feat_row.get("volatility", 0.01))
+    probability_gap = abs(p_high - p_low)
 
-def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+    if is_emergency or np.isnan(volatility) or volatility > 0.15:
+        return "一時停止", "🚨 大口の衝突（価格摩擦）または異常ボラティリティ検知。リスク管理のため一時停止。"
+
+    if probability_gap >= 0.04 and max(p_high, p_low) >= 0.54:
+        return "通常候補", f"🔥 確率ギャップ {probability_gap:.3f} 良好。優位性が検証基準を満たした方向でエントリー候補。"
+
+    return "条件付き候補", f"👀 ギャップ縮小中 ({probability_gap:.3f})。方向を選び、モメンタムや条件成立を継続監視。"
+
+
+# -------------------- ④ ウォークフォワード検証エンジン --------------------
+
+def run_v15_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v13_features_and_labels(target_name, all_dfs)
+    features_df, labels_s = build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -322,7 +386,6 @@ def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
 
         row_time = features_df.index[i]
         feat_row = features_df.iloc[i]
-        is_emergency = bool(feat_row.get("emergency_friction", 0) > 0)
 
         X_pred = scaler.transform(np.array([feat_row.values]))
         
@@ -332,7 +395,7 @@ def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
                 classes_list = list(model.classes_)
                 p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
                 p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-                model_status = "v13スコープ監査稼働中"
+                model_status = "v15.1検証稼働中"
             else:
                 p_low, p_high = 0.5, 0.5
                 model_status = "初期化中"
@@ -341,8 +404,7 @@ def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
             model_status = "エラー"
 
         direction = "HIGH" if p_high >= p_low else "LOW"
-        probability_gap = abs(p_high - p_low)
-        trade_decision = "EMERGENCY_HOLD (大口摩擦・逆発回避)" if is_emergency else ("PAPER_TRADE_CANDIDATE" if probability_gap >= 0.035 else "TRACK_ONLY")
+        tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
 
         try:
             entry_idx_loc = df_target.index.get_loc(row_time) + 1
@@ -358,9 +420,9 @@ def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
         status = "SETTLED" if result != "PENDING" else "PENDING"
         pnl = 0.0
         if status == "SETTLED":
-            if "EMERGENCY_HOLD" in str(trade_decision):
+            if "一時停止" in tier:
                 pnl = 0.0
-            elif trade_decision == "PAPER_TRADE_CANDIDATE":
+            elif tier == "通常候補":
                 pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
         actual_label = int(labels_s.loc[row_time])
@@ -375,8 +437,9 @@ def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
             "direction": direction,
             "p_high": p_high,
             "p_low": p_low,
-            "probability_gap": probability_gap,
-            "trade_decision": trade_decision,
+            "probability_gap": abs(p_high - p_low),
+            "tier": tier,
+            "tier_reason": tier_reason,
             "status": status,
             "result": result,
             "reason": reason,
@@ -395,23 +458,23 @@ def run_v13_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
     return res_df
 
 
-# -------------------- ④ 全市場一括スキャナー (v13自動ループ拡張) --------------------
+# -------------------- ⑤ 全市場スキャナー --------------------
 
-def run_v13_multi_market_scanner(all_dfs, fixed_ranges):
+def run_v15_multi_market_scanner(all_dfs, fixed_ranges):
     scanner_results = []
     for name, cfg in SYMBOLS_CONFIG.items():
         df = all_dfs.get(name)
+        rng = fixed_ranges.get(name, cfg["quick_range_usd"])
         if df is None or len(df) < 50:
             continue
         try:
-            features_df, labels_s = build_v13_features_and_labels(name, all_dfs)
+            features_df, labels_s = build_v15_features_and_labels(name, all_dfs, rng, hold_bars=5)
             if len(features_df) < 20:
                 continue
 
             signal_i = len(features_df) - 1
             feat_row = features_df.iloc[signal_i]
             row_time = features_df.index[signal_i]
-            is_emergency = bool(feat_row.get("emergency_friction", 0) > 0)
 
             X_live = features_df.values
             y_live = labels_s.values
@@ -426,28 +489,26 @@ def run_v13_multi_market_scanner(all_dfs, fixed_ranges):
             p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
 
             direction = "HIGH" if p_high >= p_low else "LOW"
-            probability_gap = abs(p_high - p_low)
-            trade_decision = "EMERGENCY_HOLD" if is_emergency else ("PAPER_TRADE_CANDIDATE" if probability_gap >= 0.035 else "TRACK_ONLY")
+            tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
             base_price = float(df["Close"].loc[row_time]) if row_time in df.index else float(df["Close"].iloc[-1])
-
-            status_text = "🚨 【緊急警報】大口衝突・危険" if is_emergency else ("🔥 勝負候補" if trade_decision == "PAPER_TRADE_CANDIDATE" else "👀 様子見")
 
             scanner_results.append({
                 "銘柄": name,
-                "方向予測": direction,
-                "モデル推定HIGH確率": f"{p_high:.1%}",
-                "モデル推定LOW確率": f"{p_low:.1%}",
-                "確率ギャップ": round(probability_gap, 3),
-                "クイック目標幅": fixed_ranges.get(name, cfg["quick_range_usd"]),
-                "危機状態": status_text,
-                "基準価格": round(base_price, 2)
+                "判定ステージ": tier,
+                "予測方向": direction,
+                "HIGH確率": f"{p_high:.1%}",
+                "LOW確率": f"{p_low:.1%}",
+                "確率ギャップ": round(abs(p_high - p_low), 3),
+                "クイック目標幅": rng,
+                "基準価格": round(base_price, 2),
+                "評価理由": tier_reason
             })
         except Exception:
             pass
     return pd.DataFrame(scanner_results)
 
 
-# -------------------- ⑤ ダッシュボード描画 --------------------
+# -------------------- ⑥ ダッシュボード描画 --------------------
 
 def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
     if res_df.empty:
@@ -455,22 +516,21 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
         return
 
     settled_df = res_df[res_df["status"] == "SETTLED"].copy()
-    executed_df = settled_df[settled_df["trade_decision"] == "PAPER_TRADE_CANDIDATE"].copy()
-    emergency_held_df = settled_df[settled_df["trade_decision"].str.contains("EMERGENCY_HOLD", na=False)].copy()
+    normal_df = settled_df[settled_df["tier"] == "通常候補"].copy()
+    cond_df = settled_df[settled_df["tier"] == "条件付き候補"].copy()
+    stop_df = settled_df[settled_df["tier"] == "一時停止"].copy()
 
-    total_exec = len(executed_df)
-    total_emergency = len(emergency_held_df)
-    
-    wins = int((executed_df["result"] == "WIN").sum())
+    total_exec = len(normal_df)
+    wins = int((normal_df["result"] == "WIN").sum())
     win_rate = wins / total_exec * 100 if total_exec > 0 else 0.0
-    total_pnl = float(executed_df["pnl_usd"].sum())
+    total_pnl = float(normal_df["pnl_usd"].sum())
     be_rate = (1 / (1 + PAYOUT_RATE)) * 100
 
     current_capital = stake_usd + total_pnl
     actual_roi = (total_pnl / stake_usd) * 100 if stake_usd > 0 else 0.0
 
-    gross_profit = float(executed_df[executed_df["pnl_usd"] > 0]["pnl_usd"].sum())
-    gross_loss = abs(float(executed_df[executed_df["pnl_usd"] < 0]["pnl_usd"].sum()))
+    gross_profit = float(normal_df[normal_df["pnl_usd"] > 0]["pnl_usd"].sum())
+    gross_loss = abs(float(normal_df[normal_df["pnl_usd"] < 0]["pnl_usd"].sum()))
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
 
     brier = 0.0
@@ -483,10 +543,10 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
     st.markdown(
         f"""
         <div class="genius-banner">
-            <h2>🎯 クイックモード値幅スコープ運用 (目標±${fixed_range_usd})</h2>
-            <p>資金オーディット: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (実績ROI: {actual_roi:+.1f}%)</p>
-            <p>確定勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ 🚨 **逆発・摩擦防御: {total_emergency}回** ｜ PF: <strong>{profit_factor:.2f}</strong></p>
-            <p>確率校正 (Brier Score): <strong>{brier:.4f}</strong> (※0に近いほど確率予測が正確)</p>
+            <h2>🎯 v15.1 多角性宇宙論ダッシュボード (目標±${fixed_range_usd})</h2>
+            <p>資金状況: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (実績ROI: {actual_roi:+.1f}%)</p>
+            <p>通常候補勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ 条件付き監視: {len(cond_df)} ｜ 一時停止: {len(stop_df)}</p>
+            <p>確率校正 (Brier Score): <strong>{brier:.4f}</strong> (0に近いほど正確) ｜ PF: <strong>{profit_factor:.2f}</strong></p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -494,30 +554,30 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
 
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("🧭 方向予測の分布")
-        st.bar_chart(res_df["direction"].value_counts().reindex(["HIGH", "LOW"], fill_value=0))
+        st.subheader("🧭 判定ステージの分布")
+        st.bar_chart(res_df["tier"].value_counts())
     with col2:
-        st.subheader("📊 判定結果の内訳")
-        if not executed_df.empty:
-            st.bar_chart(executed_df["result"].value_counts())
+        st.subheader("📊 通常候補の結果内訳")
+        if not normal_df.empty:
+            st.bar_chart(normal_df["result"].value_counts())
 
-    st.subheader("📈 資金成長曲線（累積損益）")
-    chart_df = executed_df[["time", "pnl_usd"]].copy()
+    st.subheader("📈 資金成長曲線（通常候補 累積損益）")
+    chart_df = normal_df[["time", "pnl_usd"]].copy()
     if not chart_df.empty:
         chart_df["time"] = pd.to_datetime(chart_df["time"])
         chart_df["資産推移"] = stake_usd + chart_df["pnl_usd"].cumsum()
         chart_df = chart_df.set_index("time")
         st.line_chart(chart_df[["資産推移"]])
     else:
-        st.info("確定した実戦データがありません。")
+        st.info("通常候補の確定した取引データがありません。")
 
     st.subheader("📝 詳細プロ監査ログ (直近50件)")
     st.dataframe(res_df.sort_values("time", ascending=False).head(50), use_container_width=True, hide_index=True)
 
 
-# -------------------- ⑥ サイドバー・タブ設定 --------------------
+# -------------------- ⑦ サイドバー・タブ設定 --------------------
 
-st.sidebar.header("🌌 v13 自動ループ・監査設定")
+st.sidebar.header("🎯 v15.1 多角性宇宙論・設定")
 selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄 (個別)", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
@@ -527,7 +587,7 @@ fixed_range_usd = st.sidebar.number_input(
     f"📏 クイックモード目標値幅 (±$ / pt)", 
     min_value=0.001, max_value=10000.0, value=float(default_range), step=0.01,
     format="%.2f",
-    help="XTrend等のクイックモードでエントリーから上下に何ドル動いたら勝ちとするかのスコープ幅です。"
+    help="ハイロー・クイックモードで目標値幅に先に到達するかを判定する基準幅です。"
 )
 
 timeframe = st.sidebar.selectbox("⏱️ 分析時間軸", options=["1分足 (短期・クイック向け)", "1時間足 (中期)"], index=0)
@@ -546,32 +606,32 @@ if st.sidebar.button("🔄 学習ログをリセット", use_container_width=Tru
     st.sidebar.success("リセット完了しました。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["📊 個別銘柄・v10厳格監査検証", "🌌 全12市場一斉自動無限ループスキャナー"])
+tab1, tab2 = st.tabs(["📊 個別銘柄・方向判定パネル監査", "🌌 全12市場リアルタイム・方向判定スキャナー"])
 
 
-# -------------------- ⑦ タブ1: 個別実戦検証 --------------------
+# -------------------- ⑧ タブ1: 個別実戦検証 --------------------
 
 with tab1:
-    if "v13_monitoring" not in st.session_state:
-        st.session_state.v13_monitoring = False
+    if "v15_monitoring" not in st.session_state:
+        st.session_state.v15_monitoring = False
 
-    st.subheader(f"♾️ v13 厳格監査リアルタイム監視 [{selected_symbol}]")
+    st.subheader(f"♾️ v15.1 方向判定パネル監視 [{selected_symbol}]")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ v13監査監視を開始", use_container_width=True):
-            st.session_state.v13_monitoring = True
+        if st.button("▶ v15.1監査監視を開始", use_container_width=True):
+            st.session_state.v15_monitoring = True
     with c2:
         if st.button("⏹ 監視を停止", use_container_width=True):
-            st.session_state.v13_monitoring = False
+            st.session_state.v15_monitoring = False
 
-    if st.session_state.v13_monitoring:
-        st.success(f"v13監視中 [{selected_symbol}]：データリーク防止・クイック値幅判定稼働中")
+    if st.session_state.v15_monitoring:
+        st.success(f"v15.1監視中 [{selected_symbol}]：NaN防壁完備＆上下独立確率パネル稼働中")
     else:
         st.info("停止中です。開始ボタンを押してください。")
 
     @st.fragment(run_every="30s")
-    def continuous_v13_loop():
-        if not st.session_state.v13_monitoring:
+    def continuous_v15_loop():
+        if not st.session_state.v15_monitoring:
             st.caption("監視は停止しています。")
             return
 
@@ -597,14 +657,14 @@ with tab1:
             except Exception:
                 pass
 
-        features_df, labels_s = build_v13_features_and_labels(selected_symbol, all_dfs)
+        features_df, labels_s = build_v15_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
         if len(features_df) < 10:
+            st.warning("有効な特徴量データが不足しています（NaN除去後）。期間を広げるか時間軸を変更してください。")
             return
 
         signal_i = len(features_df) - 1
         feat_row = features_df.iloc[signal_i]
         row_time = features_df.index[signal_i]
-        is_emergency = bool(feat_row.get("emergency_friction", 0) > 0)
 
         X_live = features_df.values
         y_live = labels_s.values
@@ -619,26 +679,50 @@ with tab1:
         p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
 
         direction = "HIGH" if p_high >= p_low else "LOW"
-        probability_gap = abs(p_high - p_low)
-        trade_decision = "EMERGENCY_HOLD (大口摩擦・逆発回避)" if is_emergency else ("PAPER_TRADE_CANDIDATE" if probability_gap >= 0.035 else "TRACK_ONLY")
+        tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
         signal_price = float(df_target["Close"].loc[row_time]) if row_time in df_target.index else float(df_target["Close"].iloc[-1])
         time_str = str(row_time)
 
-        if is_emergency:
-            st.markdown(
-                """
-                <div class="emergency-alert-card">
-                    <h2>🚨 【緊急警報】大口衝突・価格摩擦の異常検知！</h2>
-                    <p>厳格な需給・摩擦特徴量により、相場の危険領域を検知しました。<strong>すべての新規エントリーを強制シャットダウンします！</strong></p>
+        # 🌌 UTAYA v15.1 方向判定パネル
+        st.markdown(
+            f"""
+            <div class="direction-panel-container">
+                <div class="panel-high">
+                    <h3>▲ HIGH / 上昇</h3>
+                    <h1 style="color: #00b09b; margin: 10px 0;">{p_high:.1%}</h1>
+                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">検証済みモデルで算出 (上方目標: +${fixed_range_usd})</p>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                <div class="panel-low">
+                    <h3>▼ LOW / 下降</h3>
+                    <h1 style="color: #ff416c; margin: 10px 0;">{p_low:.1%}</h1>
+                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">検証済みモデルで算出 (下方目標: -${fixed_range_usd})</p>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        card_class = "tier-card-normal"
+        if "条件付き" in tier:
+            card_class = "tier-card-cond"
+        elif "一時停止" in tier:
+            card_class = "tier-card-stop"
+
+        st.markdown(
+            f"""
+            <div class="{card_class}">
+                <h3>🎯 判定ステージ: <strong>[{tier}]</strong></h3>
+                <p><strong>評価理由:</strong> {tier_reason}</p>
+                <p><strong>基準価格:</strong> ${signal_price:,.2f} ｜ 判定期間: {hold_bars}本 ｜ 目標スコープ: ±${fixed_range_usd}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         if ANALYSIS_LOG_FILE.exists():
             existing_log = pd.read_csv(ANALYSIS_LOG_FILE)
         else:
-            existing_log = pd.DataFrame(columns=["time", "symbol", "direction", "p_high", "p_low", "probability_gap", "trade_decision", "status", "result", "reason", "category", "settle_time", "entry_price", "pnl_usd", "actual_label"])
+            existing_log = pd.DataFrame(columns=["time", "symbol", "direction", "p_high", "p_low", "probability_gap", "tier", "tier_reason", "status", "result", "reason", "category", "settle_time", "entry_price", "pnl_usd", "actual_label"])
 
         if existing_log.empty or not ((existing_log["time"] == time_str) & (existing_log["symbol"] == selected_symbol)).any():
             future_window = df_target.loc[row_time:].iloc[1 : hold_bars + 1]
@@ -648,9 +732,9 @@ with tab1:
             status = "SETTLED" if result != "PENDING" else "PENDING"
             pnl = 0.0
             if status == "SETTLED":
-                if "EMERGENCY_HOLD" in str(trade_decision):
+                if "一時停止" in tier:
                     pnl = 0.0
-                elif trade_decision == "PAPER_TRADE_CANDIDATE":
+                elif tier == "通常候補":
                     pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
 
             actual_lbl = int(labels_s.loc[row_time]) if row_time in labels_s.index else 0
@@ -661,8 +745,9 @@ with tab1:
                 "direction": direction,
                 "p_high": p_high,
                 "p_low": p_low,
-                "probability_gap": probability_gap,
-                "trade_decision": trade_decision,
+                "probability_gap": abs(p_high - p_low),
+                "tier": tier,
+                "tier_reason": tier_reason,
                 "status": status,
                 "result": result,
                 "reason": reason,
@@ -675,34 +760,22 @@ with tab1:
             existing_log = pd.concat([existing_log, new_row])
             existing_log.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
 
-        card_class = "scenario-card-high" if direction == "HIGH" else "scenario-card-low"
-        st.markdown(
-            f"""
-            <div class="{card_class}">
-                <h2>🧭 v13 方向予測: {direction} [{selected_symbol}]</h2>
-                <p>HIGH推定確率: <strong>{p_high:.1%}</strong> ｜ LOW推定確率: <strong>{p_low:.1%}</strong> (ギャップ: {probability_gap:.2f})</p>
-                <p>監査判断: <strong>{trade_decision}</strong> (基準価格: ${signal_price:,.2f})</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
         if not existing_log.empty:
             st.subheader("📋 リアルタイム監査ログ")
             st.dataframe(existing_log.sort_values("time", ascending=False).head(15), use_container_width=True, hide_index=True)
 
-    continuous_v13_loop()
+    continuous_v15_loop()
 
     st.markdown("---")
-    st.subheader("🚀 厳格ウォークフォワード検証（データリーク完全防止バックテスト）")
-    if st.button("▶️ 会社資金10$倍増 v13厳格検証開始", use_container_width=True):
-        with st.spinner("未来情報リークを完全に排除したウォークフォワード検証を実行中..."):
+    st.subheader("🚀 厳格ウォークフォワード検証（未来リーク完全排除バックテスト）")
+    if st.button("▶️ 会社資金10$倍増 v15.1厳格検証開始", use_container_width=True):
+        with st.spinner("ハイロー値幅到達を直接学習したウォークフォワード検証を実行中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
             df_target = all_dfs.get(selected_symbol)
             if df_target is None or len(df_target) < 300:
                 st.error("データ件数が不足しています（最低300本必要です）。")
             else:
-                res_df = run_v13_walkforward(
+                res_df = run_v15_walkforward(
                     selected_symbol, all_dfs, stake_usd=stake_usd, hold_bars=hold_bars, fixed_range_usd=fixed_range_usd
                 )
                 show_audit_dashboard(res_df, stake_usd, fixed_range_usd)
@@ -715,19 +788,19 @@ with tab1:
             pass
 
 
-# -------------------- ⑧ タブ2: 全12市場一斉自動無限ループスキャナー --------------------
+# -------------------- ⑨ タブ2: 全市場スキャナー --------------------
 
 with tab2:
-    st.subheader("🌌 v10/v13 全12市場一斉自動無限ループスキャナー")
-    st.caption("暗号資産・原油・金・日経・米国株・為替・金利の全12市場を裏で一斉に解析し、各銘柄のクイックモード目標値幅に基づいた勝負候補をランキング表示します。")
+    st.subheader("🌌 v15.1 全12市場リアルタイム・方向判定スキャナー")
+    st.caption("全12市場を対象に、上下両方向の確率パネルを評価し、通常候補・条件付き候補・一時停止の3段階でチャンスを探索します。")
 
-    if st.button("🔍 全12市場を一斉スキャンする", use_container_width=True):
-        with st.spinner("全12市場のデータを同期・厳格解析中..."):
+    if st.button("🔍 全12市場を一斉スキャン", use_container_width=True):
+        with st.spinner("全12市場の方向判定スキャンを実行中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
             fixed_ranges_map = {name: cfg["quick_range_usd"] for name, cfg in SYMBOLS_CONFIG.items()}
-            scanner_df = run_v13_multi_market_scanner(all_dfs, fixed_ranges_map)
+            scanner_df = run_v15_multi_market_scanner(all_dfs, fixed_ranges_map)
             if not scanner_df.empty:
-                st.success("スキャン完了：確率ギャップとクイック値幅に基づくランキングです。")
-                st.dataframe(scanner_df.sort_values(by="確率ギャップ", ascending=False), use_container_width=True, hide_index=True)
+                st.success("スキャン完了：全市場の方向判定パネル一覧です。")
+                st.dataframe(scanner_df, use_container_width=True, hide_index=True)
             else:
                 st.warning("スキャン可能なデータが不足しています。")
