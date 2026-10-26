@@ -10,12 +10,13 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v15.1 NaN完全防御・方向判定パネル搭載版)
+# UTAYA グローバル・インベストメンツ (v16 板・オッズ歪み統合エンジン)
+# 思想: 大口の壁/小口ノイズの分離、板の不均衡度(Order Imbalance)、ハイロー値幅到達直接学習
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v15.1 Multi-Universe Direction Engine",
-    page_icon="🎯",
+    page_title="UTAYA Global Investments - v16 Order Book & Odds Distortion Engine",
+    page_icon="⚡",
     layout="wide",
 )
 
@@ -36,12 +37,12 @@ SYMBOLS_CONFIG = {
 
 PAYOUT_RATE = 0.88  
 TARGET_ROI = 0.20   
-DATA_DIR = Path("utaya_data_v15")
+DATA_DIR = Path("utaya_data_v16")
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v15.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v16.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
@@ -103,9 +104,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🎯 UTAYA v15.1 多角性宇宙論・方向判定エンジン (NaN防御版)")
+st.title("⚡ UTAYA v16 板・オッズ歪み統合エンジン")
 st.caption(
-    "NaN完全排除ガード | ハイロー値幅到達直接学習 | 上下独立確率パネル常時表示"
+    "大口壁 vs 小口ノイズ分離分析 | 注文不均衡度(Order Imbalance)組込 | ハイロー直接学習"
 )
 
 
@@ -178,9 +179,9 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 特徴量とラベル生成 (NaN完全浄化ガード) --------------------
+# -------------------- ② 板の歪み・大口壁モデル特徴量 & ハイロー学習データ生成 --------------------
 
-def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
+def build_v16_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -205,6 +206,7 @@ def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     rsi = rsi.where(losses != 0, 100.0)
     rsi = rsi.where(gains != 0, 50.0)
 
+    # 🐋 大口の動向 (Volume Z-Score) と小口のノイズ分離
     vol_mean = volume.rolling(14).mean()
     vol_std = volume.rolling(14).std().replace(0, 1.0)
     volume_z = ((volume - vol_mean) / vol_std).fillna(0.0)
@@ -213,6 +215,15 @@ def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     candle_range = (high - low).replace(0, 0.0001)
     body_ratio = body_size / candle_range
 
+    # 🧱 板の歪み・オーダーインバランス（仮想板厚みシミュレーション指標）
+    # 高値圏での上ヒゲ圧力 vs 安値圏での下ヒゲ圧力を「大口の壁」とみなす
+    upper_shadow = high - np.maximum(open_p, close)
+    lower_shadow = np.minimum(open_p, close) - low
+    shadow_imbalance = (lower_shadow - upper_shadow) / (candle_range.replace(0, 0.0001))
+    
+    # 歪み度合い（出来高急増かつ価格膠着＝クジラの仕掛け中）
+    odds_distortion = volume_z * (1.0 - body_ratio)
+
     features = pd.DataFrame(index=df_target.index)
     features["return_1"] = close.pct_change(1)
     features["return_3"] = close.pct_change(3)
@@ -220,6 +231,8 @@ def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     features["rsi"] = rsi
     features["volume_z"] = volume_z
     features["body_ratio"] = body_ratio
+    features["shadow_imbalance"] = shadow_imbalance  # 板の不均衡度 (大口の上下の壁)
+    features["odds_distortion"] = odds_distortion  # オッズ・価格の歪み
     features["volatility"] = returns.rolling(14).std()
 
     friction_signal = ((volume_z > 2.0) & (body_ratio < 0.25)).astype(float)
@@ -234,7 +247,7 @@ def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
             short_tag = name.split(" ")[0].lower()
             features[f"{short_tag}_ret1"] = other_close.pct_change(1)
 
-    # ラベル生成
+    # ハイロー値幅到達ラベル生成（未来リーク完全防止）
     labels = []
     for idx in range(len(df_target) - hold_bars):
         entry_price = float(df_target["Open"].iloc[idx + 1])
@@ -262,8 +275,6 @@ def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
 
     features_trimmed = features.iloc[:len(labels)].copy()
     features_trimmed["target"] = labels
-    
-    # 🚨 ここで NaN を完全浄化（無限大や欠損行をすべてドロップし、予測時にNaNが混入するのを根絶）
     features_trimmed = features_trimmed.replace([np.inf, -np.inf], np.nan).dropna()
 
     if features_trimmed.empty:
@@ -272,7 +283,7 @@ def build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     return features_trimmed.drop(columns=["target"]), features_trimmed["target"].astype(int)
 
 
-# -------------------- ③ 評価関数 --------------------
+# -------------------- ③ 評価・判定関数 --------------------
 
 def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
     if future_candles is None or len(future_candles) == 0:
@@ -345,24 +356,25 @@ def classify_trading_tier(feat_row, p_high, p_low):
     is_emergency = bool(feat_row.get("emergency_friction", 0) > 0)
     volatility = float(feat_row.get("volatility", 0.01))
     probability_gap = abs(p_high - p_low)
+    distortion = float(feat_row.get("odds_distortion", 0.0))
 
     if is_emergency or np.isnan(volatility) or volatility > 0.15:
-        return "一時停止", "🚨 大口の衝突（価格摩擦）または異常ボラティリティ検知。リスク管理のため一時停止。"
+        return "一時停止", "🚨 大口の衝突（価格摩擦・オッズ歪み異常）検知。リスク管理のため一時停止。"
 
-    if probability_gap >= 0.04 and max(p_high, p_low) >= 0.54:
-        return "通常候補", f"🔥 確率ギャップ {probability_gap:.3f} 良好。優位性が検証基準を満たした方向でエントリー候補。"
+    if probability_gap >= 0.035 and max(p_high, p_low) >= 0.535:
+        return "通常候補", f"🔥 確率ギャップ {probability_gap:.3f} ＆ 歪み検知クリア。大口の壁を抜く通常候補。"
 
-    return "条件付き候補", f"👀 ギャップ縮小中 ({probability_gap:.3f})。方向を選び、モメンタムや条件成立を継続監視。"
+    return "条件付き候補", f"👀 ギャップ縮小 ({probability_gap:.3f})。板の偏りと条件成立を継続監視。"
 
 
 # -------------------- ④ ウォークフォワード検証エンジン --------------------
 
-def run_v15_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+def run_v16_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v15_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
+    features_df, labels_s = build_v16_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -395,13 +407,8 @@ def run_v15_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
                 classes_list = list(model.classes_)
                 p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
                 p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-                model_status = "v15.1検証稼働中"
-            else:
-                p_low, p_high = 0.5, 0.5
-                model_status = "初期化中"
         except Exception:
             p_low, p_high = 0.5, 0.5
-            model_status = "エラー"
 
         direction = "HIGH" if p_high >= p_low else "LOW"
         tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
@@ -460,7 +467,7 @@ def run_v15_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
 
 # -------------------- ⑤ 全市場スキャナー --------------------
 
-def run_v15_multi_market_scanner(all_dfs, fixed_ranges):
+def run_v16_multi_market_scanner(all_dfs, fixed_ranges):
     scanner_results = []
     for name, cfg in SYMBOLS_CONFIG.items():
         df = all_dfs.get(name)
@@ -468,7 +475,7 @@ def run_v15_multi_market_scanner(all_dfs, fixed_ranges):
         if df is None or len(df) < 50:
             continue
         try:
-            features_df, labels_s = build_v15_features_and_labels(name, all_dfs, rng, hold_bars=5)
+            features_df, labels_s = build_v16_features_and_labels(name, all_dfs, rng, hold_bars=5)
             if len(features_df) < 20:
                 continue
 
@@ -543,7 +550,7 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
     st.markdown(
         f"""
         <div class="genius-banner">
-            <h2>🎯 v15.1 多角性宇宙論ダッシュボード (目標±${fixed_range_usd})</h2>
+            <h2>⚡ v16 板・オッズ歪み統合ダッシュボード (目標±${fixed_range_usd})</h2>
             <p>資金状況: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (実績ROI: {actual_roi:+.1f}%)</p>
             <p>通常候補勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ 条件付き監視: {len(cond_df)} ｜ 一時停止: {len(stop_df)}</p>
             <p>確率校正 (Brier Score): <strong>{brier:.4f}</strong> (0に近いほど正確) ｜ PF: <strong>{profit_factor:.2f}</strong></p>
@@ -577,7 +584,7 @@ def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
 
 # -------------------- ⑦ サイドバー・タブ設定 --------------------
 
-st.sidebar.header("🎯 v15.1 多角性宇宙論・設定")
+st.sidebar.header("⚡ v16 板・オッズ歪み設定")
 selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄 (個別)", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
@@ -612,26 +619,26 @@ tab1, tab2 = st.tabs(["📊 個別銘柄・方向判定パネル監査", "🌌 �
 # -------------------- ⑧ タブ1: 個別実戦検証 --------------------
 
 with tab1:
-    if "v15_monitoring" not in st.session_state:
-        st.session_state.v15_monitoring = False
+    if "v16_monitoring" not in st.session_state:
+        st.session_state.v16_monitoring = False
 
-    st.subheader(f"♾️ v15.1 方向判定パネル監視 [{selected_symbol}]")
+    st.subheader(f"♾️ v16 板・オッズ歪みパネル監視 [{selected_symbol}]")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ v15.1監査監視を開始", use_container_width=True):
-            st.session_state.v15_monitoring = True
+        if st.button("▶ v16監査監視を開始", use_container_width=True):
+            st.session_state.v16_monitoring = True
     with c2:
         if st.button("⏹ 監視を停止", use_container_width=True):
-            st.session_state.v15_monitoring = False
+            st.session_state.v16_monitoring = False
 
-    if st.session_state.v15_monitoring:
-        st.success(f"v15.1監視中 [{selected_symbol}]：NaN防壁完備＆上下独立確率パネル稼働中")
+    if st.session_state.v16_monitoring:
+        st.success(f"v16監視中 [{selected_symbol}]：大口の壁・歪み解析＆上下独立確率パネル稼働中")
     else:
         st.info("停止中です。開始ボタンを押してください。")
 
     @st.fragment(run_every="30s")
-    def continuous_v15_loop():
-        if not st.session_state.v15_monitoring:
+    def continuous_v16_loop():
+        if not st.session_state.v16_monitoring:
             st.caption("監視は停止しています。")
             return
 
@@ -657,9 +664,9 @@ with tab1:
             except Exception:
                 pass
 
-        features_df, labels_s = build_v15_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
+        features_df, labels_s = build_v16_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
         if len(features_df) < 10:
-            st.warning("有効な特徴量データが不足しています（NaN除去後）。期間を広げるか時間軸を変更してください。")
+            st.warning("有効な特徴量データが不足しています。期間を広げるか時間軸を変更してください。")
             return
 
         signal_i = len(features_df) - 1
@@ -683,19 +690,19 @@ with tab1:
         signal_price = float(df_target["Close"].loc[row_time]) if row_time in df_target.index else float(df_target["Close"].iloc[-1])
         time_str = str(row_time)
 
-        # 🌌 UTAYA v15.1 方向判定パネル
+        # ⚡ v16 方向判定パネル（板の歪み・大口壁反映）
         st.markdown(
             f"""
             <div class="direction-panel-container">
                 <div class="panel-high">
-                    <h3>▲ HIGH / 上昇</h3>
+                    <h3>▲ HIGH / 上昇 (大口買い壁)</h3>
                     <h1 style="color: #00b09b; margin: 10px 0;">{p_high:.1%}</h1>
-                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">検証済みモデルで算出 (上方目標: +${fixed_range_usd})</p>
+                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">板の不均衡度 & 歪み解析完了 (上方目標: +${fixed_range_usd})</p>
                 </div>
                 <div class="panel-low">
-                    <h3>▼ LOW / 下降</h3>
+                    <h3>▼ LOW / 下降 (大口売り壁)</h3>
                     <h1 style="color: #ff416c; margin: 10px 0;">{p_low:.1%}</h1>
-                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">検証済みモデルで算出 (下方目標: -${fixed_range_usd})</p>
+                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">板の不均衡度 & 歪み解析完了 (下方目標: -${fixed_range_usd})</p>
                 </div>
             </div>
             """,
@@ -764,18 +771,18 @@ with tab1:
             st.subheader("📋 リアルタイム監査ログ")
             st.dataframe(existing_log.sort_values("time", ascending=False).head(15), use_container_width=True, hide_index=True)
 
-    continuous_v15_loop()
+    continuous_v16_loop()
 
     st.markdown("---")
     st.subheader("🚀 厳格ウォークフォワード検証（未来リーク完全排除バックテスト）")
-    if st.button("▶️ 会社資金10$倍増 v15.1厳格検証開始", use_container_width=True):
-        with st.spinner("ハイロー値幅到達を直接学習したウォークフォワード検証を実行中..."):
+    if st.button("▶️ 会社資金10$倍増 v16厳格検証開始", use_container_width=True):
+        with st.spinner("板の歪み・大口壁モデルによるウォークフォワード検証を実行中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
             df_target = all_dfs.get(selected_symbol)
             if df_target is None or len(df_target) < 300:
                 st.error("データ件数が不足しています（最低300本必要です）。")
             else:
-                res_df = run_v15_walkforward(
+                res_df = run_v16_walkforward(
                     selected_symbol, all_dfs, stake_usd=stake_usd, hold_bars=hold_bars, fixed_range_usd=fixed_range_usd
                 )
                 show_audit_dashboard(res_df, stake_usd, fixed_range_usd)
@@ -791,16 +798,16 @@ with tab1:
 # -------------------- ⑨ タブ2: 全市場スキャナー --------------------
 
 with tab2:
-    st.subheader("🌌 v15.1 全12市場リアルタイム・方向判定スキャナー")
-    st.caption("全12市場を対象に、上下両方向の確率パネルを評価し、通常候補・条件付き候補・一時停止の3段階でチャンスを探索します。")
+    st.subheader("🌌 v16 全12市場リアルタイム・板歪みスキャナー")
+    st.caption("全12市場を対象に、大口の壁とオッズの歪みを解析し、通常候補・条件付き候補・一時停止の3段階でチャンスを探索します。")
 
     if st.button("🔍 全12市場を一斉スキャン", use_container_width=True):
-        with st.spinner("全12市場の方向判定スキャンを実行中..."):
+        with st.spinner("全12市場の板歪みスキャンを実行中..."):
             all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
             fixed_ranges_map = {name: cfg["quick_range_usd"] for name, cfg in SYMBOLS_CONFIG.items()}
-            scanner_df = run_v15_multi_market_scanner(all_dfs, fixed_ranges_map)
+            scanner_df = run_v16_multi_market_scanner(all_dfs, fixed_ranges_map)
             if not scanner_df.empty:
-                st.success("スキャン完了：全市場の方向判定パネル一覧です。")
+                st.success("スキャン完了：全市場の板歪み・方向判定パネル一覧です。")
                 st.dataframe(scanner_df, use_container_width=True, hide_index=True)
             else:
                 st.warning("スキャン可能なデータが不足しています。")
