@@ -1,606 +1,274 @@
+# -*- coding: utf-8 -*-
+"""UTAYA v27 | 機関投資家・マルチアセット歪みランキング＆90%複利自律AIエンジン。利益保証なし。"""
+from __future__ import annotations
+import json, re, os, time
+from pathlib import Path
+from datetime import datetime, timezone
+import joblib
+import numpy as np
+import pandas as pd
 import streamlit as st
 import yfinance as yf
-import pandas as pd
-import numpy as np
-from pathlib import Path
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import brier_score_loss
-from datetime import datetime
-import joblib
-import re
-import os
-import json
 
-# =========================================================
-# UTAYA グローバル・インベストメンツ (v22 統合せん滅・実証型AIエンジン)
-# 思想: 8501(短期量子・高速) + 8503(12市場スキャン・3段階判定) の完全融合、未来リーク完全根絶
-# =========================================================
+st.set_page_config(page_title="UTAYA v27 | 機関マルチアセットAI", page_icon="⚡", layout="wide")
 
-st.set_page_config(
-    page_title="UTAYA Global Investments - v22 Unified Empirical Combat Engine",
-    page_icon="⚡",
-    layout="wide",
-)
-
-SYMBOLS_CONFIG = {
-    "BTC (暗号資産)": {"ticker": "BTC-USD", "quick_range_usd": 50.0},
-    "ETH (暗号資産)": {"ticker": "ETH-USD", "quick_range_usd": 15.0},
-    "SOL (暗号資産)": {"ticker": "SOL-USD", "quick_range_usd": 2.0},
-    "XRP (暗号資産)": {"ticker": "XRP-USD", "quick_range_usd": 0.05},
-    "BNB (暗号資産)": {"ticker": "BNB-USD", "quick_range_usd": 5.0},
-    "WTI原油 (エネルギー)": {"ticker": "CL=F", "quick_range_usd": 0.40},
-    "金スポット (貴金属)": {"ticker": "GC=F", "quick_range_usd": 5.0},
-    "日経平均 (日本株)": {"ticker": "^N225", "quick_range_usd": 100.0},
-    "S&P 500 (米国株)": {"ticker": "^GSPC", "quick_range_usd": 15.0},
-    "Nasdaq 100 (米国株)": {"ticker": "^NDX", "quick_range_usd": 50.0},
-    "USD/JPY (為替)": {"ticker": "USDJPY=X", "quick_range_usd": 0.15},
-    "米10年債利回り (金利)": {"ticker": "^TNX", "quick_range_usd": 0.05},
+SYMBOLS = {
+    "BTC": {"ticker":"BTC-USD","range":50.0},
+    "ETH": {"ticker":"ETH-USD","range":15.0},
+    "SOL": {"ticker":"SOL-USD","range":2.0},
+    "XRP": {"ticker":"XRP-USD","range":0.05},
+    "BNB": {"ticker":"BNB-USD","range":5.0},
+    "WTI原油": {"ticker":"CL=F","range":0.40},
+    "金先物": {"ticker":"GC=F","range":5.0},
+    "日経平均": {"ticker":"^N225","range":100.0},
+    "S&P 500": {"ticker":"^GSPC","range":15.0},
+    "Nasdaq 100": {"ticker":"^NDX","range":50.0},
+    "USD/JPY": {"ticker":"USDJPY=X","range":0.15},
+    "米10年債利回り": {"ticker":"^TNX","range":0.05},
 }
+DEFAULT_DIR = Path(r"E:\utaya_3tb_ai_storage\utaya_v27")
+ROOT = Path(os.environ.get("UTAYA_DATA_DIR", str(DEFAULT_DIR)))
+HISTORY, MODELS, LOGS = ROOT/"history", ROOT/"models", ROOT/"logs"
+for p in (ROOT,HISTORY,MODELS,LOGS): p.mkdir(parents=True, exist_ok=True)
 
-PAYOUT_RATE = 0.88  # ハイローペイアウト率 (仮定値・実際の提供条件で変動)
-DATA_DIR = Path("utaya_data_v22")
-DATA_DIR.mkdir(exist_ok=True)
-
-GLOBAL_HISTORY_DIR = DATA_DIR / "history"
-GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-MODEL_DIR = DATA_DIR / "models"
-MODEL_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v22.csv"
-
-# -------------------- CSS --------------------
-st.markdown(
-    """
-    <style>
-    .unified-banner {
-        background: linear-gradient(135deg, #0a0f1d, #1f2833, #0b0c10);
-        padding: 20px;
-        border-radius: 12px;
-        color: #66fcf1;
-        text-align: center;
-        margin-bottom: 20px;
-        border: 1px solid #45a29e;
-    }
-    .panel-container {
-        display: flex;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-    .panel-high {
-        flex: 1;
-        background: rgba(102, 252, 241, 0.1);
-        border: 2px solid #66fcf1;
-        padding: 18px;
-        border-radius: 10px;
-        text-align: center;
-    }
-    .panel-low {
-        flex: 1;
-        background: rgba(255, 75, 75, 0.1);
-        border: 2px solid #ff4b4b;
-        padding: 18px;
-        border-radius: 10px;
-        text-align: center;
-    }
-    .circuit-lock {
-        background: rgba(255, 0, 0, 0.3);
-        border-left: 6px solid #ff0000;
-        padding: 15px;
-        border-radius: 6px;
-        margin-bottom: 15px;
-        color: #ffcccc;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.title("⚡ UTAYA v22 統合せん滅・実証型AIエンジン")
-st.caption(
-    "8501(短期量子) ＋ 8503(12市場・3段階判定) 完全統合 | 未来リーク完全排除 | 15$鉄壁防衛網"
-)
-
-
-# -------------------- ① 安全ファイル名変換・データ同期 --------------------
-
-def get_safe_filename(target_name):
-    return re.sub(r'[^a-zA-Z0-9_]', '_', SYMBOLS_CONFIG[target_name]["ticker"])
-
+def slug(name):
+    return re.sub(r"[^A-Za-z0-9_-]", "_", SYMBOLS[name]["ticker"])
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_single_market_data(ticker, period="60d", interval="1h"):
-    file_path = GLOBAL_HISTORY_DIR / f"{ticker.replace('^', '').replace('=', '_')}_{interval}.csv"
+def fetch_data(ticker, period, interval):
+    path = HISTORY / f"{ticker.replace('^','').replace('=','_')}_{interval}.csv"
     try:
-        df_new = yf.download(
-            ticker,
-            period=period,
-            interval=interval,
-            auto_adjust=False,
-            progress=False,
-            threads=False,
-        )
-        if df_new is not None and not df_new.empty:
-            if isinstance(df_new.columns, pd.MultiIndex):
-                df_new.columns = df_new.columns.get_level_values(0)
-            cols = ["Open", "High", "Low", "Close", "Volume"] if "Volume" in df_new.columns else ["Open", "High", "Low", "Close"]
-            if all(c in df_new.columns for c in ["Open", "High", "Low", "Close"]):
-                df_new = df_new[cols].copy()
-                if "Volume" not in df_new.columns:
-                    df_new["Volume"] = np.nan
-                df_new = df_new.apply(pd.to_numeric, errors="coerce").dropna(subset=["Open", "High", "Low", "Close"])
-                df_new.index = pd.to_datetime(df_new.index)
-                if df_new.index.tz is not None:
-                    df_new.index = df_new.index.tz_localize(None)
-                df_new = df_new[(df_new["Close"] > 0) & (df_new["High"] >= df_new["Low"])]
-                df_new = df_new[~df_new.index.duplicated(keep="last")].sort_index()
-
-                if file_path.exists():
-                    try:
-                        df_old = pd.read_csv(file_path, index_col=0, parse_dates=True)
-                        df_old.index = pd.to_datetime(df_old.index)
-                        if df_old.index.tz is not None:
-                            df_old.index = df_old.index.tz_localize(None)
-                        df_combined = pd.concat([df_old, df_new])
-                        df_combined = df_combined[~df_combined.index.duplicated(keep="last")].sort_index()
-                        df_combined.to_csv(file_path, encoding="utf-8-sig")
-                    except Exception:
-                        df_new.to_csv(file_path, encoding="utf-8-sig")
-                else:
-                    df_new.to_csv(file_path, encoding="utf-8-sig")
-
-        if file_path.exists():
-            df_stored = pd.read_csv(file_path, index_col=0, parse_dates=True)
-            df_stored.index = pd.to_datetime(df_stored.index)
-            if df_stored.index.tz is not None:
-                df_stored.index = df_stored.index.tz_localize(None)
-            return df_stored.sort_index()
-        return df_new
-    except Exception:
-        if file_path.exists():
-            df_stored = pd.read_csv(file_path, index_col=0, parse_dates=True)
-            df_stored.index = pd.to_datetime(df_stored.index)
-            if df_stored.index.tz is not None:
-                df_stored.index = df_stored.index.tz_localize(None)
-            return df_stored.sort_index()
-        return None
-
-
-def fetch_all_markets_data(period="60d", interval="1h"):
-    all_dfs = {}
-    for name, cfg in SYMBOLS_CONFIG.items():
-        df = fetch_single_market_data(cfg["ticker"], period=period, interval=interval)
-        if df is not None and not df.empty:
-            all_dfs[name] = df
-    return all_dfs
-
-
-# -------------------- ② 厳格な勝敗評価 ＆ 統合特徴量生成 --------------------
-
-def evaluate_unified_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
-    if future_candles is None or len(future_candles) == 0:
-        return "PENDING", "未来足未到着", "PENDING", None
-
-    upper_target = float(entry_price) + fixed_range_usd
-    lower_target = float(entry_price) - fixed_range_usd
-
-    for idx, candle in future_candles.iterrows():
-        h = float(candle["High"])
-        l = float(candle["Low"])
-
-        hit_up = h >= upper_target
-        hit_down = l <= lower_target
-
-        if hit_up and hit_down:
-            return "NOISE", "同一足で上下両方到達（判定不能）", "VOLATILITY_NOISE", str(idx)
-        if hit_up:
-            if direction == "HIGH":
-                return "WIN", "上方ターゲット先着", "SUCCESS_HIGH", str(idx)
-            else:
-                return "LOSS", "上方逆行被弾", "REVERSE_HIGH", str(idx)
-        if hit_down:
-            if direction == "LOW":
-                return "WIN", "下方ターゲット先着", "SUCCESS_LOW", str(idx)
-            else:
-                return "LOSS", "下方逆行被弾", "REVERSE_LOW", str(idx)
-
-    if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "期限内ターゲット未達", "TIMEOUT", str(future_candles.index[-1])
-
-    return "PENDING", "交戦中", "PENDING", None
-
-
-def build_v22_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
-    if target_name not in all_dfs:
-        return pd.DataFrame(), pd.Series(dtype=int)
-
-    df_target = all_dfs[target_name].copy()
-    df_target.index = pd.to_datetime(df_target.index)
-    if df_target.index.tz is not None:
-        df_target.index = df_target.index.tz_localize(None)
-
-    open_p = df_target["Open"].astype(float)
-    high = df_target["High"].astype(float)
-    low = df_target["Low"].astype(float)
-    close = df_target["Close"].astype(float)
-    volume = df_target["Volume"].astype(float) if "Volume" in df_target.columns else pd.Series(np.nan, index=df_target.index)
-
-    returns = close.pct_change()
-    delta = close.diff()
-    
-    gains = delta.clip(lower=0).rolling(14).mean()
-    losses = (-delta.clip(upper=0)).rolling(14).mean()
-    rs = gains / losses.replace(0, np.nan)
-    rsi = 100 - (100 / (1 + rs))
-    rsi = rsi.where(losses != 0, 100.0)
-    rsi = rsi.where(gains != 0, 50.0)
-
-    rolling_std = returns.rolling(14).std()
-    squeeze_index = rolling_std / rolling_std.rolling(30).mean().replace(0, 0.0001)
-
-    body_size = (close - open_p).abs()
-    candle_range = (high - low).replace(0, 0.0001)
-    body_ratio = body_size / candle_range
-    upper_pressure = (high - np.maximum(open_p, close)) / candle_range
-    lower_pressure = (np.minimum(open_p, close) - low) / candle_range
-
-    features = pd.DataFrame(index=df_target.index)
-    features["return_1"] = close.pct_change(1)
-    features["return_3"] = close.pct_change(3)
-    features["sma_ratio_10"] = (close - close.rolling(10).mean()) / close.rolling(10).mean()
-    features["rsi"] = rsi
-    features["squeeze_index"] = squeeze_index
-    features["body_ratio"] = body_ratio
-    features["pressure_diff"] = lower_pressure - upper_pressure
-    features["volatility"] = rolling_std
-
-    # 8501/8503統合：クロスマーケット特徴量（他市場のトレンドを反映）
-    for name, cfg in SYMBOLS_CONFIG.items():
-        if name == target_name:
-            continue
-        df_other = all_dfs.get(name)
-        if df_other is not None and not df_other.empty:
-            other_close = df_other["Close"].reindex(df_target.index, method="ffill", limit=3).astype(float)
-            short_tag = name.split(" ")[0].lower()
-            features[f"{short_tag}_ret1"] = other_close.pct_change(1)
-
-    labels = []
-    valid_index = []
-    
-    for idx in range(len(df_target) - hold_bars):
-        row_time = df_target.index[idx]
-        entry_price = float(df_target["Open"].iloc[idx + 1])
-        future_window = df_target.iloc[idx + 1 : idx + 1 + hold_bars]
-        
-        res, _, _, _ = evaluate_unified_outcome(entry_price, "HIGH", future_window, fixed_range_usd, hold_bars)
-        
-        if res == "WIN":
-            labels.append(1)
-            valid_index.append(row_time)
-        elif res in ["LOSS", "TIMEOUT"]:
-            labels.append(0)
-            valid_index.append(row_time)
-
-    features_valid = features.loc[valid_index].copy()
-    features_valid["target"] = labels
-    features_valid = features_valid.replace([np.inf, -np.inf], np.nan).dropna()
-
-    if features_valid.empty:
-        return pd.DataFrame(), pd.Series(dtype=int)
-
-    return features_valid.drop(columns=["target"]), features_valid["target"].astype(int)
-
-
-# -------------------- ③ 3段階判定 ＆ 15ドル資金防衛 --------------------
-
-def classify_combat_tier(feat_row, p_high, p_low, current_capital):
-    if current_capital <= 10.0:
-        return "重大リスク・一時停止", f"🚨 15$防衛発動 (残高 ${current_capital:.2f})。資産保護のため新規エントリーを完全凍結します。"
-
-    probability_gap = abs(p_high - p_low)
-    squeeze = float(feat_row.get("squeeze_index", 1.0))
-
-    if probability_gap >= 0.05:
-        return "通常エントリー候補", f"💎 確率ギャップ {probability_gap:.3f} 達成。検証済み通常エントリー候補。"
-
-    return "条件付き監視", f"👀 ギャップ蓄積中（ギャップ {probability_gap:.3f}）。条件成立を継続監視。"
-
-
-# -------------------- ④ モデル永続化・オンライン管理 --------------------
-
-class UnifiedModelManager:
-    def __init__(self, target_name):
-        self.target_name = target_name
-        self.safe_name = get_safe_filename(target_name)
-        self.model_path = MODEL_DIR / f"model_v22_{self.safe_name}.pkl"
-        self.scaler_path = MODEL_DIR / f"scaler_v22_{self.safe_name}.pkl"
-        self.meta_path = MODEL_DIR / f"meta_v22_{self.safe_name}.json"
-        
-        self.model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
-        self.scaler = StandardScaler()
-        self.meta = {"trained_samples": 0, "learned_ids": []}
-
-    def load(self, fixed_range_usd, hold_bars):
-        if self.model_path.exists() and self.scaler_path.exists() and self.meta_path.exists():
-            try:
-                with open(self.meta_path, "r", encoding="utf-8") as f:
-                    meta = json.load(f)
-                if meta.get("fixed_range_usd") == fixed_range_usd and meta.get("hold_bars") == hold_bars:
-                    self.model = joblib.load(self.model_path)
-                    self.scaler = joblib.load(self.scaler_path)
-                    self.meta = meta
-                    return True
-            except Exception:
-                pass
-        return False
-
-    def save(self, fixed_range_usd, hold_bars):
-        joblib.dump(self.model, self.model_path)
-        joblib.dump(self.scaler, self.scaler_path)
-        self.meta["fixed_range_usd"] = fixed_range_usd
-        self.meta["hold_bars"] = hold_bars
-        self.meta["version"] = "v22_unified"
-        with open(self.meta_path, "w", encoding="utf-8") as f:
-            json.dump(self.meta, f, ensure_ascii=False, indent=2)
-
-    def initialize_fit(self, X, y, fixed_range_usd, hold_bars):
-        if X is not None and len(X) > 0:
-            self.scaler.fit(X)
-            X_sc = self.scaler.transform(X)
-            self.model.partial_fit(X_sc, y, classes=np.array([0, 1]))
-            self.meta["trained_samples"] = int(len(X))
-            self.save(fixed_range_usd, hold_bars)
-
-    def update_online(self, feat_row_df, actual_label, fixed_range_usd, hold_bars, signal_id):
-        if signal_id in self.meta.get("learned_ids", []):
-            return False
-        X_new = self.scaler.transform(feat_row_df.values)
-        self.model.partial_fit(X_new, np.array([actual_label]), classes=np.array([0, 1]))
-        self.meta.setdefault("learned_ids", []).append(signal_id)
-        self.meta["trained_samples"] += 1
-        self.save(fixed_range_usd, hold_bars)
-        return True
-
-
-# -------------------- ⑤ ウォークフォワード・バックテストエンジン --------------------
-
-def run_v22_unified_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
-    df_target = all_dfs.get(target_name)
-    if df_target is None or len(df_target) < 300:
-        return pd.DataFrame()
-
-    features_df, labels_s = build_v22_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
-    if len(features_df) < 100:
-        return pd.DataFrame()
-
-    model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
-    scaler = StandardScaler()
-
-    init_end = int(len(features_df) * 0.3)
-    X_init = features_df.iloc[:init_end].values
-    y_init = labels_s.iloc[:init_end].values
-
-    scaler.fit(X_init)
-    model.partial_fit(scaler.transform(X_init), y_init, classes=np.array([0, 1]))
-
-    records = []
-    current_capital = stake_usd
-    peak_capital = stake_usd
-
-    for i in range(init_end, len(features_df) - hold_bars):
-        row_time = features_df.index[i]
-        feat_row = features_df.iloc[i]
-
-        X_pred = scaler.transform(np.array([feat_row.values]))
-        try:
-            probs = model.predict_proba(X_pred)[0]
-            classes_list = list(model.classes_)
-            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
-            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-        except Exception:
-            p_low, p_high = 0.5, 0.5
-
-        direction = "HIGH" if p_high >= p_low else "LOW"
-        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, current_capital)
-
-        try:
-            entry_idx_loc = df_target.index.get_loc(row_time) + 1
-            entry_price = float(df_target["Open"].iloc[entry_idx_loc])
-            future_window = df_target.iloc[entry_idx_loc : entry_idx_loc + hold_bars]
-        except Exception:
-            continue
-
-        result, reason, category, settle_time = evaluate_unified_outcome(
-            entry_price, direction, future_window, fixed_range_usd, hold_bars=hold_bars
-        )
-        
-        status = "SETTLED" if result != "PENDING" else "PENDING"
-        pnl = 0.0
-        if status == "SETTLED":
-            if "一時停止" in tier:
-                pnl = 0.0
-            elif tier == "通常エントリー候補":
-                if result == "WIN":
-                    pnl = stake_usd * PAYOUT_RATE
-                elif result in ["LOSS", "TIMEOUT"]:
-                    pnl = -stake_usd
-                else:
-                    pnl = 0.0
-                
-                current_capital += pnl
-                if current_capital > peak_capital:
-                    peak_capital = current_capital
-
-        actual_label = int(labels_s.loc[row_time]) if row_time in labels_s.index else 0
-        try:
-            model.partial_fit(X_pred, np.array([actual_label]), classes=np.array([0, 1]))
-        except ValueError:
-            pass
-
-        records.append({
-            "time": str(row_time),
-            "symbol": target_name,
-            "direction": direction,
-            "p_high": p_high,
-            "p_low": p_low,
-            "tier": tier,
-            "result": result,
-            "pnl_usd": pnl,
-            "capital": current_capital,
-        })
-
-    res_df = pd.DataFrame(records)
-    if not res_df.empty:
-        res_df.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
-    return res_df
-
-
-# -------------------- ⑥ ダッシュボード・UI描画 --------------------
-
-st.sidebar.header("⚡ v22 統合せん滅司令室")
-selected_symbol = st.sidebar.selectbox("🎯 ターゲット銘柄", options=list(SYMBOLS_CONFIG.keys()), index=0)
-
-cfg = SYMBOLS_CONFIG[selected_symbol]
-default_range = cfg["quick_range_usd"]
-
-fixed_range_usd = st.sidebar.number_input("📏 目標値幅 (±$)", 0.001, 10000.0, float(default_range), 0.01, format="%.2f")
-stake_usd = st.sidebar.number_input("💵 参戦資金 ($)", 1.0, 10000.0, 15.0, 1.0)
-hold_bars = st.sidebar.slider("⏱️ 判定期間 (本)", 1, 20, 5)
-
-if st.sidebar.button("🔄 記憶・モデル完全リセット", use_container_width=True):
-    if ANALYSIS_LOG_FILE.exists():
-        ANALYSIS_LOG_FILE.unlink()
-    for f in MODEL_DIR.glob("*.pkl"):
-        f.unlink()
-    for f in MODEL_DIR.glob("*.json"):
-        f.unlink()
-    st.sidebar.success("完全初期化完了。")
-    st.rerun()
-
-tab1, tab2 = st.tabs(["⚡ 個別実戦・真の最新足検証", "🌌 全市場・実証スキャナー"])
-
-with tab1:
-    if "v22_active" not in st.session_state:
-        st.session_state.v22_active = False
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("▶ 統合AI起動", use_container_width=True):
-            st.session_state.v22_active = True
-    with c2:
-        if st.button("⏹ 緊急停戦", use_container_width=True):
-            st.session_state.v22_active = False
-
-    if st.session_state.v22_active:
-        st.success(f"統合稼働中 [{selected_symbol}]：量子短期＋12市場スキャン・未来リークゼロ")
-    else:
-        st.info("待機中。起動ボタンを押してください。")
-
-    @st.fragment(run_every="30s")
-    def combat_loop():
-        if not st.session_state.v22_active:
-            return
-
-        all_dfs = fetch_all_markets_data(period="60d", interval="1h")
-        df_target = all_dfs.get(selected_symbol)
-        if df_target is None or len(df_target) < 50:
-            st.warning("データ同期中...")
-            return
-
-        features_df, labels_s = build_v22_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
-        if len(features_df) < 10:
-            st.warning("有効な特徴量データが不足しています。")
-            return
-
-        manager = UnifiedModelManager(selected_symbol)
-        if not manager.load(fixed_range_usd, hold_bars):
-            manager.initialize_fit(features_df.values, labels_s.values, fixed_range_usd, hold_bars)
-
-        # 🚨 未来の未評価シグナル（真の最新確定足）の予測
-        signal_i = len(features_df) - 1
-        feat_row = features_df.iloc[signal_i]
-        row_time = features_df.index[signal_i]
-
-        X_live = manager.scaler.transform(np.array([feat_row.values]))
-        try:
-            probs = manager.model.predict_proba(X_live)[0]
-            classes_list = list(manager.model.classes_)
-            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
-            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-        except Exception:
-            p_low, p_high = 0.5, 0.5
-
-        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, stake_usd)
-        signal_price = float(df_target["Close"].loc[row_time]) if row_time in df_target.index else float(df_target["Close"].iloc[-1])
-
-        st.markdown(
-            f"""
-            <div class="panel-container">
-                <div class="panel-high">
-                    <h3>▲ 昇華・HIGH予測 (真の最新足)</h3>
-                    <h1 style="color: #66fcf1; margin: 10px 0;">{p_high:.1%}</h1>
-                    <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd} (学習済サンプル: {manager.meta.get('trained_samples', 0)})</p>
-                </div>
-                <div class="panel-low">
-                    <h3>▼ 降下・LOW予測 (真の最新足)</h3>
-                    <h1 style="color: #ff4b4b; margin: 10px 0;">{p_low:.1%}</h1>
-                    <p style="font-size: 0.8rem; color: #ccc;">下方ターゲット: -${fixed_range_usd}</p>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if "一時停止" in tier:
-            st.markdown(f'<div class="circuit-lock"><h3>{tier}</h3><p>{tier_reason}</p></div>', unsafe_allow_html=True)
-        else:
-            st.info(f"🎯 現在の戦闘ステージ: 【 {tier} 】\n\n{tier_reason} (基準価格: ${signal_price:,.2f})")
-
-    combat_loop()
-
-    st.markdown("---")
-    st.subheader("🚀 厳格ウォークフォワード検証 (バックテスト)")
-    if st.button("▶️ v22 厳格バックテスト実行", use_container_width=True):
-        with st.spinner("未来リークなしのウォークフォワード検証を実行中..."):
-            all_dfs = fetch_all_markets_data(period="60d", interval="1h")
-            res_df = run_v22_unified_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
-            if not res_df.empty:
-                total_trades = len(res_df[res_df["result"].isin(["WIN", "LOSS", "TIMEOUT"])])
-                wins = len(res_df[res_df["result"] == "WIN"])
-                win_rate = wins / total_trades * 100 if total_trades > 0 else 0.0
-                final_cap = res_df["capital"].iloc[-1]
-                
-                st.markdown(f"### 📊 統合検証報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd}) | 損益分岐(53.19%)と比較")
-                st.line_chart(res_df.set_index("time")[["capital"]])
-                st.dataframe(res_df.tail(20), use_container_width=True, hide_index=True)
-            else:
-                st.warning("有効な検証データがありません。")
-
-with tab2:
-    st.subheader("🌌 全12市場 統合実証スキャナー")
-    if st.button("🔍 全市場の真の最新足を一斉検証", use_container_width=True):
-        with st.spinner("全12市場を未来リークなしで検証中..."):
-            all_dfs = fetch_all_markets_data(period="60d", interval="1h")
-            scan_res = []
-            for name, cfg in SYMBOLS_CONFIG.items():
-                df = all_dfs.get(name)
-                rng = cfg["quick_range_usd"]
-                if df is None or len(df) < 50:
-                    continue
+        d = yf.download(ticker, period=period, interval=interval, auto_adjust=False,
+                        progress=False, threads=False, timeout=10)
+        if d is not None and not d.empty:
+            if isinstance(d.columns, pd.MultiIndex): d.columns = d.columns.get_level_values(0)
+            required = ["Open","High","Low","Close"]
+            if not all(c in d.columns for c in required): raise ValueError("OHLC missing")
+            cols = required + (["Volume"] if "Volume" in d.columns else [])
+            d = d[cols].copy()
+            if "Volume" not in d: d["Volume"] = np.nan
+            d = d.apply(pd.to_numeric, errors="coerce").dropna(subset=required)
+            d.index = pd.to_datetime(d.index)
+            if getattr(d.index, "tz", None) is not None: d.index = d.index.tz_localize(None)
+            d = d[(d.Close > 0) & (d.High >= d.Low)]
+            d = d[~d.index.duplicated(keep="last")].sort_index()
+            if path.exists():
                 try:
-                    f_df, l_s = build_v22_features_and_labels(name, all_dfs, rng, 5)
-                    if len(f_df) < 10:
-                        continue
-                    manager = UnifiedModelManager(name)
-                    if not manager.load(rng, 5):
-                        manager.initialize_fit(f_df.values, l_s.values, rng, 5)
-                    feat_row = f_df.iloc[-1]
-                    probs = manager.model.predict_proba(manager.scaler.transform(np.array([feat_row.values])))[0]
-                    p_l, p_h = probs[0], probs[1]
-                    tier, _ = classify_combat_tier(feat_row, p_h, p_l, stake_usd)
-                    scan_res.append({"銘柄": name, "ステージ": tier, "HIGH確率": f"{p_h:.1%}", "LOW確率": f"{p_l:.1%}", "ギャップ": round(abs(p_h - p_l), 3)})
-                except Exception:
-                    pass
-            if scan_res:
-                st.dataframe(pd.DataFrame(scan_res), use_container_width=True, hide_index=True)
-            else:
-                st.warning("スキャンデータ不足。")
+                    old = pd.read_csv(path, index_col=0, parse_dates=True)
+                    old.index = pd.to_datetime(old.index)
+                    if getattr(old.index, "tz", None) is not None: old.index = old.index.tz_localize(None)
+                    d = pd.concat([old,d]); d = d[~d.index.duplicated(keep="last")].sort_index()
+                except Exception: pass
+            d.to_csv(path, encoding="utf-8-sig")
+            return d
+    except Exception:
+        pass
+    if path.exists():
+        try:
+            d = pd.read_csv(path,index_col=0,parse_dates=True)
+            d.index = pd.to_datetime(d.index)
+            if getattr(d.index,"tz",None) is not None: d.index=d.index.tz_localize(None)
+            return d.sort_index()
+        except Exception: pass
+    return pd.DataFrame()
+
+def make_features(d):
+    if d.empty: return pd.DataFrame()
+    c,o,h,l=d.Close.astype(float),d.Open.astype(float),d.High.astype(float),d.Low.astype(float)
+    v=d.Volume.astype(float) if "Volume" in d else pd.Series(np.nan,index=d.index)
+    ret=c.pct_change(); delta=c.diff()
+    gain=delta.clip(lower=0).rolling(14,min_periods=14).mean()
+    loss=(-delta.clip(upper=0)).rolling(14,min_periods=14).mean()
+    rs=gain/loss.replace(0,np.nan); rsi=100-100/(1+rs)
+    rsi=rsi.where(loss!=0,100.0).where(gain!=0,50.0)
+    vol=ret.rolling(14,min_periods=14).std()
+    candle=(h-l).replace(0,np.nan)
+    f=pd.DataFrame(index=d.index)
+    f["return_1"]=c.pct_change(1); f["return_3"]=c.pct_change(3); f["return_6"]=c.pct_change(6)
+    for n in (10,30):
+        sma=c.rolling(n,min_periods=n).mean(); f[f"sma_ratio_{n}"]=(c-sma)/sma
+    f["rsi"]=rsi
+    f["squeeze_index"]=vol/vol.rolling(30,min_periods=10).mean().replace(0,np.nan)
+    f["body_ratio"]=(c-o).abs()/candle
+    f["pressure_diff"]=(np.minimum(o,c)-l)/candle-(h-np.maximum(o,c))/candle
+    f["volatility"]=vol
+    f["volume_change"]=v.pct_change().replace([np.inf,-np.inf],np.nan)
+    return f.replace([np.inf,-np.inf],np.nan)
+
+def labels_for(d, width, hold):
+    y=pd.Series(np.nan,index=d.index,dtype=float)
+    op,hi,lo=d.Open.to_numpy(float),d.High.to_numpy(float),d.Low.to_numpy(float)
+    for i in range(max(0,len(d)-hold)):
+        ei=i+1
+        if ei>=len(d) or not np.isfinite(op[ei]) or op[ei]<=0: continue
+        up,down=op[ei]+width,op[ei]-width
+        for j in range(ei,min(ei+hold,len(d))):
+            hu,hd=hi[j]>=up,lo[j]<=down
+            if hu and hd: break
+            if hu: y.iloc[i]=1.; break
+            if hd: y.iloc[i]=0.; break
+    return y
+
+def build_data(name, all_data, width, hold):
+    d=all_data.get(name)
+    if d is None or d.empty: return pd.DataFrame(),pd.Series(dtype=int),pd.DataFrame()
+    x=make_features(d)
+    for other_name,other in all_data.items():
+        if other_name==name or other.empty: continue
+        tag=slug(other_name).lower()[:16]
+        aligned=other.Close.astype(float).reindex(x.index,method="ffill")
+        x[f"cross_{tag}"]=aligned.pct_change()
+    y=labels_for(d,width,hold)
+    x=x.ffill().bfill()
+    valid=x.notna().all(axis=1)&y.notna()
+    return x.loc[valid].copy(),y.loc[valid].astype(int).copy(),x
+
+class ModelManager:
+    def __init__(self,name):
+        self.name=name; self.key=slug(name)
+        self.mp=MODELS/f"{self.key}.v27.model.joblib"; self.sp=MODELS/f"{self.key}.v27.scaler.joblib"; self.meta_path=MODELS/f"{self.key}.v27.json"
+        self.model=SGDClassifier(loss="log_loss",alpha=0.0005,random_state=42)
+        self.scaler=StandardScaler(); self.meta={"trained_samples":0,"feature_columns":[]}; self.ready=False
+    def load(self,columns):
+        try:
+            if not all(p.exists() for p in (self.mp,self.sp,self.meta_path)): return False
+            m=json.loads(self.meta_path.read_text(encoding="utf-8"))
+            if m.get("feature_columns")!=list(columns): return False
+            self.model=joblib.load(self.mp); self.scaler=joblib.load(self.sp); self.meta=m; self.ready=True
+            return True
+        except Exception: return False
+    def fit_initial(self,x,y):
+        if len(x)<20 or y.nunique()<2: raise ValueError("初期学習データ不足")
+        self.scaler.fit(x.values); self.model.partial_fit(self.scaler.transform(x.values),y.values,classes=np.array([0,1]))
+        self.meta.update(trained_samples=int(len(x)),feature_columns=list(x.columns),last_fit=datetime.now(timezone.utc).isoformat())
+        self.ready=True; self.save()
+    def save(self):
+        joblib.dump(self.model,self.mp); joblib.dump(self.scaler,self.sp)
+        self.meta_path.write_text(json.dumps(self.meta,ensure_ascii=False,indent=2),encoding="utf-8")
+
+st.markdown("""<style>.banner{background:linear-gradient(135deg,#0d1b2a,#1b263b,#415a77);padding:18px;border-radius:12px;color:#00ffcc;text-align:center;border:1px solid #00ffcc}</style>""",unsafe_allow_html=True)
+st.markdown('<div class="banner"><h1>⚡ UTAYA v27 | 機関マルチアセット歪みランキング＆90%複利AI</h1><p>全12市場常時同時スキャン / オッズ歪み（確率差）による本命順位付け / 90%複利運用</p></div>',unsafe_allow_html=True)
+
+with st.sidebar:
+    st.header("⚙️ v27 機関ポートフォリオ設定")
+    if "account_capital" not in st.session_state: st.session_state.account_capital = 15.0
+    if "target_profit" not in st.session_state: st.session_state.target_profit = 2.0
+    
+    current_cap = st.number_input("現在口座残高 ($)", 1.0, 100000.0, st.session_state.account_capital, 1.0)
+    st.session_state.account_capital = current_cap
+    stake_ratio = st.slider("投資比率 (%)", 10, 100, 90)
+    invest_amount = current_cap * (stake_ratio / 100.0)
+    
+    hold=st.slider("判定期限（足数）",1,20,5)
+    period=st.selectbox("データ期間",["30d","60d","3mo","6mo","1y"],index=1)
+    interval=st.selectbox("時間足",["15m","30m","1h","1d"],index=2)
+    threshold=st.slider("最低確率差（歪みフィルター）",0.,.5,.06,.01)
+    
+    st.divider()
+    auto_refresh = st.checkbox("🔄 24時間機関自動巡回稼働 (15秒毎)", value=False)
+    st.caption("15秒ごとに全12市場を同時スキャンし、最もプロが狙う歪み（本命）を上から順位付けして表示します。")
+
+st.subheader("🏛️ 機関投資家スタイル：全12市場 歪みランキング＆本命抽出")
+
+st.markdown(f"""
+<div style="background: rgba(0,255,204,0.1); border: 1px solid #00ffcc; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+    <h3>💰 90%複利ステーク＆ターゲット管理</h3>
+    <p><b>現在口座残高:</b> ${current_cap:.2f} ➔ <b>今回投資額 ({stake_ratio}%):</b> <b>${invest_amount:.2f}</b></p>
+    <p><b>目標クリア条件 (+${st.session_state.target_profit:.2f}達成):</b> 資産が <b>${current_cap + st.session_state.target_profit:.2f}</b> に到達したら、元本を ${current_cap + st.session_state.target_profit:.2f} に引き上げてその90%を最上位の本命銘柄に再投資します。</p>
+</div>
+""", unsafe_allow_html=True)
+
+placeholder = st.empty()
+
+def scan_all_markets():
+    all_data = {}
+    for name, cfg in SYMBOLS.items():
+        d = fetch_data(cfg["ticker"], period, interval)
+        if not d.empty:
+            all_data[name] = d
+            
+    rankings = []
+    for name, cfg in SYMBOLS.items():
+        if name not in all_data:
+            continue
+        try:
+            x, y, x_all = build_data(name, all_data, cfg["range"], hold)
+            if len(x) < 20 or y.nunique() < 2:
+                continue
+            manager = ModelManager(name)
+            if not manager.load(list(x.columns)):
+                manager.fit_initial(x, y)
+                
+            latest = x_all.dropna()
+            if len(latest) < 2:
+                continue
+            row = latest.iloc[[-2]]
+            pr = manager.model.predict_proba(manager.scaler.transform(row.values))[0]
+            m = {int(c):float(p) for c,p in zip(manager.model.classes_, pr)}
+            pl, ph = m.get(0,.5), m.get(1,.5)
+            gap = abs(ph - pl)
+            direction = "HIGH (買い)" if ph > pl else "LOW (売り)" if pl > ph else "見送り"
+            
+            score = gap
+            if gap >= threshold:
+                rankings.append({
+                    "市場": name,
+                    "判定": direction,
+                    "HIGH確率": ph,
+                    "LOW確率": pl,
+                    "オッズ歪み(確率差)": gap,
+                    "現在価格": float(all_data[name].Close.iloc[-1]),
+                    "学習サンプル": manager.meta["trained_samples"],
+                    "スコア": score
+                })
+        except Exception:
+            pass
+            
+    rankings = sorted(rankings, key=lambda r: r["スコア"], reverse=True)
+    return rankings
+
+def render_ranking_dashboard():
+    with st.spinner("全12市場を同時スキャンし、オッズの歪み（本命）を解析中..."):
+        rankings = scan_all_markets()
+        
+    if not rankings:
+        st.warning("現在、十分なサンプルを持つ市場がありません。データ期間や時間足を調整してください。")
+        return
+        
+    df_rank = pd.DataFrame(rankings)
+    df_disp = df_rank.copy()
+    df_disp["HIGH確率"] = df_disp["HIGH確率"].apply(lambda v: f"{v:.1%}")
+    df_disp["LOW確率"] = df_disp["LOW確率"].apply(lambda v: f"{v:.1%}")
+    df_disp["オッズ歪み(確率差)"] = df_disp["オッズ歪み(確率差)"].apply(lambda v: f"{v:.3f}")
+    df_disp["現在価格"] = df_disp["现在価格" if "现在価格" in df_disp.columns else "現在価格"].apply(lambda v: f"${v:,.2f}" if isinstance(v, (int,float)) else v)
+    
+    df_disp.insert(0, "順位", range(1, len(df_disp) + 1))
+    
+    st.markdown("### 🏆 機関投資家が狙う「本命・歪みランキング」トップ")
+    st.dataframe(df_disp[["順位", "市場", "判定", "HIGH確率", "LOW確率", "オッズ歪み(確率差)", "現在価格", "学習サンプル"]], use_container_width=True, hide_index=True)
+    
+    top_pick = rankings[0]
+    st.markdown(f"""
+    <div style="background: rgba(0,255,204,0.15); border: 2px solid #00ffcc; padding: 20px; border-radius: 10px; margin-top: 20px;">
+        <h2>🔥 本日の最高優位性（本命）：【 {top_pick['市場']} 】</h2>
+        <p><b>推奨アクション:</b> <b>{top_pick['判定']}</b> | <b>オッズ歪み(確率差):</b> <b>{top_pick['オッズ歪み(確率差)']:.3f}</b></p>
+        <p><b>推奨投資額 ({stake_ratio}%):</b> <b>${invest_amount:.2f}</b> (現在価格: ${top_pick['現在価格']:,.2f})</p>
+        <p>分散投資の中核として、このトップ銘柄に資金の90%を集中投入し、+${st.session_state.target_profit:.2f} の利益回収を目指します。</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+if auto_refresh:
+    with placeholder.container():
+        st.success(f"🟢 機関自動巡回中 (最終スキャン: {datetime.now().strftime('%H:%M:%S')})")
+        render_ranking_dashboard()
+    time.sleep(15)
+    st.rerun()
+else:
+    with placeholder.container():
+        render_ranking_dashboard()
+    st.info("サイドバーの「24時間機関自動巡回稼働 (15秒毎)」にチェックを入れると、15秒ごとに全12市場の歪みが自動で再計算され、ランキングがリアルタイム更新されます。")
+
+st.divider()
+st.caption("UTAYA v27 | 機関マルチアセット歪みランキング＆複利AI。利益・勝率は一切保証されません。自己責任で運用してください。")
