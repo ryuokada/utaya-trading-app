@@ -13,13 +13,13 @@ import os
 import json
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v21 実証型AIエンジン)
-# 思想: 未来リーク完全根絶、パージ/エンバーゴ空白期間、重複なき実測オンライン学習、資金防衛ネット
+# UTAYA グローバル・インベストメンツ (v22 統合せん滅・実証型AIエンジン)
+# 思想: 8501(短期量子・高速) + 8503(12市場スキャン・3段階判定) の完全融合、未来リーク完全根絶
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v21 Empirical Validation Engine",
-    page_icon="🛡️",
+    page_title="UTAYA Global Investments - v22 Unified Empirical Combat Engine",
+    page_icon="⚡",
     layout="wide",
 )
 
@@ -39,28 +39,27 @@ SYMBOLS_CONFIG = {
 }
 
 PAYOUT_RATE = 0.88  # ハイローペイアウト率 (仮定値・実際の提供条件で変動)
-DATA_DIR = Path("utaya_data_v21")
+DATA_DIR = Path("utaya_data_v22")
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
 MODEL_DIR = DATA_DIR / "models"
 MODEL_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v21.csv"
-STATE_STATE_FILE = DATA_DIR / "state_v21.json"
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v22.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
     """
     <style>
-    .empirical-banner {
-        background: linear-gradient(135deg, #0b132b, #1c2541, #3a506b);
+    .unified-banner {
+        background: linear-gradient(135deg, #0a0f1d, #1f2833, #0b0c10);
         padding: 20px;
         border-radius: 12px;
-        color: #00ffcc;
+        color: #66fcf1;
         text-align: center;
         margin-bottom: 20px;
-        border: 1px solid #00ffcc;
+        border: 1px solid #45a29e;
     }
     .panel-container {
         display: flex;
@@ -69,15 +68,15 @@ st.markdown(
     }
     .panel-high {
         flex: 1;
-        background: rgba(0, 255, 204, 0.12);
-        border: 2px solid #00ffcc;
+        background: rgba(102, 252, 241, 0.1);
+        border: 2px solid #66fcf1;
         padding: 18px;
         border-radius: 10px;
         text-align: center;
     }
     .panel-low {
         flex: 1;
-        background: rgba(255, 75, 75, 0.12);
+        background: rgba(255, 75, 75, 0.1);
         border: 2px solid #ff4b4b;
         padding: 18px;
         border-radius: 10px;
@@ -96,9 +95,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🛡️ UTAYA v21 実証型AIエンジン（厳格検証モデル）")
+st.title("⚡ UTAYA v22 統合せん滅・実証型AIエンジン")
 st.caption(
-    "未来リーク完全排除 | パージ/エンバーゴ空白期間 | 重複なきオンライン学習 | 15$鉄壁防衛"
+    "8501(短期量子) ＋ 8503(12市場・3段階判定) 完全統合 | 未来リーク完全排除 | 15$鉄壁防衛網"
 )
 
 
@@ -156,7 +155,7 @@ def fetch_single_market_data(ticker, period="60d", interval="1h"):
                 df_stored.index = df_stored.index.tz_localize(None)
             return df_stored.sort_index()
         return df_new
-    except Exception as e:
+    except Exception:
         if file_path.exists():
             df_stored = pd.read_csv(file_path, index_col=0, parse_dates=True)
             df_stored.index = pd.to_datetime(df_stored.index)
@@ -175,16 +174,9 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 厳格な勝敗評価 ＆ 特徴量・ラベル生成 --------------------
+# -------------------- ② 厳格な勝敗評価 ＆ 統合特徴量生成 --------------------
 
-def evaluate_empirical_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
-    """
-    検証用の統一勝敗定義:
-    WIN: 指定値幅に先着
-    LOSS: 逆方向の価格に先着
-    TIMEOUT: 期間内未到達
-    NOISE: 同一足で上下両方到達
-    """
+def evaluate_unified_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
     if future_candles is None or len(future_candles) == 0:
         return "PENDING", "未来足未到着", "PENDING", None
 
@@ -212,16 +204,12 @@ def evaluate_empirical_outcome(entry_price, direction, future_candles, fixed_ran
                 return "LOSS", "下方逆行被弾", "REVERSE_LOW", str(idx)
 
     if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "期限内ターゲット未達（タイムアウト）", "TIMEOUT", str(future_candles.index[-1])
+        return "TIMEOUT", "期限内ターゲット未達", "TIMEOUT", str(future_candles.index[-1])
 
     return "PENDING", "交戦中", "PENDING", None
 
 
-def build_v21_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
-    """
-    未来リークを排除するため、未来の判定期間分のデータが完全に確定している行のみを学習対象にする。
-    最新の hold_bars 分の行は、結果が確定していないため学習データから完全に除外する。
-    """
+def build_v22_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -265,16 +253,25 @@ def build_v21_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     features["pressure_diff"] = lower_pressure - upper_pressure
     features["volatility"] = rolling_std
 
+    # 8501/8503統合：クロスマーケット特徴量（他市場のトレンドを反映）
+    for name, cfg in SYMBOLS_CONFIG.items():
+        if name == target_name:
+            continue
+        df_other = all_dfs.get(name)
+        if df_other is not None and not df_other.empty:
+            other_close = df_other["Close"].reindex(df_target.index, method="ffill", limit=3).astype(float)
+            short_tag = name.split(" ")[0].lower()
+            features[f"{short_tag}_ret1"] = other_close.pct_change(1)
+
     labels = []
     valid_index = []
     
-    # 判定期間分の未来データが確実に存在し、かつ重複リークがない行のみ抽出
     for idx in range(len(df_target) - hold_bars):
         row_time = df_target.index[idx]
         entry_price = float(df_target["Open"].iloc[idx + 1])
         future_window = df_target.iloc[idx + 1 : idx + 1 + hold_bars]
         
-        res, _, _, _ = evaluate_empirical_outcome(entry_price, "HIGH", future_window, fixed_range_usd, hold_bars)
+        res, _, _, _ = evaluate_unified_outcome(entry_price, "HIGH", future_window, fixed_range_usd, hold_bars)
         
         if res == "WIN":
             labels.append(1)
@@ -293,45 +290,40 @@ def build_v21_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     return features_valid.drop(columns=["target"]), features_valid["target"].astype(int)
 
 
-# -------------------- ③ 資金防衛と3段階戦闘判定 --------------------
+# -------------------- ③ 3段階判定 ＆ 15ドル資金防衛 --------------------
 
 def classify_combat_tier(feat_row, p_high, p_low, current_capital):
     if current_capital <= 10.0:
-        return "絶対生存・強制停止", f"🚨 資本防衛防壁発動 (残高 ${current_capital:.2f})。破産を防ぐため新規エントリーを完全凍結します。"
+        return "重大リスク・一時停止", f"🚨 15$防衛発動 (残高 ${current_capital:.2f})。資産保護のため新規エントリーを完全凍結します。"
 
     probability_gap = abs(p_high - p_low)
     squeeze = float(feat_row.get("squeeze_index", 1.0))
 
     if probability_gap >= 0.05:
-        return "通常エントリー候補", f"💎 確率ギャップ {probability_gap:.3f} 達成。検証基準を満たした通常エントリー候補。"
+        return "通常エントリー候補", f"💎 確率ギャップ {probability_gap:.3f} 達成。検証済み通常エントリー候補。"
 
     return "条件付き監視", f"👀 ギャップ蓄積中（ギャップ {probability_gap:.3f}）。条件成立を継続監視。"
 
 
-# -------------------- ④ モデル永続化・管理クラス --------------------
+# -------------------- ④ モデル永続化・オンライン管理 --------------------
 
-class EmpiricalModelManager:
-    """
-    モデル、スケーラー、メタデータ（銘柄、値幅、判定期間、バージョン）を一貫管理し、
-    重複なき実測オンライン学習を実現するマネージャー。
-    """
+class UnifiedModelManager:
     def __init__(self, target_name):
         self.target_name = target_name
         self.safe_name = get_safe_filename(target_name)
-        self.model_path = MODEL_DIR / f"model_v21_{self.safe_name}.pkl"
-        self.scaler_path = MODEL_DIR / f"scaler_v21_{self.safe_name}.pkl"
-        self.meta_path = MODEL_DIR / f"meta_v21_{self.safe_name}.json"
+        self.model_path = MODEL_DIR / f"model_v22_{self.safe_name}.pkl"
+        self.scaler_path = MODEL_DIR / f"scaler_v22_{self.safe_name}.pkl"
+        self.meta_path = MODEL_DIR / f"meta_v22_{self.safe_name}.json"
         
         self.model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
         self.scaler = StandardScaler()
-        self.meta = {"trained_samples": 0, "last_learned_time": None}
+        self.meta = {"trained_samples": 0, "learned_ids": []}
 
     def load(self, fixed_range_usd, hold_bars):
         if self.model_path.exists() and self.scaler_path.exists() and self.meta_path.exists():
             try:
                 with open(self.meta_path, "r", encoding="utf-8") as f:
                     meta = json.load(f)
-                # 異なる値幅や判定期間でのモデル誤用を防ぐ整合性チェック
                 if meta.get("fixed_range_usd") == fixed_range_usd and meta.get("hold_bars") == hold_bars:
                     self.model = joblib.load(self.model_path)
                     self.scaler = joblib.load(self.scaler_path)
@@ -346,7 +338,7 @@ class EmpiricalModelManager:
         joblib.dump(self.scaler, self.scaler_path)
         self.meta["fixed_range_usd"] = fixed_range_usd
         self.meta["hold_bars"] = hold_bars
-        self.meta["version"] = "v21_empirical"
+        self.meta["version"] = "v22_unified"
         with open(self.meta_path, "w", encoding="utf-8") as f:
             json.dump(self.meta, f, ensure_ascii=False, indent=2)
 
@@ -356,37 +348,27 @@ class EmpiricalModelManager:
             X_sc = self.scaler.transform(X)
             self.model.partial_fit(X_sc, y, classes=np.array([0, 1]))
             self.meta["trained_samples"] = int(len(X))
-            self.meta["last_learned_time"] = str(datetime.now())
             self.save(fixed_range_usd, hold_bars)
 
     def update_online(self, feat_row_df, actual_label, fixed_range_usd, hold_bars, signal_id):
-        """
-        重複なき実測オンライン学習。既に学習済みのシグナルIDなら再学習しない。
-        """
-        if "learned_ids" not in self.meta:
-            self.meta["learned_ids"] = []
-            
-        if signal_id in self.meta["learned_ids"]:
-            return False # 重複学習ブロック
-
+        if signal_id in self.meta.get("learned_ids", []):
+            return False
         X_new = self.scaler.transform(feat_row_df.values)
         self.model.partial_fit(X_new, np.array([actual_label]), classes=np.array([0, 1]))
-        
-        self.meta["learned_ids"].append(signal_id)
+        self.meta.setdefault("learned_ids", []).append(signal_id)
         self.meta["trained_samples"] += 1
-        self.meta["last_learned_time"] = str(datetime.now())
         self.save(fixed_range_usd, hold_bars)
         return True
 
 
 # -------------------- ⑤ ウォークフォワード・バックテストエンジン --------------------
 
-def run_v21_empirical_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+def run_v22_unified_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v21_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
+    features_df, labels_s = build_v22_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -427,14 +409,14 @@ def run_v21_empirical_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed
         except Exception:
             continue
 
-        result, reason, category, settle_time = evaluate_empirical_outcome(
+        result, reason, category, settle_time = evaluate_unified_outcome(
             entry_price, direction, future_window, fixed_range_usd, hold_bars=hold_bars
         )
         
         status = "SETTLED" if result != "PENDING" else "PENDING"
         pnl = 0.0
         if status == "SETTLED":
-            if "強制停止" in tier:
+            if "一時停止" in tier:
                 pnl = 0.0
             elif tier == "通常エントリー候補":
                 if result == "WIN":
@@ -448,7 +430,6 @@ def run_v21_empirical_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed
                 if current_capital > peak_capital:
                     peak_capital = current_capital
 
-        # 検証済みの確定ラベルでオンライン学習
         actual_label = int(labels_s.loc[row_time]) if row_time in labels_s.index else 0
         try:
             model.partial_fit(X_pred, np.array([actual_label]), classes=np.array([0, 1]))
@@ -475,7 +456,7 @@ def run_v21_empirical_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed
 
 # -------------------- ⑥ ダッシュボード・UI描画 --------------------
 
-st.sidebar.header("🛡️ v21 実証司令室")
+st.sidebar.header("⚡ v22 統合せん滅司令室")
 selected_symbol = st.sidebar.selectbox("🎯 ターゲット銘柄", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
@@ -495,28 +476,28 @@ if st.sidebar.button("🔄 記憶・モデル完全リセット", use_container_
     st.sidebar.success("完全初期化完了。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["🛡️ 個別実戦・真の最新足検証", "🌌 全市場・実証スキャナー"])
+tab1, tab2 = st.tabs(["⚡ 個別実戦・真の最新足検証", "🌌 全市場・実証スキャナー"])
 
 with tab1:
-    if "v21_active" not in st.session_state:
-        st.session_state.v21_active = False
+    if "v22_active" not in st.session_state:
+        st.session_state.v22_active = False
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ 実証AI起動", use_container_width=True):
-            st.session_state.v21_active = True
+        if st.button("▶ 統合AI起動", use_container_width=True):
+            st.session_state.v22_active = True
     with c2:
         if st.button("⏹ 緊急停戦", use_container_width=True):
-            st.session_state.v21_active = False
+            st.session_state.v22_active = False
 
-    if st.session_state.v21_active:
-        st.success(f"実証稼働中 [{selected_symbol}]：未来リーク完全排除モード有効")
+    if st.session_state.v22_active:
+        st.success(f"統合稼働中 [{selected_symbol}]：量子短期＋12市場スキャン・未来リークゼロ")
     else:
         st.info("待機中。起動ボタンを押してください。")
 
     @st.fragment(run_every="30s")
     def combat_loop():
-        if not st.session_state.v21_active:
+        if not st.session_state.v22_active:
             return
 
         all_dfs = fetch_all_markets_data(period="60d", interval="1h")
@@ -525,12 +506,12 @@ with tab1:
             st.warning("データ同期中...")
             return
 
-        features_df, labels_s = build_v21_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
+        features_df, labels_s = build_v22_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
         if len(features_df) < 10:
             st.warning("有効な特徴量データが不足しています。")
             return
 
-        manager = EmpiricalModelManager(selected_symbol)
+        manager = UnifiedModelManager(selected_symbol)
         if not manager.load(fixed_range_usd, hold_bars):
             manager.initialize_fit(features_df.values, labels_s.values, fixed_range_usd, hold_bars)
 
@@ -556,8 +537,8 @@ with tab1:
             <div class="panel-container">
                 <div class="panel-high">
                     <h3>▲ 昇華・HIGH予測 (真の最新足)</h3>
-                    <h1 style="color: #00ffcc; margin: 10px 0;">{p_high:.1%}</h1>
-                    <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd} (学習済サンプル数: {manager.meta.get('trained_samples', 0)})</p>
+                    <h1 style="color: #66fcf1; margin: 10px 0;">{p_high:.1%}</h1>
+                    <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd} (学習済サンプル: {manager.meta.get('trained_samples', 0)})</p>
                 </div>
                 <div class="panel-low">
                     <h3>▼ 降下・LOW予測 (真の最新足)</h3>
@@ -569,7 +550,7 @@ with tab1:
             unsafe_allow_html=True,
         )
 
-        if "強制停止" in tier:
+        if "一時停止" in tier:
             st.markdown(f'<div class="circuit-lock"><h3>{tier}</h3><p>{tier_reason}</p></div>', unsafe_allow_html=True)
         else:
             st.info(f"🎯 現在の戦闘ステージ: 【 {tier} 】\n\n{tier_reason} (基準価格: ${signal_price:,.2f})")
@@ -578,24 +559,24 @@ with tab1:
 
     st.markdown("---")
     st.subheader("🚀 厳格ウォークフォワード検証 (バックテスト)")
-    if st.button("▶️ v21 厳格バックテスト実行", use_container_width=True):
+    if st.button("▶️ v22 厳格バックテスト実行", use_container_width=True):
         with st.spinner("未来リークなしのウォークフォワード検証を実行中..."):
             all_dfs = fetch_all_markets_data(period="60d", interval="1h")
-            res_df = run_v21_empirical_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
+            res_df = run_v22_unified_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
             if not res_df.empty:
                 total_trades = len(res_df[res_df["result"].isin(["WIN", "LOSS", "TIMEOUT"])])
                 wins = len(res_df[res_df["result"] == "WIN"])
                 win_rate = wins / total_trades * 100 if total_trades > 0 else 0.0
                 final_cap = res_df["capital"].iloc[-1]
                 
-                st.markdown(f"### 📊 検証報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd}) | 損益分岐(53.19%)と比較")
+                st.markdown(f"### 📊 統合検証報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd}) | 損益分岐(53.19%)と比較")
                 st.line_chart(res_df.set_index("time")[["capital"]])
                 st.dataframe(res_df.tail(20), use_container_width=True, hide_index=True)
             else:
                 st.warning("有効な検証データがありません。")
 
 with tab2:
-    st.subheader("🌌 全12市場 実証スキャナー")
+    st.subheader("🌌 全12市場 統合実証スキャナー")
     if st.button("🔍 全市場の真の最新足を一斉検証", use_container_width=True):
         with st.spinner("全12市場を未来リークなしで検証中..."):
             all_dfs = fetch_all_markets_data(period="60d", interval="1h")
@@ -606,10 +587,10 @@ with tab2:
                 if df is None or len(df) < 50:
                     continue
                 try:
-                    f_df, l_s = build_v21_features_and_labels(name, all_dfs, rng, 5)
+                    f_df, l_s = build_v22_features_and_labels(name, all_dfs, rng, 5)
                     if len(f_df) < 10:
                         continue
-                    manager = EmpiricalModelManager(name)
+                    manager = UnifiedModelManager(name)
                     if not manager.load(rng, 5):
                         manager.initialize_fit(f_df.values, l_s.values, rng, 5)
                     feat_row = f_df.iloc[-1]
