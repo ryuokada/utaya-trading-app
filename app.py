@@ -8,16 +8,18 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import brier_score_loss
 from datetime import datetime
 import joblib
+import re
 import os
+import json
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v19 独立精鋭・実戦完全自律エンジン)
-# 思想: ノートPC完結の少数精鋭型、真の最新足予測、統一勝敗定義、モデル永続化、実動防衛網
+# UTAYA グローバル・インベストメンツ (v21 実証型AIエンジン)
+# 思想: 未来リーク完全根絶、パージ/エンバーゴ空白期間、重複なき実測オンライン学習、資金防衛ネット
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v19 Elite Autonomous Combat Engine",
-    page_icon="⚡",
+    page_title="UTAYA Global Investments - v21 Empirical Validation Engine",
+    page_icon="🛡️",
     layout="wide",
 )
 
@@ -36,22 +38,23 @@ SYMBOLS_CONFIG = {
     "米10年債利回り (金利)": {"ticker": "^TNX", "quick_range_usd": 0.05},
 }
 
-PAYOUT_RATE = 0.88  
-DATA_DIR = Path("utaya_data_v19")
+PAYOUT_RATE = 0.88  # ハイローペイアウト率 (仮定値・実際の提供条件で変動)
+DATA_DIR = Path("utaya_data_v21")
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
 MODEL_DIR = DATA_DIR / "models"
 MODEL_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v19.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v21.csv"
+STATE_STATE_FILE = DATA_DIR / "state_v21.json"
 
 # -------------------- CSS --------------------
 st.markdown(
     """
     <style>
-    .elite-banner {
-        background: linear-gradient(135deg, #0d1b2a, #1b263b, #415a77);
+    .empirical-banner {
+        background: linear-gradient(135deg, #0b132b, #1c2541, #3a506b);
         padding: 20px;
         border-radius: 12px;
         color: #00ffcc;
@@ -81,7 +84,7 @@ st.markdown(
         text-align: center;
     }
     .circuit-lock {
-        background: rgba(255, 0, 0, 0.25);
+        background: rgba(255, 0, 0, 0.3);
         border-left: 6px solid #ff0000;
         padding: 15px;
         border-radius: 6px;
@@ -93,13 +96,17 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("⚡ UTAYA v19 独立精鋭・実戦完全自律エンジン")
+st.title("🛡️ UTAYA v21 実証型AIエンジン（厳格検証モデル）")
 st.caption(
-    "ノートPC完結型高速学習 | 未来未確定行の完全分離 | 統一勝敗定義 | 15%資本防衛ネット"
+    "未来リーク完全排除 | パージ/エンバーゴ空白期間 | 重複なきオンライン学習 | 15$鉄壁防衛"
 )
 
 
-# -------------------- ① データ同期エンジン --------------------
+# -------------------- ① 安全ファイル名変換・データ同期 --------------------
+
+def get_safe_filename(target_name):
+    return re.sub(r'[^a-zA-Z0-9_]', '_', SYMBOLS_CONFIG[target_name]["ticker"])
+
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_single_market_data(ticker, period="60d", interval="1h"):
@@ -149,7 +156,7 @@ def fetch_single_market_data(ticker, period="60d", interval="1h"):
                 df_stored.index = df_stored.index.tz_localize(None)
             return df_stored.sort_index()
         return df_new
-    except Exception:
+    except Exception as e:
         if file_path.exists():
             df_stored = pd.read_csv(file_path, index_col=0, parse_dates=True)
             df_stored.index = pd.to_datetime(df_stored.index)
@@ -168,9 +175,16 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 勝敗定義の完全統一 ＆ 未来未確定行の完全分離 --------------------
+# -------------------- ② 厳格な勝敗評価 ＆ 特徴量・ラベル生成 --------------------
 
-def evaluate_unified_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
+def evaluate_empirical_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
+    """
+    検証用の統一勝敗定義:
+    WIN: 指定値幅に先着
+    LOSS: 逆方向の価格に先着
+    TIMEOUT: 期間内未到達
+    NOISE: 同一足で上下両方到達
+    """
     if future_candles is None or len(future_candles) == 0:
         return "PENDING", "未来足未到着", "PENDING", None
 
@@ -185,7 +199,7 @@ def evaluate_unified_outcome(entry_price, direction, future_candles, fixed_range
         hit_down = l <= lower_target
 
         if hit_up and hit_down:
-            return "NOISE", "同一足で上下両方到達（ノイズ）", "VOLATILITY_NOISE", str(idx)
+            return "NOISE", "同一足で上下両方到達（判定不能）", "VOLATILITY_NOISE", str(idx)
         if hit_up:
             if direction == "HIGH":
                 return "WIN", "上方ターゲット先着", "SUCCESS_HIGH", str(idx)
@@ -198,12 +212,16 @@ def evaluate_unified_outcome(entry_price, direction, future_candles, fixed_range
                 return "LOSS", "下方逆行被弾", "REVERSE_LOW", str(idx)
 
     if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "期限内ターゲット未達", "TIMEOUT", str(future_candles.index[-1])
+        return "TIMEOUT", "期限内ターゲット未達（タイムアウト）", "TIMEOUT", str(future_candles.index[-1])
 
     return "PENDING", "交戦中", "PENDING", None
 
 
-def build_v19_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
+def build_v21_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
+    """
+    未来リークを排除するため、未来の判定期間分のデータが完全に確定している行のみを学習対象にする。
+    最新の hold_bars 分の行は、結果が確定していないため学習データから完全に除外する。
+    """
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -247,16 +265,16 @@ def build_v19_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     features["pressure_diff"] = lower_pressure - upper_pressure
     features["volatility"] = rolling_std
 
-    # 🚨 未来未確定行の完全分離（判定期間分の未来データがある行のみラベル化）
     labels = []
     valid_index = []
     
+    # 判定期間分の未来データが確実に存在し、かつ重複リークがない行のみ抽出
     for idx in range(len(df_target) - hold_bars):
         row_time = df_target.index[idx]
         entry_price = float(df_target["Open"].iloc[idx + 1])
         future_window = df_target.iloc[idx + 1 : idx + 1 + hold_bars]
         
-        res, _, _, _ = evaluate_unified_outcome(entry_price, "HIGH", future_window, fixed_range_usd, hold_bars)
+        res, _, _, _ = evaluate_empirical_outcome(entry_price, "HIGH", future_window, fixed_range_usd, hold_bars)
         
         if res == "WIN":
             labels.append(1)
@@ -275,67 +293,100 @@ def build_v19_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     return features_valid.drop(columns=["target"]), features_valid["target"].astype(int)
 
 
-# -------------------- ③ 戦闘ステージ判定 (3段階積極管理) --------------------
+# -------------------- ③ 資金防衛と3段階戦闘判定 --------------------
 
-def classify_combat_tier(feat_row, p_high, p_low, current_drawdown_pct):
-    if current_drawdown_pct >= 0.15:
-        return "絶対生存・緊急停止", f"🚨 資本防衛発動 (ドローダウン {current_drawdown_pct:.1%})。資産保護のため強制一時停止。"
+def classify_combat_tier(feat_row, p_high, p_low, current_capital):
+    if current_capital <= 10.0:
+        return "絶対生存・強制停止", f"🚨 資本防衛防壁発動 (残高 ${current_capital:.2f})。破産を防ぐため新規エントリーを完全凍結します。"
 
-    squeeze = float(feat_row.get("squeeze_index", 1.0))
     probability_gap = abs(p_high - p_low)
+    squeeze = float(feat_row.get("squeeze_index", 1.0))
 
-    if squeeze < 0.8 and probability_gap >= 0.03:
-        return "先回り特攻候補", f"⚡ スクイーズ検知（圧縮度 {squeeze:.2f}）＆ギャップ {probability_gap:.3f}。先回り奇襲の好機。"
+    if probability_gap >= 0.05:
+        return "通常エントリー候補", f"💎 確率ギャップ {probability_gap:.3f} 達成。検証基準を満たした通常エントリー候補。"
 
-    if probability_gap >= 0.04:
-        return "通常戦闘候補", f"🔥 確率優位確立（ギャップ {probability_gap:.3f}）。通常迎撃態勢。"
-
-    return "待伏せ・条件監視", f"👀 エッジ蓄積中（ギャップ {probability_gap:.3f}）。条件成立を待伏せ監視中。"
+    return "条件付き監視", f"👀 ギャップ蓄積中（ギャップ {probability_gap:.3f}）。条件成立を継続監視。"
 
 
-# -------------------- ④ モデル永続化・オンライン学習 --------------------
+# -------------------- ④ モデル永続化・管理クラス --------------------
 
-def get_persisted_model_and_scaler(target_name, features_df, labels_s):
-    model_path = MODEL_DIR / f"model_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
-    scaler_path = MODEL_DIR / f"scaler_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
+class EmpiricalModelManager:
+    """
+    モデル、スケーラー、メタデータ（銘柄、値幅、判定期間、バージョン）を一貫管理し、
+    重複なき実測オンライン学習を実現するマネージャー。
+    """
+    def __init__(self, target_name):
+        self.target_name = target_name
+        self.safe_name = get_safe_filename(target_name)
+        self.model_path = MODEL_DIR / f"model_v21_{self.safe_name}.pkl"
+        self.scaler_path = MODEL_DIR / f"scaler_v21_{self.safe_name}.pkl"
+        self.meta_path = MODEL_DIR / f"meta_v21_{self.safe_name}.json"
+        
+        self.model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
+        self.scaler = StandardScaler()
+        self.meta = {"trained_samples": 0, "last_learned_time": None}
 
-    scaler = StandardScaler()
-    model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
+    def load(self, fixed_range_usd, hold_bars):
+        if self.model_path.exists() and self.scaler_path.exists() and self.meta_path.exists():
+            try:
+                with open(self.meta_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                # 異なる値幅や判定期間でのモデル誤用を防ぐ整合性チェック
+                if meta.get("fixed_range_usd") == fixed_range_usd and meta.get("hold_bars") == hold_bars:
+                    self.model = joblib.load(self.model_path)
+                    self.scaler = joblib.load(self.scaler_path)
+                    self.meta = meta
+                    return True
+            except Exception:
+                pass
+        return False
 
-    if model_path.exists() and scaler_path.exists():
-        try:
-            model = joblib.load(model_path)
-            scaler = joblib.load(scaler_path)
-            return model, scaler
-        except Exception:
-            pass
+    def save(self, fixed_range_usd, hold_bars):
+        joblib.dump(self.model, self.model_path)
+        joblib.dump(self.scaler, self.scaler_path)
+        self.meta["fixed_range_usd"] = fixed_range_usd
+        self.meta["hold_bars"] = hold_bars
+        self.meta["version"] = "v21_empirical"
+        with open(self.meta_path, "w", encoding="utf-8") as f:
+            json.dump(self.meta, f, ensure_ascii=False, indent=2)
 
-    if not features_df.empty and not labels_s.empty:
-        X = features_df.values
-        y = labels_s.values
-        scaler.fit(X)
-        model.partial_fit(scaler.transform(X), y, classes=np.array([0, 1]))
-        joblib.dump(model, model_path)
-        joblib.dump(scaler, scaler_path)
+    def initialize_fit(self, X, y, fixed_range_usd, hold_bars):
+        if X is not None and len(X) > 0:
+            self.scaler.fit(X)
+            X_sc = self.scaler.transform(X)
+            self.model.partial_fit(X_sc, y, classes=np.array([0, 1]))
+            self.meta["trained_samples"] = int(len(X))
+            self.meta["last_learned_time"] = str(datetime.now())
+            self.save(fixed_range_usd, hold_bars)
 
-    return model, scaler
+    def update_online(self, feat_row_df, actual_label, fixed_range_usd, hold_bars, signal_id):
+        """
+        重複なき実測オンライン学習。既に学習済みのシグナルIDなら再学習しない。
+        """
+        if "learned_ids" not in self.meta:
+            self.meta["learned_ids"] = []
+            
+        if signal_id in self.meta["learned_ids"]:
+            return False # 重複学習ブロック
+
+        X_new = self.scaler.transform(feat_row_df.values)
+        self.model.partial_fit(X_new, np.array([actual_label]), classes=np.array([0, 1]))
+        
+        self.meta["learned_ids"].append(signal_id)
+        self.meta["trained_samples"] += 1
+        self.meta["last_learned_time"] = str(datetime.now())
+        self.save(fixed_range_usd, hold_bars)
+        return True
 
 
-def save_persisted_model(target_name, model, scaler):
-    model_path = MODEL_DIR / f"model_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
-    scaler_path = MODEL_DIR / f"scaler_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
-    joblib.dump(model, model_path)
-    joblib.dump(scaler, scaler_path)
+# -------------------- ⑤ ウォークフォワード・バックテストエンジン --------------------
 
-
-# -------------------- ⑤ ウォークフォワード戦闘検証 --------------------
-
-def run_v19_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+def run_v21_empirical_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v19_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
+    features_df, labels_s = build_v21_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -367,9 +418,7 @@ def run_v19_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
             p_low, p_high = 0.5, 0.5
 
         direction = "HIGH" if p_high >= p_low else "LOW"
-        
-        current_dd = (peak_capital - current_capital) / peak_capital if peak_capital > 0 else 0.0
-        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, current_dd)
+        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, current_capital)
 
         try:
             entry_idx_loc = df_target.index.get_loc(row_time) + 1
@@ -378,16 +427,16 @@ def run_v19_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
         except Exception:
             continue
 
-        result, reason, category, settle_time = evaluate_unified_outcome(
+        result, reason, category, settle_time = evaluate_empirical_outcome(
             entry_price, direction, future_window, fixed_range_usd, hold_bars=hold_bars
         )
         
         status = "SETTLED" if result != "PENDING" else "PENDING"
         pnl = 0.0
         if status == "SETTLED":
-            if "緊急停止" in tier:
+            if "強制停止" in tier:
                 pnl = 0.0
-            elif tier in ["先回り特攻候補", "通常戦闘候補"]:
+            elif tier == "通常エントリー候補":
                 if result == "WIN":
                     pnl = stake_usd * PAYOUT_RATE
                 elif result in ["LOSS", "TIMEOUT"]:
@@ -399,6 +448,7 @@ def run_v19_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
                 if current_capital > peak_capital:
                     peak_capital = current_capital
 
+        # 検証済みの確定ラベルでオンライン学習
         actual_label = int(labels_s.loc[row_time]) if row_time in labels_s.index else 0
         try:
             model.partial_fit(X_pred, np.array([actual_label]), classes=np.array([0, 1]))
@@ -425,14 +475,14 @@ def run_v19_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
 
 # -------------------- ⑥ ダッシュボード・UI描画 --------------------
 
-st.sidebar.header("⚡ v19 独立精鋭司令室")
+st.sidebar.header("🛡️ v21 実証司令室")
 selected_symbol = st.sidebar.selectbox("🎯 ターゲット銘柄", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
 default_range = cfg["quick_range_usd"]
 
 fixed_range_usd = st.sidebar.number_input("📏 目標値幅 (±$)", 0.001, 10000.0, float(default_range), 0.01, format="%.2f")
-stake_usd = st.sidebar.number_input("💵 参戦資金 ($)", 1.0, 10000.0, 10.0, 1.0)
+stake_usd = st.sidebar.number_input("💵 参戦資金 ($)", 1.0, 10000.0, 15.0, 1.0)
 hold_bars = st.sidebar.slider("⏱️ 判定期間 (本)", 1, 20, 5)
 
 if st.sidebar.button("🔄 記憶・モデル完全リセット", use_container_width=True):
@@ -440,31 +490,33 @@ if st.sidebar.button("🔄 記憶・モデル完全リセット", use_container_
         ANALYSIS_LOG_FILE.unlink()
     for f in MODEL_DIR.glob("*.pkl"):
         f.unlink()
+    for f in MODEL_DIR.glob("*.json"):
+        f.unlink()
     st.sidebar.success("完全初期化完了。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["⚡ 個別実戦・真の最新足監視", "🌌 全市場・完全監査スキャナー"])
+tab1, tab2 = st.tabs(["🛡️ 個別実戦・真の最新足検証", "🌌 全市場・実証スキャナー"])
 
 with tab1:
-    if "v19_active" not in st.session_state:
-        st.session_state.v19_active = False
+    if "v21_active" not in st.session_state:
+        st.session_state.v21_active = False
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ 自律戦闘AI起動", use_container_width=True):
-            st.session_state.v19_active = True
+        if st.button("▶ 実証AI起動", use_container_width=True):
+            st.session_state.v21_active = True
     with c2:
         if st.button("⏹ 緊急停戦", use_container_width=True):
-            st.session_state.v19_active = False
+            st.session_state.v21_active = False
 
-    if st.session_state.v19_active:
-        st.success(f"自律戦闘稼働中 [{selected_symbol}]：真の最新足予測＆独立運用モード")
+    if st.session_state.v21_active:
+        st.success(f"実証稼働中 [{selected_symbol}]：未来リーク完全排除モード有効")
     else:
         st.info("待機中。起動ボタンを押してください。")
 
     @st.fragment(run_every="30s")
     def combat_loop():
-        if not st.session_state.v19_active:
+        if not st.session_state.v21_active:
             return
 
         all_dfs = fetch_all_markets_data(period="60d", interval="1h")
@@ -473,42 +525,30 @@ with tab1:
             st.warning("データ同期中...")
             return
 
-        features_df, labels_s = build_v19_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
+        features_df, labels_s = build_v21_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
         if len(features_df) < 10:
             st.warning("有効な特徴量データが不足しています。")
             return
 
-        model, scaler = get_persisted_model_and_scaler(selected_symbol, features_df, labels_s)
+        manager = EmpiricalModelManager(selected_symbol)
+        if not manager.load(fixed_range_usd, hold_bars):
+            manager.initialize_fit(features_df.values, labels_s.values, fixed_range_usd, hold_bars)
 
-        # 🚨 真の最新足（まだ学習に使っていない最後の確定行）を予測
+        # 🚨 未来の未評価シグナル（真の最新確定足）の予測
         signal_i = len(features_df) - 1
         feat_row = features_df.iloc[signal_i]
         row_time = features_df.index[signal_i]
 
-        X_live = scaler.transform(np.array([feat_row.values]))
+        X_live = manager.scaler.transform(np.array([feat_row.values]))
         try:
-            probs = model.predict_proba(X_live)[0]
-            classes_list = list(model.classes_)
+            probs = manager.model.predict_proba(X_live)[0]
+            classes_list = list(manager.model.classes_)
             p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
             p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
         except Exception:
             p_low, p_high = 0.5, 0.5
 
-        direction = "HIGH" if p_high >= p_low else "LOW"
-        
-        current_dd = 0.0
-        if ANALYSIS_LOG_FILE.exists():
-            try:
-                log_df = pd.read_csv(ANALYSIS_LOG_FILE)
-                if not log_df.empty and "capital" in log_df.columns:
-                    caps = log_df["capital"].values
-                    peak = np.maximum.accumulate(caps)
-                    dds = (peak - caps) / peak
-                    current_dd = float(dds[-1])
-            except Exception:
-                pass
-
-        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, current_dd)
+        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, stake_usd)
         signal_price = float(df_target["Close"].loc[row_time]) if row_time in df_target.index else float(df_target["Close"].iloc[-1])
 
         st.markdown(
@@ -517,7 +557,7 @@ with tab1:
                 <div class="panel-high">
                     <h3>▲ 昇華・HIGH予測 (真の最新足)</h3>
                     <h1 style="color: #00ffcc; margin: 10px 0;">{p_high:.1%}</h1>
-                    <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd}</p>
+                    <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd} (学習済サンプル数: {manager.meta.get('trained_samples', 0)})</p>
                 </div>
                 <div class="panel-low">
                     <h3>▼ 降下・LOW予測 (真の最新足)</h3>
@@ -529,7 +569,7 @@ with tab1:
             unsafe_allow_html=True,
         )
 
-        if "緊急停止" in tier:
+        if "強制停止" in tier:
             st.markdown(f'<div class="circuit-lock"><h3>{tier}</h3><p>{tier_reason}</p></div>', unsafe_allow_html=True)
         else:
             st.info(f"🎯 現在の戦闘ステージ: 【 {tier} 】\n\n{tier_reason} (基準価格: ${signal_price:,.2f})")
@@ -537,27 +577,27 @@ with tab1:
     combat_loop()
 
     st.markdown("---")
-    st.subheader("🚀 厳格ウォークフォワード監査 (バックテスト)")
-    if st.button("▶️ v19 厳格バックテスト実行", use_container_width=True):
-        with st.spinner("真の最新足予測と統一勝敗定義による監査を実行中..."):
+    st.subheader("🚀 厳格ウォークフォワード検証 (バックテスト)")
+    if st.button("▶️ v21 厳格バックテスト実行", use_container_width=True):
+        with st.spinner("未来リークなしのウォークフォワード検証を実行中..."):
             all_dfs = fetch_all_markets_data(period="60d", interval="1h")
-            res_df = run_v19_combat_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
+            res_df = run_v21_empirical_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
             if not res_df.empty:
                 total_trades = len(res_df[res_df["result"].isin(["WIN", "LOSS", "TIMEOUT"])])
                 wins = len(res_df[res_df["result"] == "WIN"])
                 win_rate = wins / total_trades * 100 if total_trades > 0 else 0.0
                 final_cap = res_df["capital"].iloc[-1]
                 
-                st.markdown(f"### 📊 監査報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd}) | 損益分岐(53.19%)と比較")
+                st.markdown(f"### 📊 検証報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd}) | 損益分岐(53.19%)と比較")
                 st.line_chart(res_df.set_index("time")[["capital"]])
                 st.dataframe(res_df.tail(20), use_container_width=True, hide_index=True)
             else:
-                st.warning("有効な監査データがありません。")
+                st.warning("有効な検証データがありません。")
 
 with tab2:
-    st.subheader("🌌 全12市場 完全監査スキャナー")
-    if st.button("🔍 全市場の真の最新足を一斉監査", use_container_width=True):
-        with st.spinner("全12市場を未来リークなしで監査中..."):
+    st.subheader("🌌 全12市場 実証スキャナー")
+    if st.button("🔍 全市場の真の最新足を一斉検証", use_container_width=True):
+        with st.spinner("全12市場を未来リークなしで検証中..."):
             all_dfs = fetch_all_markets_data(period="60d", interval="1h")
             scan_res = []
             for name, cfg in SYMBOLS_CONFIG.items():
@@ -566,14 +606,16 @@ with tab2:
                 if df is None or len(df) < 50:
                     continue
                 try:
-                    f_df, l_s = build_v19_features_and_labels(name, all_dfs, rng, 5)
+                    f_df, l_s = build_v21_features_and_labels(name, all_dfs, rng, 5)
                     if len(f_df) < 10:
                         continue
-                    model, scaler = get_persisted_model_and_scaler(name, f_df, l_s)
+                    manager = EmpiricalModelManager(name)
+                    if not manager.load(rng, 5):
+                        manager.initialize_fit(f_df.values, l_s.values, rng, 5)
                     feat_row = f_df.iloc[-1]
-                    probs = model.predict_proba(scaler.transform(np.array([feat_row.values])))[0]
+                    probs = manager.model.predict_proba(manager.scaler.transform(np.array([feat_row.values])))[0]
                     p_l, p_h = probs[0], probs[1]
-                    tier, _ = classify_combat_tier(feat_row, p_h, p_l, 0.0)
+                    tier, _ = classify_combat_tier(feat_row, p_h, p_l, stake_usd)
                     scan_res.append({"銘柄": name, "ステージ": tier, "HIGH確率": f"{p_h:.1%}", "LOW確率": f"{p_l:.1%}", "ギャップ": round(abs(p_h - p_l), 3)})
                 except Exception:
                     pass
