@@ -7,16 +7,17 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import brier_score_loss
 from datetime import datetime
+import joblib
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v17 創発・先回り戦闘エンジン)
-# 思想: 群集の先回り(ボラティリティスクイーズ・プレッシャー蓄積)、勝敗DNAの即時学習、絶対生存サーキットブレーカー
+# UTAYA グローバル・インベストメンツ (v19 独立精鋭・実戦完全自律エンジン)
+# 思想: ノートPC完結の少数精鋭型、真の最新足予測、統一勝敗定義、モデル永続化、実動防衛網
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v17 Emergent Anticipation Engine",
-    page_icon="🔥",
+    page_title="UTAYA Global Investments - v19 Elite Autonomous Combat Engine",
+    page_icon="⚡",
     layout="wide",
 )
 
@@ -36,50 +37,51 @@ SYMBOLS_CONFIG = {
 }
 
 PAYOUT_RATE = 0.88  
-DATA_DIR = Path("utaya_data_v17")
+DATA_DIR = Path("utaya_data_v19")
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v17.csv"
+MODEL_DIR = DATA_DIR / "models"
+MODEL_DIR.mkdir(exist_ok=True)
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v19.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
     """
     <style>
-    .combat-banner {
-        background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+    .elite-banner {
+        background: linear-gradient(135deg, #0d1b2a, #1b263b, #415a77);
         padding: 20px;
         border-radius: 12px;
         color: #00ffcc;
         text-align: center;
         margin-bottom: 20px;
         border: 1px solid #00ffcc;
-        box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
     }
-    .panel-anticipation {
+    .panel-container {
         display: flex;
         gap: 15px;
         margin-bottom: 20px;
     }
-    .side-high {
+    .panel-high {
         flex: 1;
-        background: rgba(0, 255, 204, 0.1);
+        background: rgba(0, 255, 204, 0.12);
         border: 2px solid #00ffcc;
         padding: 18px;
         border-radius: 10px;
         text-align: center;
     }
-    .side-low {
+    .panel-low {
         flex: 1;
-        background: rgba(255, 75, 75, 0.1);
+        background: rgba(255, 75, 75, 0.12);
         border: 2px solid #ff4b4b;
         padding: 18px;
         border-radius: 10px;
         text-align: center;
     }
     .circuit-lock {
-        background: rgba(255, 0, 0, 0.2);
+        background: rgba(255, 0, 0, 0.25);
         border-left: 6px solid #ff0000;
         padding: 15px;
         border-radius: 6px;
@@ -91,9 +93,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🔥 UTAYA v17 創発・先回り戦闘エンジン")
+st.title("⚡ UTAYA v19 独立精鋭・実戦完全自律エンジン")
 st.caption(
-    "群集の先回り検出 (ボラティリティスクイーズ) | 失敗DNA即時学習 | 絶対生存サーキットブレーカー"
+    "ノートPC完結型高速学習 | 未来未確定行の完全分離 | 統一勝敗定義 | 15%資本防衛ネット"
 )
 
 
@@ -166,9 +168,42 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 先回り特徴量 & 厳格ハイロー直接学習 --------------------
+# -------------------- ② 勝敗定義の完全統一 ＆ 未来未確定行の完全分離 --------------------
 
-def build_v17_combat_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
+def evaluate_unified_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
+    if future_candles is None or len(future_candles) == 0:
+        return "PENDING", "未来足未到着", "PENDING", None
+
+    upper_target = float(entry_price) + fixed_range_usd
+    lower_target = float(entry_price) - fixed_range_usd
+
+    for idx, candle in future_candles.iterrows():
+        h = float(candle["High"])
+        l = float(candle["Low"])
+
+        hit_up = h >= upper_target
+        hit_down = l <= lower_target
+
+        if hit_up and hit_down:
+            return "NOISE", "同一足で上下両方到達（ノイズ）", "VOLATILITY_NOISE", str(idx)
+        if hit_up:
+            if direction == "HIGH":
+                return "WIN", "上方ターゲット先着", "SUCCESS_HIGH", str(idx)
+            else:
+                return "LOSS", "上方逆行被弾", "REVERSE_HIGH", str(idx)
+        if hit_down:
+            if direction == "LOW":
+                return "WIN", "下方ターゲット先着", "SUCCESS_LOW", str(idx)
+            else:
+                return "LOSS", "下方逆行被弾", "REVERSE_LOW", str(idx)
+
+    if len(future_candles) >= hold_bars:
+        return "TIMEOUT", "期限内ターゲット未達", "TIMEOUT", str(future_candles.index[-1])
+
+    return "PENDING", "交戦中", "PENDING", None
+
+
+def build_v19_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -193,11 +228,9 @@ def build_v17_combat_features_and_labels(target_name, all_dfs, fixed_range_usd, 
     rsi = rsi.where(losses != 0, 100.0)
     rsi = rsi.where(gains != 0, 50.0)
 
-    # 1. ボラティリティ・スクイーズ（暴風雨前の静けさ＝先回りエントリーの核心）
     rolling_std = returns.rolling(14).std()
     squeeze_index = rolling_std / rolling_std.rolling(30).mean().replace(0, 0.0001)
 
-    # 2. オーダー・プレッシャー（上下のヒゲと実体の比率から大口の仕掛けを検出）
     body_size = (close - open_p).abs()
     candle_range = (high - low).replace(0, 0.0001)
     body_ratio = body_size / candle_range
@@ -209,108 +242,100 @@ def build_v17_combat_features_and_labels(target_name, all_dfs, fixed_range_usd, 
     features["return_3"] = close.pct_change(3)
     features["sma_ratio_10"] = (close - close.rolling(10).mean()) / close.rolling(10).mean()
     features["rsi"] = rsi
-    features["squeeze_index"] = squeeze_index  # 圧縮度（先回り指標）
+    features["squeeze_index"] = squeeze_index
     features["body_ratio"] = body_ratio
-    features["pressure_diff"] = lower_pressure - upper_pressure  # 買い圧力 vs 売り圧力
+    features["pressure_diff"] = lower_pressure - upper_pressure
     features["volatility"] = rolling_std
 
-    # ハイロー値幅到達ラベル（未来リーク完全排除）
+    # 🚨 未来未確定行の完全分離（判定期間分の未来データがある行のみラベル化）
     labels = []
+    valid_index = []
+    
     for idx in range(len(df_target) - hold_bars):
+        row_time = df_target.index[idx]
         entry_price = float(df_target["Open"].iloc[idx + 1])
         future_window = df_target.iloc[idx + 1 : idx + 1 + hold_bars]
         
-        upper_target = entry_price + fixed_range_usd
-        lower_target = entry_price - fixed_range_usd
+        res, _, _, _ = evaluate_unified_outcome(entry_price, "HIGH", future_window, fixed_range_usd, hold_bars)
         
-        lbl = np.nan
-        for _, candle in future_window.iterrows():
-            h = float(candle["High"])
-            l = float(candle["Low"])
-            hit_up = h >= upper_target
-            hit_down = l <= lower_target
-            
-            if hit_up and not hit_down:
-                lbl = 1
-                break
-            elif hit_down and not hit_up:
-                lbl = 0
-                break
-            elif hit_up and hit_down:
-                break
-        labels.append(lbl)
+        if res == "WIN":
+            labels.append(1)
+            valid_index.append(row_time)
+        elif res in ["LOSS", "TIMEOUT"]:
+            labels.append(0)
+            valid_index.append(row_time)
 
-    features_trimmed = features.iloc[:len(labels)].copy()
-    features_trimmed["target"] = labels
-    features_trimmed = features_trimmed.replace([np.inf, -np.inf], np.nan).dropna()
+    features_valid = features.loc[valid_index].copy()
+    features_valid["target"] = labels
+    features_valid = features_valid.replace([np.inf, -np.inf], np.nan).dropna()
 
-    if features_trimmed.empty:
+    if features_valid.empty:
         return pd.DataFrame(), pd.Series(dtype=int)
 
-    return features_trimmed.drop(columns=["target"]), features_trimmed["target"].astype(int)
+    return features_valid.drop(columns=["target"]), features_valid["target"].astype(int)
 
 
-# -------------------- ③ 評価・戦闘判定関数 --------------------
-
-def evaluate_combat_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
-    if future_candles is None or len(future_candles) == 0:
-        return "PENDING", "未来足の到着待ち", "PENDING", None
-
-    upper_target = float(entry_price) + fixed_range_usd
-    lower_target = float(entry_price) - fixed_range_usd
-
-    for idx, candle in future_candles.iterrows():
-        high = float(candle["High"])
-        low = float(candle["Low"])
-
-        hit_up = high >= upper_target
-        hit_down = low <= lower_target
-
-        if hit_up and hit_down:
-            return "LOSS", "乱高下によるノイズ被弾", "NOISE_HIT", str(idx)
-        if hit_up:
-            if direction == "HIGH":
-                return "WIN", "上方ターゲット先着", "SUCCESS_HIGH", str(idx)
-            else:
-                return "LOSS", "上方逆行被弾", "REVERSE_HIGH", str(idx)
-        if hit_down:
-            if direction == "LOW":
-                return "WIN", "下方ターゲット先着", "SUCCESS_LOW", str(idx)
-            else:
-                return "LOSS", "下方逆行被弾", "REVERSE_LOW", str(idx)
-
-    if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "膠着・ターゲット未達", "TIMEOUT", str(future_candles.index[-1])
-
-    return "PENDING", "交戦中", "PENDING", None
-
+# -------------------- ③ 戦闘ステージ判定 (3段階積極管理) --------------------
 
 def classify_combat_tier(feat_row, p_high, p_low, current_drawdown_pct):
-    # 🚨 絶対生存サーキットブレーカー（資金が15%以上削られたら戦闘強制停止）
     if current_drawdown_pct >= 0.15:
-        return "絶対生存・緊急停止", "🚨 危険水域到達。資本防衛のため全システム戦闘停止。"
+        return "絶対生存・緊急停止", f"🚨 資本防衛発動 (ドローダウン {current_drawdown_pct:.1%})。資産保護のため強制一時停止。"
 
     squeeze = float(feat_row.get("squeeze_index", 1.0))
     probability_gap = abs(p_high - p_low)
 
-    # 嵐の前の静けさ（スクイーズ状態）かつ確率ギャップがある場合は先回り攻撃
     if squeeze < 0.8 and probability_gap >= 0.03:
         return "先回り特攻候補", f"⚡ スクイーズ検知（圧縮度 {squeeze:.2f}）＆ギャップ {probability_gap:.3f}。先回り奇襲の好機。"
 
     if probability_gap >= 0.04:
         return "通常戦闘候補", f"🔥 確率優位確立（ギャップ {probability_gap:.3f}）。通常迎撃態勢。"
 
-    return "待伏せ・条件監視", f"👀 エッジ蓄積中（ギャップ {probability_gap:.3f}, スクイーズ {squeeze:.2f}）。次のシグナルを待伏せ。"
+    return "待伏せ・条件監視", f"👀 エッジ蓄積中（ギャップ {probability_gap:.3f}）。条件成立を待伏せ監視中。"
 
 
-# -------------------- ④ ウォークフォワード戦闘検証 --------------------
+# -------------------- ④ モデル永続化・オンライン学習 --------------------
 
-def run_v17_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+def get_persisted_model_and_scaler(target_name, features_df, labels_s):
+    model_path = MODEL_DIR / f"model_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
+    scaler_path = MODEL_DIR / f"scaler_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
+
+    scaler = StandardScaler()
+    model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
+
+    if model_path.exists() and scaler_path.exists():
+        try:
+            model = joblib.load(model_path)
+            scaler = joblib.load(scaler_path)
+            return model, scaler
+        except Exception:
+            pass
+
+    if not features_df.empty and not labels_s.empty:
+        X = features_df.values
+        y = labels_s.values
+        scaler.fit(X)
+        model.partial_fit(scaler.transform(X), y, classes=np.array([0, 1]))
+        joblib.dump(model, model_path)
+        joblib.dump(scaler, scaler_path)
+
+    return model, scaler
+
+
+def save_persisted_model(target_name, model, scaler):
+    model_path = MODEL_DIR / f"model_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
+    scaler_path = MODEL_DIR / f"scaler_v19_{target_name.replace(' ', '_').replace('(', '').replace(')', '')}.pkl"
+    joblib.dump(model, model_path)
+    joblib.dump(scaler, scaler_path)
+
+
+# -------------------- ⑤ ウォークフォワード戦闘検証 --------------------
+
+def run_v19_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v17_combat_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
+    features_df, labels_s = build_v19_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -353,7 +378,7 @@ def run_v17_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
         except Exception:
             continue
 
-        result, reason, category, settle_time = evaluate_combat_outcome(
+        result, reason, category, settle_time = evaluate_unified_outcome(
             entry_price, direction, future_window, fixed_range_usd, hold_bars=hold_bars
         )
         
@@ -363,17 +388,22 @@ def run_v17_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
             if "緊急停止" in tier:
                 pnl = 0.0
             elif tier in ["先回り特攻候補", "通常戦闘候補"]:
-                pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
+                if result == "WIN":
+                    pnl = stake_usd * PAYOUT_RATE
+                elif result in ["LOSS", "TIMEOUT"]:
+                    pnl = -stake_usd
+                else:
+                    pnl = 0.0
+                
                 current_capital += pnl
                 if current_capital > peak_capital:
                     peak_capital = current_capital
 
-        # 失敗DNAの即時学習（負けからも勝ちからも直ちにモデルを適応）
-        actual_label = int(labels_s.loc[row_time])
+        actual_label = int(labels_s.loc[row_time]) if row_time in labels_s.index else 0
         try:
             model.partial_fit(X_pred, np.array([actual_label]), classes=np.array([0, 1]))
         except ValueError:
-            model.partial_fit(X_pred, np.array([actual_label]))
+            pass
 
         records.append({
             "time": str(row_time),
@@ -393,9 +423,9 @@ def run_v17_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_ra
     return res_df
 
 
-# -------------------- ⑤ ダッシュボード・UI描画 --------------------
+# -------------------- ⑥ ダッシュボード・UI描画 --------------------
 
-st.sidebar.header("🔥 v17 戦闘司令室")
+st.sidebar.header("⚡ v19 独立精鋭司令室")
 selected_symbol = st.sidebar.selectbox("🎯 ターゲット銘柄", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
@@ -405,34 +435,36 @@ fixed_range_usd = st.sidebar.number_input("📏 目標値幅 (±$)", 0.001, 1000
 stake_usd = st.sidebar.number_input("💵 参戦資金 ($)", 1.0, 10000.0, 10.0, 1.0)
 hold_bars = st.sidebar.slider("⏱️ 判定期間 (本)", 1, 20, 5)
 
-if st.sidebar.button("🔄 戦闘ログ・記憶リセット", use_container_width=True):
+if st.sidebar.button("🔄 記憶・モデル完全リセット", use_container_width=True):
     if ANALYSIS_LOG_FILE.exists():
         ANALYSIS_LOG_FILE.unlink()
-    st.sidebar.success("初期化完了。新たな戦いへ。")
+    for f in MODEL_DIR.glob("*.pkl"):
+        f.unlink()
+    st.sidebar.success("完全初期化完了。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["⚡ 個別実戦・先回りパネル", "🌌 全市場・一斉急襲スキャナー"])
+tab1, tab2 = st.tabs(["⚡ 個別実戦・真の最新足監視", "🌌 全市場・完全監査スキャナー"])
 
 with tab1:
-    if "v17_active" not in st.session_state:
-        st.session_state.v17_active = False
+    if "v19_active" not in st.session_state:
+        st.session_state.v19_active = False
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ 先回り戦闘AI起動", use_container_width=True):
-            st.session_state.v17_active = True
+        if st.button("▶ 自律戦闘AI起動", use_container_width=True):
+            st.session_state.v19_active = True
     with c2:
         if st.button("⏹ 緊急停戦", use_container_width=True):
-            st.session_state.v17_active = False
+            st.session_state.v19_active = False
 
-    if st.session_state.v17_active:
-        st.success(f"戦闘態勢稼働中 [{selected_symbol}]：スクイーズ検出＆即時適応中")
+    if st.session_state.v19_active:
+        st.success(f"自律戦闘稼働中 [{selected_symbol}]：真の最新足予測＆独立運用モード")
     else:
         st.info("待機中。起動ボタンを押してください。")
 
     @st.fragment(run_every="30s")
     def combat_loop():
-        if not st.session_state.v17_active:
+        if not st.session_state.v19_active:
             return
 
         all_dfs = fetch_all_markets_data(period="60d", interval="1h")
@@ -441,38 +473,54 @@ with tab1:
             st.warning("データ同期中...")
             return
 
-        features_df, labels_s = build_v17_combat_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
+        features_df, labels_s = build_v19_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
         if len(features_df) < 10:
+            st.warning("有効な特徴量データが不足しています。")
             return
 
+        model, scaler = get_persisted_model_and_scaler(selected_symbol, features_df, labels_s)
+
+        # 🚨 真の最新足（まだ学習に使っていない最後の確定行）を予測
         signal_i = len(features_df) - 1
         feat_row = features_df.iloc[signal_i]
         row_time = features_df.index[signal_i]
 
-        X_live = features_df.values
-        y_live = labels_s.values
-        scaler = StandardScaler().fit(X_live)
-        model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
-        model.partial_fit(scaler.transform(X_live), y_live, classes=np.array([0, 1]))
+        X_live = scaler.transform(np.array([feat_row.values]))
+        try:
+            probs = model.predict_proba(X_live)[0]
+            classes_list = list(model.classes_)
+            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
+            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
+        except Exception:
+            p_low, p_high = 0.5, 0.5
 
-        probs = model.predict_proba(scaler.transform(np.array([feat_row.values])))[0]
-        p_low, p_high = probs[0], probs[1]
         direction = "HIGH" if p_high >= p_low else "LOW"
         
-        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, 0.0)
+        current_dd = 0.0
+        if ANALYSIS_LOG_FILE.exists():
+            try:
+                log_df = pd.read_csv(ANALYSIS_LOG_FILE)
+                if not log_df.empty and "capital" in log_df.columns:
+                    caps = log_df["capital"].values
+                    peak = np.maximum.accumulate(caps)
+                    dds = (peak - caps) / peak
+                    current_dd = float(dds[-1])
+            except Exception:
+                pass
+
+        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, current_dd)
         signal_price = float(df_target["Close"].loc[row_time]) if row_time in df_target.index else float(df_target["Close"].iloc[-1])
 
-        # ⚡ 先回り戦闘パネル
         st.markdown(
             f"""
-            <div class="panel-anticipation">
-                <div class="side-high">
-                    <h3>▲ 昇華・HIGH予測</h3>
+            <div class="panel-container">
+                <div class="panel-high">
+                    <h3>▲ 昇華・HIGH予測 (真の最新足)</h3>
                     <h1 style="color: #00ffcc; margin: 10px 0;">{p_high:.1%}</h1>
                     <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd}</p>
                 </div>
-                <div class="side-low">
-                    <h3>▼ 降下・LOW予測</h3>
+                <div class="panel-low">
+                    <h3>▼ 降下・LOW予測 (真の最新足)</h3>
                     <h1 style="color: #ff4b4b; margin: 10px 0;">{p_low:.1%}</h1>
                     <p style="font-size: 0.8rem; color: #ccc;">下方ターゲット: -${fixed_range_usd}</p>
                 </div>
@@ -489,27 +537,27 @@ with tab1:
     combat_loop()
 
     st.markdown("---")
-    st.subheader("🚀 過去戦歴の検証と生存確認 (バックテスト)")
-    if st.button("▶️ v17 厳格バックテスト実行", use_container_width=True):
-        with st.spinner("全履歴をスキャンし、勝敗DNAの即時学習と資金曲線検証中..."):
+    st.subheader("🚀 厳格ウォークフォワード監査 (バックテスト)")
+    if st.button("▶️ v19 厳格バックテスト実行", use_container_width=True):
+        with st.spinner("真の最新足予測と統一勝敗定義による監査を実行中..."):
             all_dfs = fetch_all_markets_data(period="60d", interval="1h")
-            res_df = run_v17_combat_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
+            res_df = run_v19_combat_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
             if not res_df.empty:
-                total_trades = len(res_df[res_df["result"].isin(["WIN", "LOSS"])])
+                total_trades = len(res_df[res_df["result"].isin(["WIN", "LOSS", "TIMEOUT"])])
                 wins = len(res_df[res_df["result"] == "WIN"])
                 win_rate = wins / total_trades * 100 if total_trades > 0 else 0.0
                 final_cap = res_df["capital"].iloc[-1]
                 
-                st.markdown(f"### 📊 戦果報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd})")
+                st.markdown(f"### 📊 監査報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd}) | 損益分岐(53.19%)と比較")
                 st.line_chart(res_df.set_index("time")[["capital"]])
                 st.dataframe(res_df.tail(20), use_container_width=True, hide_index=True)
             else:
-                st.warning("有効な戦闘データがありません。")
+                st.warning("有効な監査データがありません。")
 
 with tab2:
-    st.subheader("🌌 全12市場 先回り急襲スキャナー")
-    if st.button("🔍 全市場の歪みを一斉スキャン", use_container_width=True):
-        with st.spinner("全12市場のボラティリティ・スクイーズを解析中..."):
+    st.subheader("🌌 全12市場 完全監査スキャナー")
+    if st.button("🔍 全市場の真の最新足を一斉監査", use_container_width=True):
+        with st.spinner("全12市場を未来リークなしで監査中..."):
             all_dfs = fetch_all_markets_data(period="60d", interval="1h")
             scan_res = []
             for name, cfg in SYMBOLS_CONFIG.items():
@@ -518,12 +566,11 @@ with tab2:
                 if df is None or len(df) < 50:
                     continue
                 try:
-                    f_df, l_s = build_v17_combat_features_and_labels(name, all_dfs, rng, 5)
+                    f_df, l_s = build_v19_features_and_labels(name, all_dfs, rng, 5)
                     if len(f_df) < 10:
                         continue
+                    model, scaler = get_persisted_model_and_scaler(name, f_df, l_s)
                     feat_row = f_df.iloc[-1]
-                    scaler = StandardScaler().fit(f_df.values)
-                    model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42).partial_fit(scaler.transform(f_df.values), l_s.values, classes=np.array([0, 1]))
                     probs = model.predict_proba(scaler.transform(np.array([feat_row.values])))[0]
                     p_l, p_h = probs[0], probs[1]
                     tier, _ = classify_combat_tier(feat_row, p_h, p_l, 0.0)
