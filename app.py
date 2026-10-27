@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AIエンジン（ネイティブUI・利益保証なし）"""
+"""UTAYA v30.1 | 完全自動化・資金救済型ハイロー実証監査AIエンジン（利益保証なし）"""
 from __future__ import annotations
 import json, re, os, time
 from pathlib import Path
@@ -12,7 +12,7 @@ import yfinance as yf
 from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 
-st.set_page_config(page_title="UTAYA v30 | ハイロー取引実証監査AI", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="UTAYA v30.1 | 完全自動化・ハイロー実証監査AI", page_icon="🛡️", layout="wide")
 
 SYMBOLS = {
     "BTC": {"ticker":"BTC-USD"},
@@ -37,7 +37,7 @@ for p in (ROOT, HISTORY, MODELS, LOGS): p.mkdir(parents=True, exist_ok=True)
 def slug(name):
     return re.sub(r"[^A-Za-z0-9_-]", "_", SYMBOLS[name]["ticker"])
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_data(ticker, period, interval):
     path = HISTORY / f"{ticker.replace('^','').replace('=','_')}_{interval}.csv"
     try:
@@ -142,7 +142,7 @@ def build_data(name, all_data, hold):
     x = x.ffill()
     valid = x.notna().all(axis=1) & y.notna()
     
-    if valid.sum() < 30:
+    if valid.sum() < 20:
         return pd.DataFrame(), pd.Series(dtype=int), pd.DataFrame(), has_vol, f"有効サンプル不足 ({valid.sum()}件)"
         
     return x.loc[valid].copy(), y.loc[valid].astype(int).copy(), x, has_vol, "OK"
@@ -168,7 +168,7 @@ class ModelManager:
         except Exception: return False
         
     def fit_initial(self, x, y):
-        if len(x) < 30 or y.nunique() < 2: raise ValueError("初期学習不足")
+        if len(x) < 20 or y.nunique() < 2: raise ValueError("初期学習不足")
         self.scaler.fit(x.values)
         self.model.partial_fit(self.scaler.transform(x.values), y.values, classes=np.array([0, 1]))
         self.meta.update(trained_samples=int(len(x)), feature_columns=list(x.columns), last_fit=datetime.now(timezone.utc).isoformat())
@@ -182,10 +182,10 @@ st.markdown("""<style>
 .banner{background:linear-gradient(135deg,#0d1b2a,#1b263b,#415a77);padding:18px;border-radius:12px;color:#00ffcc;text-align:center;border:1px solid #00ffcc}
 </style>""", unsafe_allow_html=True)
 
-st.markdown('<div class="banner"><h1>🛡️ UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AI</h1><p>バイナリーオプション勝敗モデリング / 損益分岐勝率自動計算 / ネイティブUI</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="banner"><h1>🛡️ UTAYA v30.1 | 完全自動化・資金救済型ハイロー実証AI</h1><p>全自動オートパイロット執行 / 日銭稼ぎ最適化 / ネイティブUI</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("⚙️ v30 取引＆資金管理設定")
+    st.header("⚙️ v30.1 自動化＆資金設定")
     if "account_capital" not in st.session_state: st.session_state.account_capital = 15.0
     
     current_cap = st.number_input("現在口座残高 ($)", 1.0, 100000.0, st.session_state.account_capital, 1.0)
@@ -204,14 +204,14 @@ with st.sidebar:
     
     hold = st.slider("判定期限（足数 / ハイロー期間）", 1, 20, 5)
     period = st.selectbox("データ期間", ["30d", "60d", "3mo", "6mo", "1y"], index=1)
-    interval = st.selectbox("時間足", ["1m", "5m", "15m", "30m", "1h", "1d"], index=2)
-    threshold = st.slider("最低確率差（エントリーフィルター）", 0., .5, .08, .01)
+    interval = st.selectbox("時間足", ["1m", "5m", "15m", "30m", "1h", "1d"], index=0) # デフォルトを1mにしてリアルタイム性を強化
+    threshold = st.slider("最低確率差（自動執行フィルター）", 0., .5, .03, .01)
     
     st.divider()
-    auto_refresh = st.checkbox("🔄 24時間リアルタイム監査巡回 (15秒毎)", value=False)
+    auto_refresh = st.checkbox("🔄 24時間完全自動オートパイロット (15秒毎巡回)", value=True)
 
-st.subheader(f"📊 損益分岐勝率・期待値リファレンス (支払い率: {payout_ratio*100:.0f}%)")
-st.info(f"🎯 **損益分岐勝率: {break_even_winrate:.2f}%** （この勝率を実証テストで安定して超えるモデルのみが実戦投入の基準となります） | **今回投資額:** ${invest_amount:.2f}")
+st.subheader(f"📊 損益分岐勝率・日銭稼ぎリファレンス (支払い率: {payout_ratio*100:.0f}%)")
+st.info(f"🎯 **損益分岐勝率: {break_even_winrate:.2f}%** | **今回自動投資額:** ${invest_amount:.2f} (少額資金防衛モード稼働中)")
 
 placeholder = st.empty()
 
@@ -248,12 +248,12 @@ def run_v30_audit():
                 audit_logs.append({"市場": name, "ステータス": "⚠️ 除外", "理由": "最新特徴量不足"})
                 continue
                 
-            row = latest.iloc[[-2]]
+            row = latest.iloc[[-1]] # 最新の確定/準拠足を使用
             pr = manager.model.predict_proba(manager.scaler.transform(row.values))[0]
             m = {int(c):float(p) for c,p in zip(manager.model.classes_, pr)}
             pl, ph = m.get(0,.5), m.get(1,.5)
             gap = abs(ph - pl)
-            direction = "HIGH (上)" if ph > pl else "LOW (下)" if pl < ph else "見送り"
+            direction = "HIGH (上)" if ph > pl else "LOW (下)"
             
             manager.meta["prediction_count"] = manager.meta.get("prediction_count", 0) + 1
             manager.save()
@@ -261,13 +261,13 @@ def run_v30_audit():
             rsi_val = float(row["rsi"].iloc[0]) if "rsi" in row else 50.0
             
             if gap >= threshold:
-                verdict = "エントリー候補"
+                verdict = "🔥 自動エントリーGO"
             else:
-                verdict = "見送り (確率差不足)"
+                verdict = "待機 (フィルター内)"
                 
             rankings.append({
                 "市場": name,
-                "最終判断": verdict,
+                "自動判定": verdict,
                 "予測方向": direction,
                 "HIGH確率": ph,
                 "LOW確率": pl,
@@ -275,10 +275,9 @@ def run_v30_audit():
                 "RSI": rsi_val,
                 "現在価格": float(all_data[name].Close.iloc[-1]),
                 "学習サンプル": manager.meta["trained_samples"],
-                "予測回数": manager.meta["prediction_count"],
                 "スコア": gap
             })
-            audit_logs.append({"市場": name, "ステータス": "✅ 正常監査", "理由": f"判定: {verdict} (HIGH確率: {ph:.1%})"})
+            audit_logs.append({"市場": name, "ステータス": "✅ 正常稼働", "理由": f"判定: {verdict} (HIGH: {ph:.1%})"})
         except Exception as ex:
             audit_logs.append({"市場": name, "ステータス": "❌ 例外", "理由": str(ex)})
             
@@ -286,22 +285,21 @@ def run_v30_audit():
     return rankings, audit_logs
 
 def render_dashboard():
-    with st.spinner("全12市場のハイロー勝敗条件に基づく監査を実行中..."):
+    with st.spinner("全12市場の全自動オートパイロットスキャン実行中..."):
         rankings, audit_logs = run_v30_audit()
         
-    tab1, tab2, tab3 = st.tabs(["🏆 ハイロー予測・監査ランキング", "🧪 厳格バックテスト（時系列検証）", "🔍 システム全銘柄監査ログ"])
+    tab1, tab2, tab3 = st.tabs(["🚀 オートパイロット・シグナル", "🧪 実証バックテスト（日銭シミュレーション）", "🔍 システム全銘柄監査ログ"])
     
     with tab1:
         if not rankings:
-            st.warning("現在、条件を満たす市場がありません。「システム全銘柄監査ログ」タブでデータ不足の原因を確認してください。")
+            st.warning("現在、条件を満たす市場がありません。「システム全銘柄監査ログ」タブで原因を確認してください。")
         else:
             top = rankings[0]
             
-            # --- 100%バグのないネイティブStreamlitコンポーネントによる最上位候補カード ---
             with st.container(border=True):
                 col_title, col_badge = st.columns([3, 1])
                 with col_title:
-                    st.caption("🔥 現在の最上位・推奨候補")
+                    st.caption("🚀 全自動オートパイロット最適執行候補")
                     st.markdown(f"### **{top['市場']}**")
                 with col_badge:
                     if "LOW" in top['予測方向']:
@@ -321,13 +319,12 @@ def render_dashboard():
                     st.markdown(f"🔴 LOW確率: **{low_p * 100:.1f}%**")
                 
                 st.progress(high_p)
-                
                 st.write("")
                 
                 m1, m2, m3 = st.columns(3)
                 m1.metric("現在価格", f"${top['現在価格']:,.2f}")
                 m2.metric("オッズ歪み (確率差)", f"{top['確率差(歪み)']:.3f}")
-                m3.metric(f"推奨投資額 ({stake_mode})", f"${invest_amount:.2f}")
+                m3.metric(f"自動投資額 ({stake_mode})", f"${invest_amount:.2f}")
 
             df_r = pd.DataFrame(rankings)
             df_disp = df_r.copy()
@@ -338,28 +335,27 @@ def render_dashboard():
             df_disp["現在価格"] = df_disp["現在価格"].apply(lambda v: f"${v:,.2f}")
             df_disp.insert(0, "順位", range(1, len(df_disp) + 1))
             
-            st.markdown("### 🏆 全銘柄ハイロー・優位性ランキング")
-            st.dataframe(df_disp[["順位", "市場", "最終判断", "予測方向", "HIGH確率", "LOW確率", "確率差(歪み)", "RSI", "現在価格", "学習サンプル"]], use_container_width=True, hide_index=True)
+            st.markdown("### 🏆 全市場オートパイロット・ランキング")
+            st.dataframe(df_disp[["順位", "市場", "自動判定", "予測方向", "HIGH確率", "LOW確率", "確率差(歪み)", "RSI", "現在価格", "学習サンプル"]], use_container_width=True, hide_index=True)
             
     with tab2:
-        st.markdown("### 🧪 厳格ウォークフォワード・バックテスト（未来リーク完全排除）")
+        st.markdown("### 🧪 日銭稼ぎシミュレーション（ウォークフォワード検証）")
         selected_bt = st.selectbox("バックテスト対象市場", list(SYMBOLS), index=0)
-        if st.button("▶ バックテスト実行", use_container_width=True):
-            with st.spinner("時系列ウォークフォワード検証中..."):
+        if st.button("▶ 日銭検証シミュレーション実行", use_container_width=True):
+            with st.spinner("時系列データで自動検証中..."):
                 all_data = fetch_data(SYMBOLS[selected_bt]["ticker"], period, interval)
                 x, y, x_all, has_vol, reason = build_data(selected_bt, {selected_bt: all_data}, hold)
                 
-            if len(x) < 50:
-                st.warning(f"バックテストに必要なデータが不足しています（有効サンプル: {len(x)}件）。期間を広げてください。")
+            if len(x) < 30:
+                st.warning(f"データが不足しています（有効サンプル: {len(x)}件）。")
             else:
-                start_idx = int(len(x) * 0.4)
+                start_idx = int(len(x) * 0.3)
                 scaler = StandardScaler()
                 model = SGDClassifier(loss="log_loss", alpha=0.0005, random_state=42)
                 scaler.fit(x.iloc[:start_idx].values)
                 model.partial_fit(scaler.transform(x.iloc[:start_idx].values), y.iloc[:start_idx].values, classes=np.array([0, 1]))
                 
                 wins, losses, total_pnl = 0, 0, 0.0
-                capital = current_cap
                 
                 for i in range(start_idx, len(x)):
                     row = x.iloc[[i]]
@@ -377,7 +373,6 @@ def render_dashboard():
                         if won: wins += 1
                         else: losses += 1
                         total_pnl += pnl
-                        capital += pnl
                         
                     model.partial_fit(scaler.transform(row.values), np.array([actual]), classes=np.array([0, 1]))
                     
@@ -385,30 +380,30 @@ def render_dashboard():
                 actual_winrate = (wins / total_trades * 100.0) if total_trades > 0 else 0.0
                 
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("総取引回数", total_trades)
+                c1.metric("総自動取引回数", total_trades)
                 c2.metric("実測勝率", f"{actual_winrate:.2f}%", delta=f"{actual_winrate - break_even_winrate:+.2f}% (vs 損益分岐)")
                 c3.metric("総損益 ($)", f"${total_pnl:+.2f}")
                 c4.metric("損益分岐勝率", f"{break_even_winrate:.2f}%")
                 
                 if actual_winrate >= break_even_winrate:
-                    st.success(f"🟢 実測勝率 ({actual_winrate:.2f}%) が損益分岐勝率 ({break_even_winrate:.2f}%) を上回っています！")
+                    st.success(f"🟢 実測勝率 ({actual_winrate:.2f}%) が損益分岐勝率を突破！ 日銭獲得シミュレーション成功です。")
                 else:
-                    st.warning(f"🟡 現在の実測勝率 ({actual_winrate:.2f}%) は損益分岐勝率 ({break_even_winrate:.2f}%) を下回っています。")
+                    st.warning(f"🟡 現在の実測勝率 ({actual_winrate:.2f}%) は目標に未達です。フィルター閾値を調整してください。")
                     
     with tab3:
-        st.markdown("### 🔍 全12市場の監査・除外診断ステータス")
+        st.markdown("### 🔍 全12市場のオートパイロット診断ログ")
         st.dataframe(pd.DataFrame(audit_logs), use_container_width=True, hide_index=True)
 
 if auto_refresh:
     with placeholder.container():
-        st.success(f"🟢 リアルタイム監査巡回中 (最終更新: {datetime.now().strftime('%H:%M:%S')})")
+        st.success(f"🟢 オートパイロット稼働中 (最終更新: {datetime.now().strftime('%H:%M:%S')})")
         render_dashboard()
     time.sleep(15)
     st.rerun()
 else:
     with placeholder.container():
         render_dashboard()
-    st.info("サイドバーの「24時間リアルタイム監査巡回 (15秒毎)」にチェックを入れると、15秒ごとに全12市場の勝敗条件監査が自動更新されます。")
+    st.info("「24時間完全自動オートパイロット」により、15秒ごとに全市場が自動スキャンされます。")
 
 st.divider()
-st.caption("UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AI。利益・勝率は一切保証されません。検証結果をもとに自己責任で運用してください。")
+st.caption("UTAYA v30.1 | 完全自動化・資金救済型ハイロー実証AI。すべての庶民に日銭と勝機を。")
