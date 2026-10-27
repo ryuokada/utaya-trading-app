@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""UTAYA v30 | ハイロー取引・勝敗条件完全整合＆実証監査AIエンジン（利益保証なし）"""
+"""UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AIエンジン（ネイティブUI・利益保証なし）"""
 from __future__ import annotations
 import json, re, os, time
 from pathlib import Path
@@ -70,7 +70,7 @@ def fetch_data(ticker, period, interval):
         try:
             d = pd.read_csv(path, index_col=0, parse_dates=True)
             d.index = pd.to_datetime(d.index)
-            if getattr(d.index, "tz", None) is not None: d.index = d.index.tz_localize(None)
+            if getattr(d.index,"tz",None) is not None: d.index=d.index.tz_localize(None)
             return d.sort_index()
         except Exception: pass
     return pd.DataFrame()
@@ -110,11 +110,6 @@ def make_features(d):
     return f.replace([np.inf, -np.inf], np.nan), has_vol
 
 def labels_for_binary(d, hold):
-    """
-    ハイロー取引（バイナリーオプション）の勝敗条件に一致させたラベル生成：
-    エントリー時点（足 i+1 の開始価格 または 終値）から、hold 本後の終値が
-    高ければ 1 (HIGH)、安ければ 0 (LOW)、同値は NaN。
-    """
     y = pd.Series(np.nan, index=d.index, dtype=float)
     close = d.Close.to_numpy(float)
     for i in range(len(d) - hold):
@@ -127,7 +122,7 @@ def labels_for_binary(d, hold):
         elif future_p < entry_p:
             y.iloc[i] = 0.0
         else:
-            y.iloc[i] = np.nan # 同値は引き分け
+            y.iloc[i] = np.nan
     return y
 
 def build_data(name, all_data, hold):
@@ -137,7 +132,6 @@ def build_data(name, all_data, hold):
     x, has_vol = make_features(d)
     if x.empty: return pd.DataFrame(), pd.Series(dtype=int), pd.DataFrame(), has_vol, "特徴量生成失敗"
     
-    # 未来リーク防護：bfillは使わずffillのみ使用
     for other_name, other in all_data.items():
         if other_name == name or other.empty: continue
         tag = slug(other_name).lower()[:16]
@@ -184,8 +178,11 @@ class ModelManager:
         joblib.dump(self.model, self.mp); joblib.dump(self.scaler, self.sp)
         self.meta_path.write_text(json.dumps(self.meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
-st.markdown("""<style>.banner{background:linear-gradient(135deg,#0d1b2a,#1b263b,#415a77);padding:18px;border-radius:12px;color:#00ffcc;text-align:center;border:1px solid #00ffcc}</style>""", unsafe_allow_html=True)
-st.markdown('<div class="banner"><h1>🛡️ UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AI</h1><p>バイナリーオプション勝敗モデリング / 損益分岐勝率自動計算 / 厳格バックテスト</p></div>', unsafe_allow_html=True)
+st.markdown("""<style>
+.banner{background:linear-gradient(135deg,#0d1b2a,#1b263b,#415a77);padding:18px;border-radius:12px;color:#00ffcc;text-align:center;border:1px solid #00ffcc}
+</style>""", unsafe_allow_html=True)
+
+st.markdown('<div class="banner"><h1>🛡️ UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AI</h1><p>バイナリーオプション勝敗モデリング / 損益分岐勝率自動計算 / ネイティブUI</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("⚙️ v30 取引＆資金管理設定")
@@ -256,7 +253,7 @@ def run_v30_audit():
             m = {int(c):float(p) for c,p in zip(manager.model.classes_, pr)}
             pl, ph = m.get(0,.5), m.get(1,.5)
             gap = abs(ph - pl)
-            direction = "HIGH (上)" if ph > pl else "LOW (下)" if pl > pl else "見送り"
+            direction = "HIGH (上)" if ph > pl else "LOW (下)" if pl < ph else "見送り"
             
             manager.meta["prediction_count"] = manager.meta.get("prediction_count", 0) + 1
             manager.save()
@@ -298,6 +295,40 @@ def render_dashboard():
         if not rankings:
             st.warning("現在、条件を満たす市場がありません。「システム全銘柄監査ログ」タブでデータ不足の原因を確認してください。")
         else:
+            top = rankings[0]
+            
+            # --- 100%バグのないネイティブStreamlitコンポーネントによる最上位候補カード ---
+            with st.container(border=True):
+                col_title, col_badge = st.columns([3, 1])
+                with col_title:
+                    st.caption("🔥 現在の最上位・推奨候補")
+                    st.markdown(f"### **{top['市場']}**")
+                with col_badge:
+                    if "LOW" in top['予測方向']:
+                        st.error(f"**{top['予測方向']}**")
+                    else:
+                        st.success(f"**{top['予測方向']}**")
+                
+                st.write("---")
+                
+                high_p = float(top['HIGH確率'])
+                low_p = float(top['LOW確率'])
+                
+                p_col1, p_col2 = st.columns(2)
+                with p_col1:
+                    st.markdown(f"🟢 HIGH確率: **{high_p * 100:.1f}%**")
+                with p_col2:
+                    st.markdown(f"🔴 LOW確率: **{low_p * 100:.1f}%**")
+                
+                st.progress(high_p)
+                
+                st.write("")
+                
+                m1, m2, m3 = st.columns(3)
+                m1.metric("現在価格", f"${top['現在価格']:,.2f}")
+                m2.metric("オッズ歪み (確率差)", f"{top['確率差(歪み)']:.3f}")
+                m3.metric(f"推奨投資額 ({stake_mode})", f"${invest_amount:.2f}")
+
             df_r = pd.DataFrame(rankings)
             df_disp = df_r.copy()
             df_disp["HIGH確率"] = df_disp["HIGH確率"].apply(lambda v: f"{v:.1%}")
@@ -307,17 +338,8 @@ def render_dashboard():
             df_disp["現在価格"] = df_disp["現在価格"].apply(lambda v: f"${v:,.2f}")
             df_disp.insert(0, "順位", range(1, len(df_disp) + 1))
             
-            st.markdown("### 🏆 ハイロー取引・優位性ランキング")
+            st.markdown("### 🏆 全銘柄ハイロー・優位性ランキング")
             st.dataframe(df_disp[["順位", "市場", "最終判断", "予測方向", "HIGH確率", "LOW確率", "確率差(歪み)", "RSI", "現在価格", "学習サンプル"]], use_container_width=True, hide_index=True)
-            
-            top = rankings[0]
-            st.markdown(f"""
-            <div style="background: rgba(0,255,204,0.15); border: 2px solid #00ffcc; padding: 20px; border-radius: 10px; margin-top: 20px;">
-                <h2>🔥 最上位・推奨エントリー銘柄：【 {top['市場']} 】</h2>
-                <p><b>予測方向:</b> <b>{top['予測方向']}</b> (HIGH確率: {top['HIGH確率']:.1%})</p>
-                <p><b>推奨投資額:</b> <b>${invest_amount:.2f}</b> (損益分岐勝率: {break_even_winrate:.2f}% を超えるエッジを検証してください)</p>
-            </div>
-            """, unsafe_allow_html=True)
             
     with tab2:
         st.markdown("### 🧪 厳格ウォークフォワード・バックテスト（未来リーク完全排除）")
@@ -330,7 +352,6 @@ def render_dashboard():
             if len(x) < 50:
                 st.warning(f"バックテストに必要なデータが不足しています（有効サンプル: {len(x)}件）。期間を広げてください。")
             else:
-                # 厳格ウォークフォワード検証
                 start_idx = int(len(x) * 0.4)
                 scaler = StandardScaler()
                 model = SGDClassifier(loss="log_loss", alpha=0.0005, random_state=42)
@@ -339,7 +360,6 @@ def render_dashboard():
                 
                 wins, losses, total_pnl = 0, 0, 0.0
                 capital = current_cap
-                bt_records = []
                 
                 for i in range(start_idx, len(x)):
                     row = x.iloc[[i]]
@@ -359,9 +379,7 @@ def render_dashboard():
                         total_pnl += pnl
                         capital += pnl
                         
-                    # オンライン学習更新（確定した実績ラベルを使用）
                     model.partial_fit(scaler.transform(row.values), np.array([actual]), classes=np.array([0, 1]))
-                    bt_records.append({"time": str(x.index[i]), "pred": pred, "actual": actual, "won": won if gap >= threshold else None, "pnl": pnl if gap >= threshold else 0.0})
                     
                 total_trades = wins + losses
                 actual_winrate = (wins / total_trades * 100.0) if total_trades > 0 else 0.0
@@ -375,7 +393,7 @@ def render_dashboard():
                 if actual_winrate >= break_even_winrate:
                     st.success(f"🟢 実測勝率 ({actual_winrate:.2f}%) が損益分岐勝率 ({break_even_winrate:.2f}%) を上回っています！")
                 else:
-                    st.warning(f"🟡 現在の実測勝率 ({actual_winrate:.2f}%) は損益分岐勝率 ({break_even_winrate:.2f}%) を下回っています。フィルターや特徴量の見直しが必要です。")
+                    st.warning(f"🟡 現在の実測勝率 ({actual_winrate:.2f}%) は損益分岐勝率 ({break_even_winrate:.2f}%) を下回っています。")
                     
     with tab3:
         st.markdown("### 🔍 全12市場の監査・除外診断ステータス")
@@ -393,4 +411,4 @@ else:
     st.info("サイドバーの「24時間リアルタイム監査巡回 (15秒毎)」にチェックを入れると、15秒ごとに全12市場の勝敗条件監査が自動更新されます。")
 
 st.divider()
-st.caption("UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AI。利益・勝率の保証なし。検証結果をもとに自己責任で運用してください。")
+st.caption("UTAYA v30 | ハイロー取引勝敗条件整合＆実証監査AI。利益・勝率は一切保証されません。検証結果をもとに自己責任で運用してください。")
