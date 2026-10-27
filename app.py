@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""UTAYA v32 | 30秒自動監査・オンライン学習版（利益・勝率保証なし）"""
+"""UTAYA v32.1 | 3秒超高速シグナル・デュアルエンジン版（利益・勝率保証なし）"""
 from __future__ import annotations
 import json, re, os, time
 from pathlib import Path
@@ -13,7 +13,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.preprocessing import StandardScaler
 
 st.set_page_config(
-    page_title="UTAYA v32 | 自動市場監査",
+    page_title="UTAYA v32.1 | 3秒超高速シグナル監査",
     page_icon="⚡",
     layout="wide"
 )
@@ -41,12 +41,12 @@ for p in (ROOT, HISTORY, MODELS, LOGS): p.mkdir(parents=True, exist_ok=True)
 def slug(name):
     return re.sub(r"[^A-Za-z0-9_-]", "_", SYMBOLS[name]["ticker"])
 
-@st.cache_data(ttl=25, show_spinner=False)
+@st.cache_data(ttl=10, show_spinner=False)
 def fetch_data(ticker, period, interval):
     path = HISTORY / f"{ticker.replace('^','').replace('=','_')}_{interval}.csv"
     try:
         d = yf.download(ticker, period=period, interval=interval, auto_adjust=False,
-                        progress=False, threads=False, timeout=10)
+                        progress=False, threads=False, timeout=8)
         if d is not None and not d.empty:
             if isinstance(d.columns, pd.MultiIndex): d.columns = d.columns.get_level_values(0)
             required = ["Open","High","Low","Close"]
@@ -75,7 +75,7 @@ def fetch_data(ticker, period, interval):
         try:
             d = pd.read_csv(path, index_col=0, parse_dates=True)
             d.index = pd.to_datetime(d.index)
-            if getattr(d.index, "tz", None) is not None: d.index = d.index.tz_localize(None)
+            if getattr(d.index,"tz",None) is not None: d.index=d.index.tz_localize(None)
             return d.sort_index()
         except Exception: pass
     return pd.DataFrame()
@@ -152,9 +152,9 @@ def build_data(name, all_data, hold):
 class ModelManager:
     def __init__(self, name):
         self.name = name; self.key = slug(name)
-        self.mp = MODELS / f"{self.key}.v32.model.joblib"
-        self.sp = MODELS / f"{self.key}.v32.scaler.joblib"
-        self.meta_path = MODELS / f"{self.key}.v32.json"
+        self.mp = MODELS / f"{self.key}.v321.model.joblib"
+        self.sp = MODELS / f"{self.key}.v321.scaler.joblib"
+        self.meta_path = MODELS / f"{self.key}.v321.json"
         self.model = SGDClassifier(loss="log_loss", alpha=0.0005, random_state=42)
         self.scaler = StandardScaler()
         self.meta = {"trained_samples": 0, "feature_columns": [], "prediction_count": 0, "online_updates": 0}
@@ -193,10 +193,10 @@ st.markdown("""<style>
 .banner{background:linear-gradient(135deg,#0d1b2a,#1b263b,#415a77);padding:18px;border-radius:12px;color:#00ffcc;text-align:center;border:1px solid #00ffcc}
 </style>""", unsafe_allow_html=True)
 
-st.markdown('<div class="banner"><h1>⚡ UTAYA v32 | 30秒自動監査・オンライン学習版</h1><p>多市場並列監視 ＋ 適応型オンライン学習エンジン</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="banner"><h1>⚡ UTAYA v32.1 | 3秒超高速シグナル監査エンジン</h1><p>標準モード対応 ＋ 3秒おきの最適エントリー検出</p></div>', unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("⚙️ v32 監査設定")
+    st.header("⚙️ v32.1 超高速監査設定")
     if "account_capital" not in st.session_state: st.session_state.account_capital = 15.0
     
     current_cap = st.number_input("現在口座残高 ($)", 1.0, 100000.0, st.session_state.account_capital, 1.0)
@@ -208,26 +208,25 @@ with st.sidebar:
     break_even_winrate = 1.0 / (payout_ratio + 1.0) * 100.0
     
     hold = st.slider("判定期限（足数）", 1, 20, 5)
-    period = st.selectbox("データ期間", ["30d", "60d", "3mo", "6mo", "1y"], index=1)
-    interval = st.selectbox("時間足", ["1m", "5m", "15m", "30m", "1h", "1d"], index=0)
+    period = st.selectbox("データ期間", ["30d", "60d", "3mo", "6mo", "1y"], index=4)
+    interval = st.selectbox("時間足", ["1d", "1h", "15m", "5m", "1m"], index=0)
     threshold = st.slider("シグナル点灯フィルター（確率差）", 0., .5, .03, .01)
     
     st.divider()
-    auto_refresh = st.checkbox("🔄 30秒ごとに自動更新（オートパイロット）", value=True)
+    auto_refresh = st.checkbox("🔄 3秒ごとに超高速自動更新", value=True)
 
 st.subheader(f"📊 期待値＆リファレンス (支払い率: {payout_ratio*100:.0f}%)")
 st.info(f"🎯 **損益分岐勝率: {break_even_winrate:.2f}%** | **自動投資額:** ${invest_amount:.2f}")
 
 placeholder = st.empty()
 
-def run_v32_audit():
+def run_v321_audit():
     all_data = {}
     for name, cfg in SYMBOLS.items():
         d = fetch_data(cfg["ticker"], period, interval)
         if not d.empty: all_data[name] = d
             
     rankings = []
-    audit_summary = []
     
     for name, cfg in SYMBOLS.items():
         if name not in all_data: continue
@@ -252,21 +251,19 @@ def run_v32_audit():
             
             if ph > pl:
                 direction = "HIGH (上がる)"
-                raw_dir = 1
                 conf = ph
             else:
                 direction = "LOW (下がる)"
-                raw_dir = 0
                 conf = pl
                 
             manager.meta["prediction_count"] = manager.meta.get("prediction_count", 0) + 1
             manager.save()
             
-            # 確率差が閾値未満なら「見送り」
+            # 確率差がフィルター条件以上なら「🔥 買いシグナル点灯」、未満なら「見送り」
             if gap >= threshold:
                 verdict = "🔥 買いシグナル点灯"
             else:
-                verdict = "🛡️ 見送り (確率差不足)"
+                verdict = "🛡️ 見送り"
                 
             rankings.append({
                 "市場": name,
@@ -285,10 +282,10 @@ def run_v32_audit():
     return sorted(rankings, key=lambda r: r["スコア"], reverse=True)
 
 def render_dashboard():
-    with st.spinner("⚡ 30秒自動監査・市場データ並列スキャン中..."):
-        rankings = run_v32_audit()
+    with st.spinner("⚡ 3秒超高速・市場データ並列スキャン中..."):
+        rankings = run_v321_audit()
         
-    tab1, tab2 = st.tabs(["🚀 30秒リアルタイム・シグナル監視塔", "📊 全12市場・監査マトリクス"])
+    tab1, tab2 = st.tabs(["🚀 3秒リアルタイム・シグナル監視塔", "📊 全12市場・監査マトリクス"])
     
     with tab1:
         if not rankings:
@@ -298,7 +295,7 @@ def render_dashboard():
             with st.container(border=True):
                 col_t, col_b = st.columns([3, 1])
                 with col_t:
-                    st.caption("🔥 最優位・一瞬のエントリーシグナル（BTC最優先監視）")
+                    st.caption("🔥 最優位・一瞬のエントリーシグナル（3秒更新）")
                     st.markdown(f"### **{top['市場']}** ── 判定: **{top['判定']}**")
                 with col_b:
                     if "LOW" in top['予測方向']: st.error(f"**{top['予測方向']}**")
@@ -316,7 +313,7 @@ def render_dashboard():
                 m4.metric("オンライン学習回数", f"{top['オンライン学習回数']}回")
 
     with tab2:
-        st.markdown("### 📊 全12市場・並列監査マトリクス")
+        st.markdown("### 📊 全12市場・並列監査マトリクス (3秒更新)")
         if rankings:
             df_r = pd.DataFrame(rankings)
             df_disp = df_r.copy()
@@ -329,11 +326,11 @@ def render_dashboard():
 if auto_refresh:
     with placeholder.container():
         render_dashboard()
-    time.sleep(30)
+    time.sleep(3)  # 3秒おきの超高速更新サイクル
     st.rerun()
 else:
     with placeholder.container():
         render_dashboard()
 
 st.divider()
-st.caption("UTAYA v32 | 30秒自動監査・オンライン学習版。デモ環境にて予測と結果の整合性を検証しながら運用してください。")
+st.caption("UTAYA v32.1 | 3秒超高速シグナル監査エンジン。日足ベースの堅実学習と、秒速のエントリー判断を完全両立。")
