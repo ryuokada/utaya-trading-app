@@ -10,13 +10,13 @@ from datetime import datetime
 import os
 
 # =========================================================
-# UTAYA グローバル・インベストメンツ (v16 板・オッズ歪み統合エンジン)
-# 思想: 大口の壁/小口ノイズの分離、板の不均衡度(Order Imbalance)、ハイロー値幅到達直接学習
+# UTAYA グローバル・インベストメンツ (v17 創発・先回り戦闘エンジン)
+# 思想: 群集の先回り(ボラティリティスクイーズ・プレッシャー蓄積)、勝敗DNAの即時学習、絶対生存サーキットブレーカー
 # =========================================================
 
 st.set_page_config(
-    page_title="UTAYA Global Investments - v16 Order Book & Odds Distortion Engine",
-    page_icon="⚡",
+    page_title="UTAYA Global Investments - v17 Emergent Anticipation Engine",
+    page_icon="🔥",
     layout="wide",
 )
 
@@ -36,81 +36,68 @@ SYMBOLS_CONFIG = {
 }
 
 PAYOUT_RATE = 0.88  
-TARGET_ROI = 0.20   
-DATA_DIR = Path("utaya_data_v16")
+DATA_DIR = Path("utaya_data_v17")
 DATA_DIR.mkdir(exist_ok=True)
 
 GLOBAL_HISTORY_DIR = DATA_DIR / "history"
 GLOBAL_HISTORY_DIR.mkdir(exist_ok=True)
-ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v16.csv"
+ANALYSIS_LOG_FILE = DATA_DIR / "analysis_log_v17.csv"
 
 # -------------------- CSS --------------------
 st.markdown(
     """
     <style>
-    .genius-banner {
-        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    .combat-banner {
+        background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
         padding: 20px;
-        border-radius: 15px;
-        color: white;
+        border-radius: 12px;
+        color: #00ffcc;
         text-align: center;
         margin-bottom: 20px;
-        border: 1px solid #00b09b;
+        border: 1px solid #00ffcc;
+        box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
     }
-    .direction-panel-container {
+    .panel-anticipation {
         display: flex;
-        gap: 20px;
+        gap: 15px;
         margin-bottom: 20px;
     }
-    .panel-high {
+    .side-high {
         flex: 1;
-        background: rgba(0, 176, 155, 0.15);
-        border: 2px solid #00b09b;
-        padding: 20px;
-        border-radius: 12px;
+        background: rgba(0, 255, 204, 0.1);
+        border: 2px solid #00ffcc;
+        padding: 18px;
+        border-radius: 10px;
         text-align: center;
     }
-    .panel-low {
+    .side-low {
         flex: 1;
-        background: rgba(255, 65, 108, 0.15);
-        border: 2px solid #ff416c;
-        padding: 20px;
-        border-radius: 12px;
+        background: rgba(255, 75, 75, 0.1);
+        border: 2px solid #ff4b4b;
+        padding: 18px;
+        border-radius: 10px;
         text-align: center;
     }
-    .tier-card-normal {
-        background: rgba(0, 176, 155, 0.1);
-        border-left: 5px solid #00b09b;
+    .circuit-lock {
+        background: rgba(255, 0, 0, 0.2);
+        border-left: 6px solid #ff0000;
         padding: 15px;
-        border-radius: 8px;
+        border-radius: 6px;
         margin-bottom: 15px;
-    }
-    .tier-card-cond {
-        background: rgba(255, 193, 7, 0.1);
-        border-left: 5px solid #ffc107;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 15px;
-    }
-    .tier-card-stop {
-        background: rgba(255, 65, 108, 0.1);
-        border-left: 5px solid #ff416c;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 15px;
+        color: #ffcccc;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("⚡ UTAYA v16 板・オッズ歪み統合エンジン")
+st.title("🔥 UTAYA v17 創発・先回り戦闘エンジン")
 st.caption(
-    "大口壁 vs 小口ノイズ分離分析 | 注文不均衡度(Order Imbalance)組込 | ハイロー直接学習"
+    "群集の先回り検出 (ボラティリティスクイーズ) | 失敗DNA即時学習 | 絶対生存サーキットブレーカー"
 )
 
 
-# -------------------- ① データ取得・整合性エンジン --------------------
+# -------------------- ① データ同期エンジン --------------------
 
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_single_market_data(ticker, period="60d", interval="1h"):
@@ -179,9 +166,9 @@ def fetch_all_markets_data(period="60d", interval="1h"):
     return all_dfs
 
 
-# -------------------- ② 板の歪み・大口壁モデル特徴量 & ハイロー学習データ生成 --------------------
+# -------------------- ② 先回り特徴量 & 厳格ハイロー直接学習 --------------------
 
-def build_v16_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
+def build_v17_combat_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars=5):
     if target_name not in all_dfs:
         return pd.DataFrame(), pd.Series(dtype=int)
 
@@ -206,48 +193,28 @@ def build_v16_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     rsi = rsi.where(losses != 0, 100.0)
     rsi = rsi.where(gains != 0, 50.0)
 
-    # 🐋 大口の動向 (Volume Z-Score) と小口のノイズ分離
-    vol_mean = volume.rolling(14).mean()
-    vol_std = volume.rolling(14).std().replace(0, 1.0)
-    volume_z = ((volume - vol_mean) / vol_std).fillna(0.0)
+    # 1. ボラティリティ・スクイーズ（暴風雨前の静けさ＝先回りエントリーの核心）
+    rolling_std = returns.rolling(14).std()
+    squeeze_index = rolling_std / rolling_std.rolling(30).mean().replace(0, 0.0001)
 
+    # 2. オーダー・プレッシャー（上下のヒゲと実体の比率から大口の仕掛けを検出）
     body_size = (close - open_p).abs()
     candle_range = (high - low).replace(0, 0.0001)
     body_ratio = body_size / candle_range
-
-    # 🧱 板の歪み・オーダーインバランス（仮想板厚みシミュレーション指標）
-    # 高値圏での上ヒゲ圧力 vs 安値圏での下ヒゲ圧力を「大口の壁」とみなす
-    upper_shadow = high - np.maximum(open_p, close)
-    lower_shadow = np.minimum(open_p, close) - low
-    shadow_imbalance = (lower_shadow - upper_shadow) / (candle_range.replace(0, 0.0001))
-    
-    # 歪み度合い（出来高急増かつ価格膠着＝クジラの仕掛け中）
-    odds_distortion = volume_z * (1.0 - body_ratio)
+    upper_pressure = (high - np.maximum(open_p, close)) / candle_range
+    lower_pressure = (np.minimum(open_p, close) - low) / candle_range
 
     features = pd.DataFrame(index=df_target.index)
     features["return_1"] = close.pct_change(1)
     features["return_3"] = close.pct_change(3)
     features["sma_ratio_10"] = (close - close.rolling(10).mean()) / close.rolling(10).mean()
     features["rsi"] = rsi
-    features["volume_z"] = volume_z
+    features["squeeze_index"] = squeeze_index  # 圧縮度（先回り指標）
     features["body_ratio"] = body_ratio
-    features["shadow_imbalance"] = shadow_imbalance  # 板の不均衡度 (大口の上下の壁)
-    features["odds_distortion"] = odds_distortion  # オッズ・価格の歪み
-    features["volatility"] = returns.rolling(14).std()
+    features["pressure_diff"] = lower_pressure - upper_pressure  # 買い圧力 vs 売り圧力
+    features["volatility"] = rolling_std
 
-    friction_signal = ((volume_z > 2.0) & (body_ratio < 0.25)).astype(float)
-    features["emergency_friction"] = friction_signal
-
-    for name, cfg in SYMBOLS_CONFIG.items():
-        if name == target_name:
-            continue
-        df_other = all_dfs.get(name)
-        if df_other is not None and not df_other.empty:
-            other_close = df_other["Close"].reindex(df_target.index, method="ffill", limit=3).astype(float)
-            short_tag = name.split(" ")[0].lower()
-            features[f"{short_tag}_ret1"] = other_close.pct_change(1)
-
-    # ハイロー値幅到達ラベル生成（未来リーク完全防止）
+    # ハイロー値幅到達ラベル（未来リーク完全排除）
     labels = []
     for idx in range(len(df_target) - hold_bars):
         entry_price = float(df_target["Open"].iloc[idx + 1])
@@ -283,9 +250,9 @@ def build_v16_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_ba
     return features_trimmed.drop(columns=["target"]), features_trimmed["target"].astype(int)
 
 
-# -------------------- ③ 評価・判定関数 --------------------
+# -------------------- ③ 評価・戦闘判定関数 --------------------
 
-def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
+def evaluate_combat_outcome(entry_price, direction, future_candles, fixed_range_usd, hold_bars=5):
     if future_candles is None or len(future_candles) == 0:
         return "PENDING", "未来足の到着待ち", "PENDING", None
 
@@ -300,81 +267,50 @@ def evaluate_quick_mode_outcome(entry_price, direction, future_candles, fixed_ra
         hit_down = low <= lower_target
 
         if hit_up and hit_down:
-            return "LOSS", "同一足で上下両方到達（ノイズ・逆発）", "VOLATILITY_NOISE", str(idx)
+            return "LOSS", "乱高下によるノイズ被弾", "NOISE_HIT", str(idx)
         if hit_up:
             if direction == "HIGH":
-                return "WIN", "上方スコープ先着達成", "TREND_SUCCESS", str(idx)
+                return "WIN", "上方ターゲット先着", "SUCCESS_HIGH", str(idx)
             else:
-                return "LOSS", "上方逆行（反発被弾）", "REVERSE_FAILURE_HIGH", str(idx)
+                return "LOSS", "上方逆行被弾", "REVERSE_HIGH", str(idx)
         if hit_down:
             if direction == "LOW":
-                return "WIN", "下方スコープ先着達成", "TREND_SUCCESS", str(idx)
+                return "WIN", "下方ターゲット先着", "SUCCESS_LOW", str(idx)
             else:
-                return "LOSS", "下方逆行（反発被弾）", "REVERSE_FAILURE_LOW", str(idx)
+                return "LOSS", "下方逆行被弾", "REVERSE_LOW", str(idx)
 
     if len(future_candles) >= hold_bars:
-        return "TIMEOUT", "スコープ未到達（膠着）", "TIMEOUT_RANGE", str(future_candles.index[-1])
+        return "TIMEOUT", "膠着・ターゲット未達", "TIMEOUT", str(future_candles.index[-1])
 
-    return "PENDING", "判定期間内未到達・データ待機中", "PENDING", None
-
-
-def update_prediction_status(prediction, df_target, hold_bars, fixed_range_usd, stake_usd):
-    if prediction["status"] != "PENDING":
-        return prediction
-
-    signal_time = pd.to_datetime(prediction["time"])
-    future_candles = df_target.loc[signal_time:].iloc[1 : hold_bars + 1]
-
-    result, reason, category, settle_time = evaluate_quick_mode_outcome(
-        float(prediction["entry_price"]),
-        prediction["direction"],
-        future_candles,
-        fixed_range_usd,
-        hold_bars=hold_bars,
-    )
-
-    if result == "PENDING":
-        return prediction
-
-    prediction["status"] = "SETTLED"
-    prediction["result"] = result
-    prediction["reason"] = reason
-    prediction["category"] = category
-    prediction["settle_time"] = str(settle_time)
-    
-    if "一時停止" in str(prediction["tier"]):
-        prediction["pnl_usd"] = 0.0
-    elif prediction["tier"] == "通常候補":
-        prediction["pnl_usd"] = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
-    else:
-        prediction["pnl_usd"] = 0.0
-
-    return prediction
+    return "PENDING", "交戦中", "PENDING", None
 
 
-def classify_trading_tier(feat_row, p_high, p_low):
-    is_emergency = bool(feat_row.get("emergency_friction", 0) > 0)
-    volatility = float(feat_row.get("volatility", 0.01))
+def classify_combat_tier(feat_row, p_high, p_low, current_drawdown_pct):
+    # 🚨 絶対生存サーキットブレーカー（資金が15%以上削られたら戦闘強制停止）
+    if current_drawdown_pct >= 0.15:
+        return "絶対生存・緊急停止", "🚨 危険水域到達。資本防衛のため全システム戦闘停止。"
+
+    squeeze = float(feat_row.get("squeeze_index", 1.0))
     probability_gap = abs(p_high - p_low)
-    distortion = float(feat_row.get("odds_distortion", 0.0))
 
-    if is_emergency or np.isnan(volatility) or volatility > 0.15:
-        return "一時停止", "🚨 大口の衝突（価格摩擦・オッズ歪み異常）検知。リスク管理のため一時停止。"
+    # 嵐の前の静けさ（スクイーズ状態）かつ確率ギャップがある場合は先回り攻撃
+    if squeeze < 0.8 and probability_gap >= 0.03:
+        return "先回り特攻候補", f"⚡ スクイーズ検知（圧縮度 {squeeze:.2f}）＆ギャップ {probability_gap:.3f}。先回り奇襲の好機。"
 
-    if probability_gap >= 0.035 and max(p_high, p_low) >= 0.535:
-        return "通常候補", f"🔥 確率ギャップ {probability_gap:.3f} ＆ 歪み検知クリア。大口の壁を抜く通常候補。"
+    if probability_gap >= 0.04:
+        return "通常戦闘候補", f"🔥 確率優位確立（ギャップ {probability_gap:.3f}）。通常迎撃態勢。"
 
-    return "条件付き候補", f"👀 ギャップ縮小 ({probability_gap:.3f})。板の偏りと条件成立を継続監視。"
+    return "待伏せ・条件監視", f"👀 エッジ蓄積中（ギャップ {probability_gap:.3f}, スクイーズ {squeeze:.2f}）。次のシグナルを待伏せ。"
 
 
-# -------------------- ④ ウォークフォワード検証エンジン --------------------
+# -------------------- ④ ウォークフォワード戦闘検証 --------------------
 
-def run_v16_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
+def run_v17_combat_backtest(target_name, all_dfs, stake_usd, hold_bars, fixed_range_usd):
     df_target = all_dfs.get(target_name)
     if df_target is None or len(df_target) < 300:
         return pd.DataFrame()
 
-    features_df, labels_s = build_v16_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
+    features_df, labels_s = build_v17_combat_features_and_labels(target_name, all_dfs, fixed_range_usd, hold_bars)
     if len(features_df) < 100:
         return pd.DataFrame()
 
@@ -389,29 +325,26 @@ def run_v16_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
     model.partial_fit(scaler.transform(X_init), y_init, classes=np.array([0, 1]))
 
     records = []
-    progress_bar = st.progress(0)
-    total_steps = len(features_df) - init_end - hold_bars
+    current_capital = stake_usd
+    peak_capital = stake_usd
 
-    for idx, i in enumerate(range(init_end, len(features_df) - hold_bars)):
-        if total_steps > 0 and idx % 50 == 0:
-            progress_bar.progress(min(1.0, max(0.0, idx / total_steps)))
-
+    for i in range(init_end, len(features_df) - hold_bars):
         row_time = features_df.index[i]
         feat_row = features_df.iloc[i]
 
         X_pred = scaler.transform(np.array([feat_row.values]))
-        
         try:
-            if hasattr(model, "classes_") and len(model.classes_) == 2:
-                probs = model.predict_proba(X_pred)[0]
-                classes_list = list(model.classes_)
-                p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
-                p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
+            probs = model.predict_proba(X_pred)[0]
+            classes_list = list(model.classes_)
+            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
+            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
         except Exception:
             p_low, p_high = 0.5, 0.5
 
         direction = "HIGH" if p_high >= p_low else "LOW"
-        tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
+        
+        current_dd = (peak_capital - current_capital) / peak_capital if peak_capital > 0 else 0.0
+        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, current_dd)
 
         try:
             entry_idx_loc = df_target.index.get_loc(row_time) + 1
@@ -420,18 +353,22 @@ def run_v16_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
         except Exception:
             continue
 
-        result, reason, category, settle_time = evaluate_quick_mode_outcome(
+        result, reason, category, settle_time = evaluate_combat_outcome(
             entry_price, direction, future_window, fixed_range_usd, hold_bars=hold_bars
         )
         
         status = "SETTLED" if result != "PENDING" else "PENDING"
         pnl = 0.0
         if status == "SETTLED":
-            if "一時停止" in tier:
+            if "緊急停止" in tier:
                 pnl = 0.0
-            elif tier == "通常候補":
+            elif tier in ["先回り特攻候補", "通常戦闘候補"]:
                 pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
+                current_capital += pnl
+                if current_capital > peak_capital:
+                    peak_capital = current_capital
 
+        # 失敗DNAの即時学習（負けからも勝ちからも直ちにモデルを適応）
         actual_label = int(labels_s.loc[row_time])
         try:
             model.partial_fit(X_pred, np.array([actual_label]), classes=np.array([0, 1]))
@@ -444,229 +381,68 @@ def run_v16_walkforward(target_name, all_dfs, stake_usd, hold_bars, fixed_range_
             "direction": direction,
             "p_high": p_high,
             "p_low": p_low,
-            "probability_gap": abs(p_high - p_low),
             "tier": tier,
-            "tier_reason": tier_reason,
-            "status": status,
             "result": result,
-            "reason": reason,
-            "category": category,
-            "settle_time": str(settle_time),
-            "entry_price": entry_price,
             "pnl_usd": pnl,
-            "actual_label": actual_label,
+            "capital": current_capital,
         })
 
-    progress_bar.empty()
     res_df = pd.DataFrame(records)
     if not res_df.empty:
         res_df.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
-
     return res_df
 
 
-# -------------------- ⑤ 全市場スキャナー --------------------
+# -------------------- ⑤ ダッシュボード・UI描画 --------------------
 
-def run_v16_multi_market_scanner(all_dfs, fixed_ranges):
-    scanner_results = []
-    for name, cfg in SYMBOLS_CONFIG.items():
-        df = all_dfs.get(name)
-        rng = fixed_ranges.get(name, cfg["quick_range_usd"])
-        if df is None or len(df) < 50:
-            continue
-        try:
-            features_df, labels_s = build_v16_features_and_labels(name, all_dfs, rng, hold_bars=5)
-            if len(features_df) < 20:
-                continue
-
-            signal_i = len(features_df) - 1
-            feat_row = features_df.iloc[signal_i]
-            row_time = features_df.index[signal_i]
-
-            X_live = features_df.values
-            y_live = labels_s.values
-            scaler = StandardScaler().fit(X_live)
-            model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
-            model.partial_fit(scaler.transform(X_live), y_live, classes=np.array([0, 1]))
-
-            feat_sc = scaler.transform(np.array([feat_row.values]))
-            probs = model.predict_proba(feat_sc)[0]
-            classes_list = list(model.classes_)
-            p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
-            p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-
-            direction = "HIGH" if p_high >= p_low else "LOW"
-            tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
-            base_price = float(df["Close"].loc[row_time]) if row_time in df.index else float(df["Close"].iloc[-1])
-
-            scanner_results.append({
-                "銘柄": name,
-                "判定ステージ": tier,
-                "予測方向": direction,
-                "HIGH確率": f"{p_high:.1%}",
-                "LOW確率": f"{p_low:.1%}",
-                "確率ギャップ": round(abs(p_high - p_low), 3),
-                "クイック目標幅": rng,
-                "基準価格": round(base_price, 2),
-                "評価理由": tier_reason
-            })
-        except Exception:
-            pass
-    return pd.DataFrame(scanner_results)
-
-
-# -------------------- ⑥ ダッシュボード描画 --------------------
-
-def show_audit_dashboard(res_df, stake_usd, fixed_range_usd):
-    if res_df.empty:
-        st.warning("検証データがありません。バックテストを実行してください。")
-        return
-
-    settled_df = res_df[res_df["status"] == "SETTLED"].copy()
-    normal_df = settled_df[settled_df["tier"] == "通常候補"].copy()
-    cond_df = settled_df[settled_df["tier"] == "条件付き候補"].copy()
-    stop_df = settled_df[settled_df["tier"] == "一時停止"].copy()
-
-    total_exec = len(normal_df)
-    wins = int((normal_df["result"] == "WIN").sum())
-    win_rate = wins / total_exec * 100 if total_exec > 0 else 0.0
-    total_pnl = float(normal_df["pnl_usd"].sum())
-    be_rate = (1 / (1 + PAYOUT_RATE)) * 100
-
-    current_capital = stake_usd + total_pnl
-    actual_roi = (total_pnl / stake_usd) * 100 if stake_usd > 0 else 0.0
-
-    gross_profit = float(normal_df[normal_df["pnl_usd"] > 0]["pnl_usd"].sum())
-    gross_loss = abs(float(normal_df[normal_df["pnl_usd"] < 0]["pnl_usd"].sum()))
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf')
-
-    brier = 0.0
-    if not settled_df.empty and "actual_label" in settled_df.columns:
-        try:
-            brier = brier_score_loss(settled_df["actual_label"], settled_df["p_high"])
-        except Exception:
-            brier = 0.0
-
-    st.markdown(
-        f"""
-        <div class="genius-banner">
-            <h2>⚡ v16 板・オッズ歪み統合ダッシュボード (目標±${fixed_range_usd})</h2>
-            <p>資金状況: 初期 ${stake_usd:.2f} ➔ 現在 ${current_capital:.2f} (実績ROI: {actual_roi:+.1f}%)</p>
-            <p>通常候補勝負: <strong>{total_exec}回</strong> (勝率: <strong>{win_rate:.2f}%</strong> / 損益分岐: {be_rate:.2f}%) ｜ 条件付き監視: {len(cond_df)} ｜ 一時停止: {len(stop_df)}</p>
-            <p>確率校正 (Brier Score): <strong>{brier:.4f}</strong> (0に近いほど正確) ｜ PF: <strong>{profit_factor:.2f}</strong></p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("🧭 判定ステージの分布")
-        st.bar_chart(res_df["tier"].value_counts())
-    with col2:
-        st.subheader("📊 通常候補の結果内訳")
-        if not normal_df.empty:
-            st.bar_chart(normal_df["result"].value_counts())
-
-    st.subheader("📈 資金成長曲線（通常候補 累積損益）")
-    chart_df = normal_df[["time", "pnl_usd"]].copy()
-    if not chart_df.empty:
-        chart_df["time"] = pd.to_datetime(chart_df["time"])
-        chart_df["資産推移"] = stake_usd + chart_df["pnl_usd"].cumsum()
-        chart_df = chart_df.set_index("time")
-        st.line_chart(chart_df[["資産推移"]])
-    else:
-        st.info("通常候補の確定した取引データがありません。")
-
-    st.subheader("📝 詳細プロ監査ログ (直近50件)")
-    st.dataframe(res_df.sort_values("time", ascending=False).head(50), use_container_width=True, hide_index=True)
-
-
-# -------------------- ⑦ サイドバー・タブ設定 --------------------
-
-st.sidebar.header("⚡ v16 板・オッズ歪み設定")
-selected_symbol = st.sidebar.selectbox("🎯 分析対象銘柄 (個別)", options=list(SYMBOLS_CONFIG.keys()), index=0)
+st.sidebar.header("🔥 v17 戦闘司令室")
+selected_symbol = st.sidebar.selectbox("🎯 ターゲット銘柄", options=list(SYMBOLS_CONFIG.keys()), index=0)
 
 cfg = SYMBOLS_CONFIG[selected_symbol]
 default_range = cfg["quick_range_usd"]
 
-fixed_range_usd = st.sidebar.number_input(
-    f"📏 クイックモード目標値幅 (±$ / pt)", 
-    min_value=0.001, max_value=10000.0, value=float(default_range), step=0.01,
-    format="%.2f",
-    help="ハイロー・クイックモードで目標値幅に先に到達するかを判定する基準幅です。"
-)
+fixed_range_usd = st.sidebar.number_input("📏 目標値幅 (±$)", 0.001, 10000.0, float(default_range), 0.01, format="%.2f")
+stake_usd = st.sidebar.number_input("💵 参戦資金 ($)", 1.0, 10000.0, 10.0, 1.0)
+hold_bars = st.sidebar.slider("⏱️ 判定期間 (本)", 1, 20, 5)
 
-timeframe = st.sidebar.selectbox("⏱️ 分析時間軸", options=["1分足 (短期・クイック向け)", "1時間足 (中期)"], index=0)
-interval_str = "1m" if "1分足" in timeframe else "1h"
-period_str = "1d" if "1分足" in timeframe else "60d"
-
-stake_usd = st.sidebar.number_input("💵 初期投資資金 ($)", 1.0, 10000.0, 10.0, 1.0)
-hold_bars = st.sidebar.slider("⏱️ 判定期間 (足の本数)", 1, 20, 5)
-
-if st.sidebar.button("🔄 学習ログをリセット", use_container_width=True):
+if st.sidebar.button("🔄 戦闘ログ・記憶リセット", use_container_width=True):
     if ANALYSIS_LOG_FILE.exists():
-        try:
-            ANALYSIS_LOG_FILE.unlink()
-        except OSError:
-            pass
-    st.sidebar.success("リセット完了しました。")
+        ANALYSIS_LOG_FILE.unlink()
+    st.sidebar.success("初期化完了。新たな戦いへ。")
     st.rerun()
 
-tab1, tab2 = st.tabs(["📊 個別銘柄・方向判定パネル監査", "🌌 全12市場リアルタイム・方向判定スキャナー"])
-
-
-# -------------------- ⑧ タブ1: 個別実戦検証 --------------------
+tab1, tab2 = st.tabs(["⚡ 個別実戦・先回りパネル", "🌌 全市場・一斉急襲スキャナー"])
 
 with tab1:
-    if "v16_monitoring" not in st.session_state:
-        st.session_state.v16_monitoring = False
+    if "v17_active" not in st.session_state:
+        st.session_state.v17_active = False
 
-    st.subheader(f"♾️ v16 板・オッズ歪みパネル監視 [{selected_symbol}]")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("▶ v16監査監視を開始", use_container_width=True):
-            st.session_state.v16_monitoring = True
+        if st.button("▶ 先回り戦闘AI起動", use_container_width=True):
+            st.session_state.v17_active = True
     with c2:
-        if st.button("⏹ 監視を停止", use_container_width=True):
-            st.session_state.v16_monitoring = False
+        if st.button("⏹ 緊急停戦", use_container_width=True):
+            st.session_state.v17_active = False
 
-    if st.session_state.v16_monitoring:
-        st.success(f"v16監視中 [{selected_symbol}]：大口の壁・歪み解析＆上下独立確率パネル稼働中")
+    if st.session_state.v17_active:
+        st.success(f"戦闘態勢稼働中 [{selected_symbol}]：スクイーズ検出＆即時適応中")
     else:
-        st.info("停止中です。開始ボタンを押してください。")
+        st.info("待機中。起動ボタンを押してください。")
 
     @st.fragment(run_every="30s")
-    def continuous_v16_loop():
-        if not st.session_state.v16_monitoring:
-            st.caption("監視は停止しています。")
+    def combat_loop():
+        if not st.session_state.v17_active:
             return
 
-        with st.spinner("マルチ市場データを同期中..."):
-            all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-
+        all_dfs = fetch_all_markets_data(period="60d", interval="1h")
         df_target = all_dfs.get(selected_symbol)
         if df_target is None or len(df_target) < 50:
-            st.warning("データ不足です。")
+            st.warning("データ同期中...")
             return
 
-        if ANALYSIS_LOG_FILE.exists():
-            try:
-                log_df = pd.read_csv(ANALYSIS_LOG_FILE)
-                updated_rows = []
-                for _, row in log_df.iterrows():
-                    row_dict = row.to_dict()
-                    if row_dict["status"] == "PENDING" and row_dict["symbol"] == selected_symbol:
-                        row_dict = update_prediction_status(row_dict, df_target, hold_bars, fixed_range_usd, stake_usd)
-                    updated_rows.append(row_dict)
-                log_df = pd.DataFrame(updated_rows)
-                log_df.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
-            except Exception:
-                pass
-
-        features_df, labels_s = build_v16_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
+        features_df, labels_s = build_v17_combat_features_and_labels(selected_symbol, all_dfs, fixed_range_usd, hold_bars)
         if len(features_df) < 10:
-            st.warning("有効な特徴量データが不足しています。期間を広げるか時間軸を変更してください。")
             return
 
         signal_i = len(features_df) - 1
@@ -679,135 +455,82 @@ with tab1:
         model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42)
         model.partial_fit(scaler.transform(X_live), y_live, classes=np.array([0, 1]))
 
-        feat_sc = scaler.transform(np.array([feat_row.values]))
-        probs = model.predict_proba(feat_sc)[0]
-        classes_list = list(model.classes_)
-        p_low = probs[classes_list.index(0)] if 0 in classes_list else probs[0]
-        p_high = probs[classes_list.index(1)] if 1 in classes_list else probs[1]
-
+        probs = model.predict_proba(scaler.transform(np.array([feat_row.values])))[0]
+        p_low, p_high = probs[0], probs[1]
         direction = "HIGH" if p_high >= p_low else "LOW"
-        tier, tier_reason = classify_trading_tier(feat_row, p_high, p_low)
+        
+        tier, tier_reason = classify_combat_tier(feat_row, p_high, p_low, 0.0)
         signal_price = float(df_target["Close"].loc[row_time]) if row_time in df_target.index else float(df_target["Close"].iloc[-1])
-        time_str = str(row_time)
 
-        # ⚡ v16 方向判定パネル（板の歪み・大口壁反映）
+        # ⚡ 先回り戦闘パネル
         st.markdown(
             f"""
-            <div class="direction-panel-container">
-                <div class="panel-high">
-                    <h3>▲ HIGH / 上昇 (大口買い壁)</h3>
-                    <h1 style="color: #00b09b; margin: 10px 0;">{p_high:.1%}</h1>
-                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">板の不均衡度 & 歪み解析完了 (上方目標: +${fixed_range_usd})</p>
+            <div class="panel-anticipation">
+                <div class="side-high">
+                    <h3>▲ 昇華・HIGH予測</h3>
+                    <h1 style="color: #00ffcc; margin: 10px 0;">{p_high:.1%}</h1>
+                    <p style="font-size: 0.8rem; color: #ccc;">上方ターゲット: +${fixed_range_usd}</p>
                 </div>
-                <div class="panel-low">
-                    <h3>▼ LOW / 下降 (大口売り壁)</h3>
-                    <h1 style="color: #ff416c; margin: 10px 0;">{p_low:.1%}</h1>
-                    <p style="font-size: 0.85rem; color: #aaa; margin: 0;">板の不均衡度 & 歪み解析完了 (下方目標: -${fixed_range_usd})</p>
+                <div class="side-low">
+                    <h3>▼ 降下・LOW予測</h3>
+                    <h1 style="color: #ff4b4b; margin: 10px 0;">{p_low:.1%}</h1>
+                    <p style="font-size: 0.8rem; color: #ccc;">下方ターゲット: -${fixed_range_usd}</p>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        card_class = "tier-card-normal"
-        if "条件付き" in tier:
-            card_class = "tier-card-cond"
-        elif "一時停止" in tier:
-            card_class = "tier-card-stop"
-
-        st.markdown(
-            f"""
-            <div class="{card_class}">
-                <h3>🎯 判定ステージ: <strong>[{tier}]</strong></h3>
-                <p><strong>評価理由:</strong> {tier_reason}</p>
-                <p><strong>基準価格:</strong> ${signal_price:,.2f} ｜ 判定期間: {hold_bars}本 ｜ 目標スコープ: ±${fixed_range_usd}</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        if ANALYSIS_LOG_FILE.exists():
-            existing_log = pd.read_csv(ANALYSIS_LOG_FILE)
+        if "緊急停止" in tier:
+            st.markdown(f'<div class="circuit-lock"><h3>{tier}</h3><p>{tier_reason}</p></div>', unsafe_allow_html=True)
         else:
-            existing_log = pd.DataFrame(columns=["time", "symbol", "direction", "p_high", "p_low", "probability_gap", "tier", "tier_reason", "status", "result", "reason", "category", "settle_time", "entry_price", "pnl_usd", "actual_label"])
+            st.info(f"🎯 現在の戦闘ステージ: 【 {tier} 】\n\n{tier_reason} (基準価格: ${signal_price:,.2f})")
 
-        if existing_log.empty or not ((existing_log["time"] == time_str) & (existing_log["symbol"] == selected_symbol)).any():
-            future_window = df_target.loc[row_time:].iloc[1 : hold_bars + 1]
-            result, reason, category, settle_time = evaluate_quick_mode_outcome(
-                signal_price, direction, future_window, fixed_range_usd, hold_bars=hold_bars
-            )
-            status = "SETTLED" if result != "PENDING" else "PENDING"
-            pnl = 0.0
-            if status == "SETTLED":
-                if "一時停止" in tier:
-                    pnl = 0.0
-                elif tier == "通常候補":
-                    pnl = stake_usd * PAYOUT_RATE if result == "WIN" else -stake_usd
-
-            actual_lbl = int(labels_s.loc[row_time]) if row_time in labels_s.index else 0
-
-            new_row = pd.DataFrame([{
-                "time": time_str,
-                "symbol": selected_symbol,
-                "direction": direction,
-                "p_high": p_high,
-                "p_low": p_low,
-                "probability_gap": abs(p_high - p_low),
-                "tier": tier,
-                "tier_reason": tier_reason,
-                "status": status,
-                "result": result,
-                "reason": reason,
-                "category": category,
-                "settle_time": str(settle_time),
-                "entry_price": signal_price,
-                "pnl_usd": pnl,
-                "actual_label": actual_lbl,
-            }])
-            existing_log = pd.concat([existing_log, new_row])
-            existing_log.to_csv(ANALYSIS_LOG_FILE, index=False, encoding="utf-8-sig")
-
-        if not existing_log.empty:
-            st.subheader("📋 リアルタイム監査ログ")
-            st.dataframe(existing_log.sort_values("time", ascending=False).head(15), use_container_width=True, hide_index=True)
-
-    continuous_v16_loop()
+    combat_loop()
 
     st.markdown("---")
-    st.subheader("🚀 厳格ウォークフォワード検証（未来リーク完全排除バックテスト）")
-    if st.button("▶️ 会社資金10$倍増 v16厳格検証開始", use_container_width=True):
-        with st.spinner("板の歪み・大口壁モデルによるウォークフォワード検証を実行中..."):
-            all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-            df_target = all_dfs.get(selected_symbol)
-            if df_target is None or len(df_target) < 300:
-                st.error("データ件数が不足しています（最低300本必要です）。")
+    st.subheader("🚀 過去戦歴の検証と生存確認 (バックテスト)")
+    if st.button("▶️ v17 厳格バックテスト実行", use_container_width=True):
+        with st.spinner("全履歴をスキャンし、勝敗DNAの即時学習と資金曲線検証中..."):
+            all_dfs = fetch_all_markets_data(period="60d", interval="1h")
+            res_df = run_v17_combat_backtest(selected_symbol, all_dfs, stake_usd, hold_bars, fixed_range_usd)
+            if not res_df.empty:
+                total_trades = len(res_df[res_df["result"].isin(["WIN", "LOSS"])])
+                wins = len(res_df[res_df["result"] == "WIN"])
+                win_rate = wins / total_trades * 100 if total_trades > 0 else 0.0
+                final_cap = res_df["capital"].iloc[-1]
+                
+                st.markdown(f"### 📊 戦果報告: 勝率 {win_rate:.2f}% ({wins}/{total_trades}勝) | 最終資金: ${final_cap:.2f} (初期 ${stake_usd})")
+                st.line_chart(res_df.set_index("time")[["capital"]])
+                st.dataframe(res_df.tail(20), use_container_width=True, hide_index=True)
             else:
-                res_df = run_v16_walkforward(
-                    selected_symbol, all_dfs, stake_usd=stake_usd, hold_bars=hold_bars, fixed_range_usd=fixed_range_usd
-                )
-                show_audit_dashboard(res_df, stake_usd, fixed_range_usd)
-    elif ANALYSIS_LOG_FILE.exists():
-        try:
-            saved_df = pd.read_csv(ANALYSIS_LOG_FILE)
-            if not saved_df.empty:
-                show_audit_dashboard(saved_df, stake_usd, fixed_range_usd)
-        except Exception:
-            pass
-
-
-# -------------------- ⑨ タブ2: 全市場スキャナー --------------------
+                st.warning("有効な戦闘データがありません。")
 
 with tab2:
-    st.subheader("🌌 v16 全12市場リアルタイム・板歪みスキャナー")
-    st.caption("全12市場を対象に、大口の壁とオッズの歪みを解析し、通常候補・条件付き候補・一時停止の3段階でチャンスを探索します。")
-
-    if st.button("🔍 全12市場を一斉スキャン", use_container_width=True):
-        with st.spinner("全12市場の板歪みスキャンを実行中..."):
-            all_dfs = fetch_all_markets_data(period=period_str, interval=interval_str)
-            fixed_ranges_map = {name: cfg["quick_range_usd"] for name, cfg in SYMBOLS_CONFIG.items()}
-            scanner_df = run_v16_multi_market_scanner(all_dfs, fixed_ranges_map)
-            if not scanner_df.empty:
-                st.success("スキャン完了：全市場の板歪み・方向判定パネル一覧です。")
-                st.dataframe(scanner_df, use_container_width=True, hide_index=True)
+    st.subheader("🌌 全12市場 先回り急襲スキャナー")
+    if st.button("🔍 全市場の歪みを一斉スキャン", use_container_width=True):
+        with st.spinner("全12市場のボラティリティ・スクイーズを解析中..."):
+            all_dfs = fetch_all_markets_data(period="60d", interval="1h")
+            scan_res = []
+            for name, cfg in SYMBOLS_CONFIG.items():
+                df = all_dfs.get(name)
+                rng = cfg["quick_range_usd"]
+                if df is None or len(df) < 50:
+                    continue
+                try:
+                    f_df, l_s = build_v17_combat_features_and_labels(name, all_dfs, rng, 5)
+                    if len(f_df) < 10:
+                        continue
+                    feat_row = f_df.iloc[-1]
+                    scaler = StandardScaler().fit(f_df.values)
+                    model = SGDClassifier(loss="log_loss", penalty="l2", alpha=0.0001, random_state=42).partial_fit(scaler.transform(f_df.values), l_s.values, classes=np.array([0, 1]))
+                    probs = model.predict_proba(scaler.transform(np.array([feat_row.values])))[0]
+                    p_l, p_h = probs[0], probs[1]
+                    tier, _ = classify_combat_tier(feat_row, p_h, p_l, 0.0)
+                    scan_res.append({"銘柄": name, "ステージ": tier, "HIGH確率": f"{p_h:.1%}", "LOW確率": f"{p_l:.1%}", "ギャップ": round(abs(p_h - p_l), 3)})
+                except Exception:
+                    pass
+            if scan_res:
+                st.dataframe(pd.DataFrame(scan_res), use_container_width=True, hide_index=True)
             else:
-                st.warning("スキャン可能なデータが不足しています。")
+                st.warning("スキャンデータ不足。")
