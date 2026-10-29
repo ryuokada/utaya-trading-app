@@ -305,7 +305,7 @@ def main() -> None:
     parser.add_argument(
         "--period",
         default="7d",
-        help="バックテスト期間 例: 7d",
+        help="バックテスト期間（例: 7d）",
     )
     parser.add_argument(
         "--target",
@@ -323,7 +323,7 @@ def main() -> None:
         "--payout",
         type=float,
         default=88.0,
-        help="勝利時の利益率 パーセント",
+        help="勝利時の利益率（%）",
     )
     parser.add_argument(
         "--hold-bars",
