@@ -1,194 +1,333 @@
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import numpy as np
+"""
+UTAYA BTC HILO - CLI Backtest / Paper Trading
+判定方式: エントリー価格から ±50 USD の先着
+配当: 勝ち +88%、負け -100%
+注意: 1分足による近似検証。実取引は行わない。
+"""
+
+from __future__ import annotations
+
+import argparse
 import time
+from pathlib import Path
 
-st.set_page_config(
-    page_title="UTAYA BTC HILO - Web Dashboard",
-    page_icon="⚡",
-    layout="wide"
-)
+import numpy as np
+import pandas as pd
+import yfinance as yf
 
-# --- 🎨 カスタムCSS ---
-st.markdown("""
-<style>
-    .main-banner-high {
-        background: linear-gradient(135deg, #00b09b, #96c93d);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    .main-banner-low {
-        background: linear-gradient(135deg, #ff416c, #ff4b2b);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    .main-banner-even {
-        background: linear-gradient(135deg, #355c7d, #6c5b7b);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    .log-box {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        padding: 15px;
-        border-radius: 10px;
-        font-family: monospace;
-        color: #58a6ff;
-        margin-bottom: 20px;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.title("⚡ UTAYA BTC HILO - Web シミュレーター")
 
 SYMBOL = "BTC-USD"
 TARGET_USD = 50.0
 PAYOUT_RATE = 0.88
+STAKE_USD = 5.0
+HOLD_BARS = 1
+DATA_DIR = Path("utaya_data")
+DATA_DIR.mkdir(exist_ok=True)
 
-# --- ① データ取得関数 ---
-@st.cache_data(ttl=60)
-def get_web_data(period="7d"):
-    try:
-        df = yf.download(SYMBOL, period=period, interval="1m", auto_adjust=False, progress=False, threads=False)
-        if df is None or df.empty:
-            return None
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = df.columns.get_level_values(0)
-        df = df[["Open", "High", "Low", "Close"]].copy()
-        df = df.apply(pd.to_numeric, errors="coerce").dropna()
-        return df.sort_index()
-    except:
-        return None
 
-# --- ② シグナル判定 ---
-def make_signal(df, i):
-    close = df["Close"].iloc[:i+1]
+def get_data(period: str = "7d") -> pd.DataFrame:
+    """1分足データを取得し、OHLCを整える。"""
+    df = yf.download(
+        SYMBOL,
+        period=period,
+        interval="1m",
+        auto_adjust=False,
+        progress=False,
+        threads=False,
+    )
+
+    if df is None or df.empty:
+        raise RuntimeError(
+            "価格データを取得できませんでした。"
+            "時間をおいて再実行してください。"
+        )
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    required = ["Open", "High", "Low", "Close"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise RuntimeError(f"必要な列がありません: {missing}")
+
+    df = df[required].copy()
+    df = df.apply(pd.to_numeric, errors="coerce")
+    df = df.dropna()
+    df = df[~df.index.duplicated(keep="last")]
+    df = df.sort_index()
+
+    if len(df) < 100:
+        raise RuntimeError(
+            f"データ不足です。取得件数: {len(df)}"
+        )
+
+    return df
+
+
+def make_signal(df: pd.DataFrame, i: int) -> str:
+    """i番目の足の終値までを使って方向を判定する。"""
+    close = df["Close"].iloc[: i + 1]
+
     if len(close) < 30:
         return "SKIP"
+
     last = float(close.iloc[-1])
     prev = float(close.iloc[-2])
+
     sma10 = float(close.tail(10).mean())
     sma30 = float(close.tail(30).mean())
-    
+
     momentum = last - prev
     deviation = last - sma10
 
     if momentum > 0 and last > sma30 and deviation > 0:
         return "HIGH"
+
     if momentum < 0 and last < sma30 and deviation < 0:
         return "LOW"
+
     return "SKIP"
 
-# --- ③ 先着判定 ---
-def judge_first_touch(entry, direction, future, target=TARGET_USD):
+
+def judge_first_touch(
+    entry: float,
+    direction: str,
+    future: pd.DataFrame,
+    target: float = TARGET_USD,
+) -> tuple[str, str]:
     upper = entry + target
     lower = entry - target
+
     for _, candle in future.iterrows():
         high = float(candle["High"])
         low = float(candle["Low"])
+
         hit_up = high >= upper
         hit_down = low <= lower
 
         if hit_up and hit_down:
-            return "AMBIGUOUS", "同値足で両方到達"
+            return "AMBIGUOUS", "同一足で上下両方に到達"
+
         if hit_up:
-            return ("WIN" if direction == "HIGH" else "LOSS"), "上目標到達"
+            result = "WIN" if direction == "HIGH" else "LOSS"
+            return result, "上目標に到達"
+
         if hit_down:
-            return ("WIN" if direction == "LOW" else "LOSS"), "下目標到達"
-    return "NO_TOUCH", "未到達"
+            result = "WIN" if direction == "LOW" else "LOSS"
+            return result, "下目標に到達"
 
-# --- ④ サイドバー設定 ---
-st.sidebar.header("⚙️ 検証パラメータ")
-target_usd = st.sidebar.slider("🎯 目標値幅 (±USD)", 10.0, 100.0, 50.0, 5.0)
-stake_usd = st.sidebar.number_input("💵 1回あたりの賭け金 ($)", min_value=1.0, value=5.0, step=1.0)
-hold_bars = st.sidebar.slider("⏱️ 判定足数 (分)", 1, 5, 1)
+    return "NO_TOUCH", "判定期間内に目標未到達"
 
-# セッション状態
-if 'running' not in st.session_state:
-    st.session_state.running = False
 
-# --- ⑤ メイン画面のリアルタイム表示 ---
-df = get_web_data("1d")
-if df is not None and len(df) > 30:
-    last_price = float(df['Close'].iloc[-1])
-    current_signal = make_signal(df, len(df)-2)
-    
-    if current_signal == "HIGH":
-        st.markdown(f'<div class="main-banner-high"><h2>🚀 リアルタイムシグナル：HIGH（上狙い）</h2><p>BTC価格: ${last_price:,.2f}</p></div>', unsafe_allow_html=True)
-    elif current_signal == "LOW":
-        st.markdown(f'<div class="main-banner-low"><h2>📉 リアルタイムシグナル：LOW（下狙い）</h2><p>BTC価格: ${last_price:,.2f}</p></div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div class="main-banner-even"><h2>⚖️ リアルタイムシグナル：見送り (SKIP)</h2><p>BTC価格: ${last_price:,.2f}</p></div>', unsafe_allow_html=True)
-else:
-    st.warning("市場データを読み込んでいます...")
+def run_backtest(
+    df: pd.DataFrame,
+    target: float,
+    stake: float,
+    payout: float,
+    hold_bars: int,
+) -> pd.DataFrame:
+    records = []
 
-st.markdown("---")
+    for i in range(30, len(df) - hold_bars):
+        direction = make_signal(df, i)
 
-# --- ⑥ バックテスト実行セクション ---
-st.subheader("📊 過去データによるバックテスト検証")
+        if direction == "SKIP":
+            continue
 
-if st.button("▶️ バックテストを実行する", use_container_width=True):
-    with st.spinner("BTCの1分足データを取得して検証中..."):
-        full_df = get_web_data("7d")
-        if full_df is not None:
-            records = []
-            for i in range(30, len(full_df) - hold_bars):
-                direction = make_signal(full_df, i)
-                if direction == "SKIP":
-                    continue
-                entry = float(full_df["Close"].iloc[i])
-                future = full_df.iloc[i + 1 : i + 1 + hold_bars]
-                result, reason = judge_first_touch(entry, direction, future, target_usd)
-                
-                if result == "WIN":
-                    pnl = stake_usd * PAYOUT_RATE
-                elif result == "LOSS":
-                    pnl = -stake_usd
-                else:
-                    pnl = 0.0
-                
-                records.append({
-                    "time": full_df.index[i],
-                    "entry": entry,
-                    "direction": direction,
-                    "result": result,
-                    "pnl": pnl
-                })
-            
-            res_df = pd.DataFrame(records)
-            if not res_df.empty:
-                wins = int((res_df["result"] == "WIN").sum())
-                losses = int((res_df["result"] == "LOSS").sum())
-                decided = wins + losses
-                win_rate = (wins / decided * 100) if decided > 0 else 0.0
-                total_pnl = float(res_df["pnl"].sum())
-                
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("総シグナル数", len(res_df))
-                c2.metric("勝率", f"{win_rate:.1f}%", f"{wins}勝 {losses}敗")
-                c3.metric("損益合計", f"${total_pnl:+.2f}")
-                c4.metric("対象期間", "直近7日間")
-                
-                st.dataframe(res_df.head(20), use_container_width=True)
-            else:
-                st.info("条件に一致するシグナルが見つかりませんでした。")
+        entry = float(df["Close"].iloc[i])
+        future = df.iloc[i + 1 : i + 1 + hold_bars]
+
+        result, reason = judge_first_touch(
+            entry, direction, future, target
+        )
+
+        if result == "WIN":
+            pnl = stake * payout
+        elif result == "LOSS":
+            pnl = -stake
         else:
-            st.error("データの取得に失敗しました。")
+            pnl = 0.0
 
-# --- ⑦ 免責事項 ---
-st.markdown("""
-<div style="background-color: #1e1e1e; border-left: 4px solid #ffcc00; padding: 12px; border-radius: 5px; font-size: 13px; color: #cccccc; margin-top: 30px;">
-    <b>⚠️ ご注意</b><br>
-    本ツールはブラウザ上で動作する検証用シミュレーターです。実際の売買や投資を勧誘するものではありません。
-</div>
-""", unsafe_allow_html=True)
+        records.append({
+            "signal_time": df.index[i],
+            "entry_price": entry,
+            "direction": direction,
+            "upper_target": entry + target,
+            "lower_target": entry - target,
+            "result": result,
+            "reason": reason,
+            "pnl_usd": pnl,
+        })
+
+    return pd.DataFrame(records)
+
+
+def print_report(results: pd.DataFrame) -> None:
+    if results.empty:
+        print("シグナルがありません。")
+        return
+
+    wins = int((results["result"] == "WIN").sum())
+    losses = int((results["result"] == "LOSS").sum())
+    ambiguous = int((results["result"] == "AMBIGUOUS").sum())
+    no_touch = int((results["result"] == "NO_TOUCH").sum())
+
+    decided = wins + losses
+    win_rate = wins / decided * 100 if decided else 0.0
+    pnl = float(results["pnl_usd"].sum())
+
+    max_losing_streak = 0
+    current_streak = 0
+
+    for result in results["result"]:
+        if result == "LOSS":
+            current_streak += 1
+            max_losing_streak = max(
+                max_losing_streak, current_streak
+            )
+        elif result == "WIN":
+            current_streak = 0
+
+    print("\n========== UTAYA BTC HILO ==========")
+    print(f"総シグナル数       : {len(results)}")
+    print(f"勝ち               : {wins}")
+    print(f"負け               : {losses}")
+    print(f"確定取引の勝率     : {win_rate:.2f}%")
+    print(f"判定不能           : {ambiguous}")
+    print(f"目標未到達         : {no_touch}")
+    print(f"最大連敗           : {max_losing_streak}")
+    print(f"損益合計           : ${pnl:+.2f}")
+    print("====================================")
+
+
+def backtest_mode(args: argparse.Namespace) -> None:
+    print("BTC 1分足データを取得中...")
+    df = get_data(args.period)
+
+    print(f"データ件数: {len(df)}")
+    print(f"開始: {df.index[0]}")
+    print(f"終了: {df.index[-1]}")
+    print("バックテスト実行中...")
+
+    results = run_backtest(
+        df=df,
+        target=args.target,
+        stake=args.stake,
+        payout=args.payout / 100.0,
+        hold_bars=args.hold_bars,
+    )
+
+    print_report(results)
+
+    if not results.empty:
+        output = DATA_DIR / "backtest_results.csv"
+        results.to_csv(output, index=False, encoding="utf-8-sig")
+        print(f"\n結果を保存しました: {output.resolve()}")
+
+
+def paper_mode(args: argparse.Namespace) -> None:
+    last_seen = None
+    print("ペーパーモード開始。Ctrl+Cで終了します。")
+
+    try:
+        while True:
+            df = get_data("1d")
+
+            if len(df) < 32:
+                time.sleep(10)
+                continue
+
+            i = len(df) - 2
+            bar_time = df.index[i]
+
+            if last_seen != bar_time:
+                last_seen = bar_time
+                direction = make_signal(df, i)
+                price = float(df["Close"].iloc[i])
+
+                print(
+                    f"{bar_time} | BTC=${price:,.2f} | "
+                    f"予測={direction}"
+                )
+
+                row = pd.DataFrame([{
+                    "time": bar_time,
+                    "price": price,
+                    "signal": direction,
+                }])
+
+                log_path = DATA_DIR / "paper_signals.csv"
+                row.to_csv(
+                    log_path,
+                    mode="a",
+                    header=not log_path.exists(),
+                    index=False,
+                    encoding="utf-8-sig",
+                )
+
+            time.sleep(10)
+
+    except KeyboardInterrupt:
+        print("\nペーパーモードを終了しました。")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="UTAYA BTC HILO CLI"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["backtest", "paper"],
+        default="backtest",
+        help="実行モード",
+    )
+    parser.add_argument(
+        "--period",
+        default="7d",
+        help="バックテスト期間",
+    )
+    parser.add_argument(
+        "--target",
+        type=float,
+        default=50.0,
+        help="上下目標幅 USD",
+    )
+    parser.add_argument(
+        "--stake",
+        type=float,
+        default=5.0,
+        help="1回の仮想賭け金 USD",
+    )
+    parser.add_argument(
+        "--payout",
+        type=float,
+        default=88.0,
+        help="勝利時の利益率",
+    )
+    parser.add_argument(
+        "--hold-bars",
+        type=int,
+        default=1,
+        help="エントリー後の判定足数",
+    )
+
+    args = parser.parse_args()
+
+    if args.target <= 0 or args.stake <= 0:
+        parser.error("targetとstakeは正の値にしてください")
+    if not 0 <= args.payout <= 500:
+        parser.error("payoutは0～500の範囲にしてください")
+    if args.hold_bars < 1:
+        parser.error("hold-barsは1以上にしてください")
+
+    try:
+        if args.mode == "backtest":
+            backtest_mode(args)
+        else:
+            paper_mode(args)
+    except Exception as exc:
+        print(f"\nエラー: {exc}")
+
+
+if __name__ == "__main__":
+    main()
