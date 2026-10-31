@@ -132,7 +132,6 @@ def fetch_real_market_data(symbol: str = "BTC-USD") -> pd.DataFrame:
 # --- 3. クオンツ特徴量・予測エンジン ---
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    # 未来情報漏洩を防ぐためシフトや過去窓を使用
     df['ret_1'] = df['Close'].pct_change(1)
     df['ret_3'] = df['Close'].pct_change(3)
     df['ret_5'] = df['Close'].pct_change(5)
@@ -154,7 +153,6 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     df.dropna(inplace=True)
     return df
 
-# 簡易オンライン学習モデル管理クラス
 class QuantumAIModel:
     def __init__(self):
         self.model = SGDClassifier(loss='log_loss', max_iter=1000, random_state=42)
@@ -166,7 +164,6 @@ class QuantumAIModel:
         if len(X) < 30:
             return False, "データ不足（30件未満）"
         
-        # 時系列順のウォークフォワード分割（データリーク防止）
         split_idx = int(len(X) * 0.8)
         X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
         y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
@@ -181,7 +178,6 @@ class QuantumAIModel:
             brier = brier_score_loss(y_val, preds_proba)
             ll = log_loss(y_val, preds_proba)
             
-            # ログ保存
             with db.get_connection() as conn:
                 conn.execute("""
                     INSERT INTO training_logs (train_time, model_version, train_samples, brier_score, log_loss, status)
@@ -197,7 +193,7 @@ class QuantumAIModel:
         try:
             X_scaled = self.scaler.transform(X_row)
             probs = self.model.predict_proba(X_scaled)[0]
-            return float(probs[0]), float(probs[1]) # [prob_down, prob_up]
+            return float(probs[0]), float(probs[1])
         except Exception:
             return 0.5, 0.5
 
@@ -213,7 +209,6 @@ st.markdown("""
 
 st.write("")
 
-# サイドバー設定
 st.sidebar.markdown("### ⚙️ 実行制御パネル")
 auto_refresh = st.sidebar.checkbox("15秒自動リフレッシュ (Live Mode)", value=True)
 payout_rate = st.sidebar.number_input("想定ペイアウト率 (r)", value=DEFAULT_PAYOUT_RATE, min_value=1.0, max_value=3.0, step=0.05)
@@ -222,7 +217,6 @@ min_ev_threshold = st.sidebar.slider("最小期待値（EV）しきい値", min_
 if st.sidebar.button("🔄 手動データ再取得 ＆ 予測更新"):
     st.rerun()
 
-# --- データ取得と特徴量生成 ---
 df_raw = fetch_real_market_data("BTC-USD")
 
 if df_raw.empty:
@@ -234,16 +228,13 @@ latest_row = df_feat.iloc[[-1]]
 current_price = float(latest_row['Close'].values[0])
 data_time = latest_row.index[0].strftime('%Y-%m-%d %H:%M:%S')
 
-# 予測計算
 prob_down, prob_up = ai_engine.predict_proba(latest_row[['ret_1', 'ret_3', 'ret_5', 'ret_10', 'rsi', 'ma_ratio', 'volatility']])
 confidence = max(prob_up, prob_down)
 
-# 期待値 (EV) 計算: EV = 勝率 * r - 敗率 * 1
 win_prob = confidence
 loss_prob = 1.0 - win_prob
 ev_value = (win_prob * payout_rate) - (loss_prob * 1.0)
 
-# 方向判定と見送り条件
 direction = "WAIT (見送り)"
 if not ai_engine.is_trained:
     reason = "モデル未学習のため見送り（初期データ蓄積中）"
@@ -264,10 +255,8 @@ pred_upper = current_price * (1.0 + 0.002)
 pred_lower = current_price * (1.0 - 0.002)
 target_time = (datetime.datetime.now() + datetime.timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
 
-# 予測ID発行 ＆ DB保存（未判定レコードの生成）
 pred_id = f"PRED-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
 with db.get_connection() as conn:
-    # 直近の未判定予測がなければ新規挿入
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM predictions WHERE status='PENDING'")
     pending_count = cursor.fetchone()[0]
@@ -278,16 +267,13 @@ with db.get_connection() as conn:
         """, (pred_id, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "BTC-USD", current_price, pred_10m_price, pred_upper, pred_lower, prob_up, prob_down, confidence, ev_value, direction, reason, ai_engine.version, data_time, target_time))
         conn.commit()
 
-# --- 10分後の勝敗判定バッチ処理（自動実行） ---
 with db.get_connection() as conn:
     pending_preds = pd.read_sql("SELECT * FROM predictions WHERE status='PENDING'", conn)
     now_dt = datetime.datetime.now()
     for _, row in pending_preds.iterrows():
         t_target = pd.to_datetime(row['target_time'])
         if now_dt >= t_target:
-            # 判定時刻以降の価格データを取得して勝敗決定
             if not df_raw.empty:
-                # ターゲット時刻に最も近い価格を検索
                 closest_idx = df_raw.index.get_indexer([t_target], method='nearest')[0]
                 actual_p = float(df_raw['Close'].iloc[closest_idx])
                 entry_p = row['current_price']
@@ -315,7 +301,6 @@ with db.get_connection() as conn:
                 """, (actual_p, res, pnl, row['pred_id']))
                 conn.commit()
 
-# --- 画面レイアウト構築 ---
 st.markdown("### 🎯 【ハイロー10分 AI予測】")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("現在価格 (BTC-USD)", f"${current_price:,.2f}")
@@ -327,7 +312,6 @@ st.info(f"**判定結果:** **{direction}** ｜ **予測信頼度:** {confidence
 
 st.markdown("---")
 
-# --- 成績・AI実績セクション ---
 st.markdown("### 📊 【AI実績 ＆ 仮想投資成績】")
 with db.get_connection() as conn:
     df_history = pd.read_sql("SELECT * FROM predictions ORDER BY pred_time DESC", conn)
@@ -351,7 +335,6 @@ else:
 
 st.markdown("---")
 
-# --- 学習状況セクション ---
 st.markdown("### 🧠 【オンライン学習 ＆ モデル検証状況】")
 sc1, sc2, sc3 = st.columns(3)
 with db.get_connection() as conn:
@@ -364,9 +347,7 @@ sc1.metric("市場キャッシュデータ件数", f"{market_count} 件")
 sc2.metric("モデルバージョン", ai_engine.version)
 sc3.metric("学習状態", "🟢 稼働中 (ウォークフォワード検証)" if ai_engine.is_trained else "🟡 初期データ蓄積中")
 
-# 自動学習のトリガー（判定済みデータが溜まったらウォークフォワード学習を実行）
 if len(resolved_df) >= 10 and not ai_engine.is_trained:
-    # 特徴量と正解ラベルの構築（勝=1, 負=0）
     X_learn = df_feat[['ret_1', 'ret_3', 'ret_5', 'ret_10', 'rsi', 'ma_ratio', 'volatility']].iloc[:-1]
     y_learn = (df_feat['Close'].shift(-1) > df_feat['Close']).astype(int).iloc[:-1]
     msg, status = ai_engine.train_walk_forward(X_learn, y_learn)
@@ -384,7 +365,6 @@ else:
 
 st.caption(f"UTAYA AI QUANTUM Engine v1.0 | Storage: {STORAGE_DIR} | Current Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-# 自動リフレッシュ処理
 if auto_refresh:
     time.sleep(15)
     st.rerun()
