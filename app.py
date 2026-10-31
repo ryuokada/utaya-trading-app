@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-UTAYA AI QUANTUM - Real-Time Trading & Custom Base-Price Prediction Hub (v8.0)
-- Supports USDJPY, BTCUSD, TECH100, XRT, Gold, Oil with Custom Base Price & Pip Value Calculator.
+UTAYA AI QUANTUM - Enterprise Real-Time Trading & Base-Price Prediction Hub (v9.0)
+- Multi-Asset: USDJPY, BTCUSD, TECH100, XRT, Gold, Oil.
+- Custom Base Price Engine, High/Low Prediction, and Standard Mode Pips Profit Calculator ($).
 """
 from __future__ import annotations
 import os
@@ -13,22 +14,21 @@ import pandas as pd
 import streamlit as st
 
 from sklearn.linear_model import SGDClassifier
-from sklearn.metrics import log_loss, brier_score_loss
 from sklearn.preprocessing import StandardScaler
 
 STORAGE_DIR = os.getenv("UTAYA_STORAGE", r"E:\utaya_3tb_ai_storage")
 os.makedirs(STORAGE_DIR, exist_ok=True)
-DB_PATH = os.path.join(STORAGE_DIR, "utaya_quantum_v8.db")
+DB_PATH = os.path.join(STORAGE_DIR, "utaya_quantum_v9.db")
 
 DEFAULT_PAYOUT_RATE = 1.75
 
 st.set_page_config(
-    page_title="UTAYA AI QUANTUM | Enterprise Trading Hub",
+    page_title="UTAYA AI QUANTUM | Enterprise Trading Hub v9.0",
     page_icon="⚡",
     layout="wide"
 )
 
-# --- データベース初期化 ---
+# --- データベースマネージャー（完全リセット＆スキーマ保護） ---
 class DatabaseManager:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
@@ -40,12 +40,8 @@ class DatabaseManager:
     def _init_db(self):
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DROP TABLE IF EXISTS market_data")
-            cursor.execute("DROP TABLE IF EXISTS predictions")
-            cursor.execute("DROP TABLE IF EXISTS training_logs")
-            
             cursor.execute("""
-                CREATE TABLE market_data (
+                CREATE TABLE IF NOT EXISTS market_data (
                     timestamp TEXT,
                     symbol TEXT,
                     open REAL,
@@ -57,7 +53,7 @@ class DatabaseManager:
                 )
             """)
             cursor.execute("""
-                CREATE TABLE predictions (
+                CREATE TABLE IF NOT EXISTS predictions (
                     pred_id TEXT PRIMARY KEY,
                     pred_time TEXT,
                     symbol TEXT,
@@ -75,17 +71,6 @@ class DatabaseManager:
                     actual_price REAL DEFAULT NULL,
                     result TEXT DEFAULT NULL,
                     pnl REAL DEFAULT 0.0
-                )
-            """)
-            cursor.execute("""
-                CREATE TABLE training_logs (
-                    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    log_time TEXT,
-                    symbol TEXT,
-                    train_samples INTEGER,
-                    brier_score REAL,
-                    log_loss REAL,
-                    status TEXT
                 )
             """)
             conn.commit()
@@ -121,7 +106,8 @@ def fetch_real_market_data(symbol: str) -> pd.DataFrame:
     except Exception:
         pass
     
-    dates = pd.`date_range`(end=datetime.datetime.now(), periods=100, freq='1min')
+    # フォールバック
+    dates = pd.date_range(end=datetime.datetime.now(), periods=100, freq='1min')
     np.random.seed(42)
     base = 157.57 if "USD" in symbol else 78408.0
     closes = base + np.cumsum(np.random.randn(100) * 0.2)
@@ -148,11 +134,11 @@ class QuantumAIModel:
         self.model = SGDClassifier(loss='log_loss', max_iter=1000, random_state=42)
         self.scaler = StandardScaler()
         self.is_trained = False
-        self.version = "v8.0.0-real"
+        self.version = "v9.0.0-real"
 
     def predict_proba(self, X_row: pd.DataFrame):
         if not self.is_trained:
-            return 0.45, 0.55
+            return 0.48, 0.52
         try:
             X_scaled = self.scaler.transform(X_row)
             probs = self.model.predict_proba(X_scaled)[0]
@@ -165,7 +151,7 @@ ai_engine = QuantumAIModel()
 # --- UI 構築 ---
 st.markdown("""
 <div style="background: linear-gradient(135deg, #09090b, #1e1b4b); padding: 20px; border-radius: 12px; border: 2px solid #38bdf8; text-align: center;">
-    <h1 style="margin:0; color:#38bdf8; font-size:24px;">⚡ UTAYA AI QUANTUM — Real-Time Trading & Base-Price Hub (v8.0)</h1>
+    <h1 style="margin:0; color:#38bdf8; font-size:24px;">⚡ UTAYA AI QUANTUM — Enterprise Trading Hub (v9.0)</h1>
     <p style="margin:5px 0 0 0; color:#a1a1aa; font-size:13px;">基準価格設定 ｜ ハイロー判定エンジン ｜ 標準モード損益（0.01pips換算）シミュレーター</p>
 </div>
 """, unsafe_allow_html=True)
@@ -188,7 +174,7 @@ custom_base_price = st.sidebar.number_input("基準価格 (Base Price)", value=a
 pip_step = st.sidebar.number_input("標準モード計算単位 (pips / 最小変動)", value=asset_info["pip_unit"], format="%.4f")
 pip_value_per_dollar = st.sidebar.number_input("0.01pips / 最小変動あたりの獲得収益 ($)", value=0.01, format="%.4f")
 
-if st.sidebar.button("🔄 手動データ再取得 ＆ 判定更新"):
+if st.sidebar.button("🔄 手動データ再取得 ＆ 予測更新"):
     st.rerun()
 
 df_raw = fetch_real_market_data(selected_symbol)
@@ -227,6 +213,18 @@ else:
         pred_10m_price = current_price * (1.0 + 0.0003 if "HIGH" in direction else -0.0003)
         target_time = (datetime.datetime.now() + datetime.timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
 
+        # 予測ID保存
+        pred_id = f"PRED-{selected_symbol}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+        with db.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM predictions WHERE status='PENDING' AND symbol=?", (selected_symbol,))
+            if cursor.fetchone()[0] == 0:
+                conn.execute("""
+                    INSERT OR IGNORE INTO predictions (pred_id, pred_time, symbol, current_price, base_price, predicted_price, prob_up, prob_down, confidence, ev, direction, reason, target_time, status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+                """, (pred_id, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), selected_symbol, current_price, custom_base_price, pred_10m_price, prob_up, prob_down, confidence, ev_value, direction, reason, target_time))
+                conn.commit()
+
         # 画面レイアウト表示
         st.markdown(f"### 🎯 【実戦ハイロー予測 ＆ 基準判定】 - {selected_asset_name}")
         c1, c2, c3, c4 = st.columns(4)
@@ -247,17 +245,17 @@ else:
 
         st.markdown("---")
 
-        st.markdown("### 📊 【未来予測・仮想投資履歴】")
+        st.markdown(f"### 📊 【未来予測・仮想投資履歴】")
         with db.get_connection() as conn:
             df_history = pd.read_sql("SELECT * FROM predictions WHERE symbol=? ORDER BY pred_time DESC", conn, params=(selected_symbol,))
         
         if not df_history.empty:
             st.dataframe(df_history[['pred_time', 'direction', 'current_price', 'base_price', 'ev', 'status']], use_container_width=True)
         else:
-            st.info("未来予測の蓄積データがまだありません。15秒ごとに未来への検証が記録されます。")
+            st.info("未来予測の蓄積データがまだありません。")
 
 st.markdown("---")
-st.caption(f"UTAYA AI QUANTUM Engine v8.0 | Storage: {STORAGE_DIR} | Current Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.caption(f"UTAYA AI QUANTUM Engine v9.0 | Storage: {STORAGE_DIR} | Current Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 if auto_refresh:
     time.sleep(15)
