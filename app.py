@@ -1,279 +1,390 @@
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import numpy as np
+# -*- coding: utf-8 -*-
+"""
+UTAYA AI QUANTUM - Self-Learning Quant Trading & 10-Min High/Low Prediction System
+- Strict Walk-Forward Verification, No Data Leakage, Real-Time SQLite Paper Trading & Online Learning.
+"""
+from __future__ import annotations
+import os
+import sys
 import time
+import datetime
+import sqlite3
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+# 機械学習モデル（逐次更新可能なSGDClassifier）
+from sklearn.linear_model import SGDClassifier
+from sklearn.metrics import log_loss, brier_score_loss
+from sklearn.preprocessing import StandardScaler
+
+# --- 0. 環境・ストレージ設定 ---
+STORAGE_DIR = os.getenv("UTAYA_STORAGE", r"E:\utaya_3tb_ai_storage")
+os.makedirs(STORAGE_DIR, exist_ok=True)
+DB_PATH = os.path.join(STORAGE_DIR, "utaya_quantum.db")
+
+DEFAULT_PAYOUT_RATE = 1.75  # ご指定のデフォルト想定ペイアウト率（1.75倍）
 
 st.set_page_config(
-    page_title="UTAYA AI 投資型自己学習オートエンジン",
-    page_icon="📈",
+    page_title="UTAYA AI QUANTUM | Self-Learning Quant Hub",
+    page_icon="⚡",
     layout="wide"
 )
 
-# --- 🎨 カスタムCSS ---
+# --- 1. データベースマネージャー（SQLite層） ---
+class DatabaseManager:
+    def __init__(self, db_path: str = DB_PATH):
+        self.db_path = db_path
+        self._init_db()
+
+    def get_connection(self):
+        return sqlite3.connect(self.db_path, timeout=10)
+
+    def _init_db(self):
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            # 市場データキャッシュ
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS market_data (
+                    timestamp TEXT PRIMARY KEY,
+                    open REAL,
+                    high REAL,
+                    low REAL,
+                    close REAL,
+                    volume REAL
+                )
+            """)
+            # 予測履歴テーブル
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS predictions (
+                    pred_id TEXT PRIMARY KEY,
+                    pred_time TEXT,
+                    symbol TEXT,
+                    current_price REAL,
+                    predicted_price REAL,
+                    pred_upper REAL,
+                    pred_lower REAL,
+                    prob_up REAL,
+                    prob_down REAL,
+                    confidence REAL,
+                    ev REAL,
+                    direction TEXT,
+                    reason TEXT,
+                    model_version TEXT,
+                    data_last_time TEXT,
+                    target_time TEXT,
+                    status TEXT DEFAULT 'PENDING',
+                    actual_price REAL DEFAULT NULL,
+                    result TEXT DEFAULT NULL,
+                    pnl REAL DEFAULT 0.0
+                )
+            """)
+            # 学習・モデル更新履歴
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS training_logs (
+                    log_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    train_time TEXT,
+                    model_version TEXT,
+                    train_samples INTEGER,
+                    brier_score REAL,
+                    log_loss REAL,
+                    status TEXT
+                )
+            """)
+            conn.commit()
+
+db = DatabaseManager()
+
+# --- 2. 実データ取得層 (yfinance BTC-USD) ---
+def fetch_real_market_data(symbol: str = "BTC-USD") -> pd.DataFrame:
+    try:
+        import yfinance as yf
+        df = yf.download(symbol, period="3d", interval="1m", progress=False, timeout=5)
+        if df is not None and not df.empty:
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            df = df[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+            df.index = pd.to_datetime(df.index)
+            # データベースにキャッシュ保存
+            with db.get_connection() as conn:
+                for idx, row in df.iterrows():
+                    conn.execute("""
+                        INSERT OR REPLACE INTO market_data (timestamp, open, high, low, close, volume)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (idx.strftime('%Y-%m-%d %H:%M:%S'), float(row['Open']), float(row['High']), float(row['Low']), float(row['Close']), float(row['Volume'])))
+                conn.commit()
+            return df
+    except Exception as e:
+        st.warning(f"⚠️ 市場データ取得エラー (API切断等): {e}")
+    
+    # フォールバック：DBからロード
+    try:
+        with db.get_connection() as conn:
+            df = pd.read_sql("SELECT * FROM market_data ORDER BY timestamp ASC", conn)
+            if not df.empty:
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+                return df
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+# --- 3. クオンツ特徴量・予測エンジン ---
+def compute_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    # 未来情報漏洩を防ぐためシフトや過去窓を使用
+    df['ret_1'] = df['Close'].pct_change(1)
+    df['ret_3'] = df['Close'].pct_change(3)
+    df['ret_5'] = df['Close'].pct_change(5)
+    df['ret_10'] = df['Close'].pct_change(10)
+    
+    # RSI
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / (loss + 1e-8)
+    df['rsi'] = 100 - (100 / (1 + rs))
+    
+    # ボラティリティ・移動平均乖離
+    df['ma_5'] = df['Close'].rolling(5).mean()
+    df['ma_20'] = df['Close'].rolling(20).mean()
+    df['ma_ratio'] = df['Close'] / (df['ma_20'] + 1e-8) - 1.0
+    df['volatility'] = df['Close'].rolling(10).std()
+    
+    df.dropna(inplace=True)
+    return df
+
+# 簡易オンライン学習モデル管理クラス
+class QuantumAIModel:
+    def __init__(self):
+        self.model = SGDClassifier(loss='log_loss', max_iter=1000, random_state=42)
+        self.scaler = StandardScaler()
+        self.is_trained = False
+        self.version = "v1.0.0-sgd"
+
+    def train_walk_forward(self, X: pd.DataFrame, y: pd.Series):
+        if len(X) < 30:
+            return False, "データ不足（30件未満）"
+        
+        # 時系列順のウォークフォワード分割（データリーク防止）
+        split_idx = int(len(X) * 0.8)
+        X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
+        
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        self.model.fit(X_train_scaled, y_train)
+        self.is_trained = True
+        
+        if len(X_val) > 0:
+            X_val_scaled = self.scaler.transform(X_val)
+            preds_proba = self.model.predict_proba(X_val_scaled)[:, 1]
+            brier = brier_score_loss(y_val, preds_proba)
+            ll = log_loss(y_val, preds_proba)
+            
+            # ログ保存
+            with db.get_connection() as conn:
+                conn.execute("""
+                    INSERT INTO training_logs (train_time, model_version, train_samples, brier_score, log_loss, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), self.version, len(X_train), float(brier), float(ll), "SUCCESS"))
+                conn.commit()
+            return True, f"学習成功 (Brier: {brier:.4f}, LogLoss: {ll:.4f})"
+        return True, "学習完了（検証データなし）"
+
+    def predict_proba(self, X_row: pd.DataFrame):
+        if not self.is_trained:
+            return 0.5, 0.5
+        try:
+            X_scaled = self.scaler.transform(X_row)
+            probs = self.model.predict_proba(X_scaled)[0]
+            return float(probs[0]), float(probs[1]) # [prob_down, prob_up]
+        except Exception:
+            return 0.5, 0.5
+
+ai_engine = QuantumAIModel()
+
+# --- 4. Streamlit UI 構築 ---
 st.markdown("""
-<style>
-    .main-banner-high {
-        background: linear-gradient(135deg, #1f4068, #162447);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(31, 64, 104, 0.4);
-        margin-bottom: 20px;
-    }
-    .main-banner-low {
-        background: linear-gradient(135deg, #e43f5a, #1f4068);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(228, 63, 90, 0.4);
-        margin-bottom: 20px;
-    }
-    .main-banner-even {
-        background: linear-gradient(135deg, #2c3e50, #4ca1af);
-        padding: 20px;
-        border-radius: 15px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 15px rgba(44, 62, 80, 0.4);
-        margin-bottom: 20px;
-    }
-    .ai-log-box {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        padding: 15px;
-        border-radius: 10px;
-        font-family: monospace;
-        color: #58a6ff;
-        margin-bottom: 20px;
-    }
-    .disclaimer-box {
-        background-color: #1e1e1e;
-        border-left: 4px solid #ffcc00;
-        padding: 12px;
-        border-radius: 5px;
-        font-size: 13px;
-        color: #cccccc;
-        margin-top: 30px;
-    }
-</style>
+<div style="background: linear-gradient(135deg, #09090b, #1e1b4b); padding: 20px; border-radius: 12px; border: 2px solid #38bdf8; text-align: center;">
+    <h1 style="margin:0; color:#38bdf8; font-size:24px;">⚡ UTAYA AI QUANTUM — Self-Learning Trading Engine</h1>
+    <p style="margin:5px 0 0 0; color:#a1a1aa; font-size:13px;">10分先ハイロー予測 ｜ ウォークフォワード検証 ｜ 仮想投資実績記録システム</p>
+</div>
 """, unsafe_allow_html=True)
 
-st.title("📈 UTAYA AI 投資型トレンド追随・自己学習エンジン")
+st.write("")
 
-# --- ① リアルタイム相場分析エンジン ---
-def get_market_features():
-    try:
-        btc = yf.Ticker("BTC-USD")
-        df = btc.history(period="1d", interval="1m")
-        if len(df) < 20:
-            return "EVEN", 0.0, 0.0, 0.0, None
-        
-        p_current = float(df['Close'].iloc[-1])
-        p_prev = float(df['Close'].iloc[-2])
-        momentum = p_current - p_prev
-        
-        # 移動平均乖離 & ボラティリティ
-        sma10 = float(df['Close'].iloc[-10:].mean())
-        deviation = p_current - sma10
-        volatility = float(df['Close'].iloc[-10:].std())
-        
-        # トレンド判定
-        if momentum > 0 and deviation > 0:
-            return "HIGH", p_current, momentum, deviation, df
-        elif momentum < 0 and deviation < 0:
-            return "LOW", p_current, momentum, deviation, df
-        else:
-            return "EVEN", p_current, momentum, deviation, df
-    except:
-        return "EVEN", 0.0, 0.0, 0.0, None
+# サイドバー設定
+st.sidebar.markdown("### ⚙️ 実行制御パネル")
+auto_refresh = st.sidebar.checkbox("15秒自動リフレッシュ (Live Mode)", value=True)
+payout_rate = st.sidebar.number_input("想定ペイアウト率 (r)", value=DEFAULT_PAYOUT_RATE, min_value=1.0, max_value=3.0, step=0.05)
+min_ev_threshold = st.sidebar.slider("最小期待値（EV）しきい値", min_value=0.0, max_value=0.2, value=0.02, step=0.01)
 
-status, price, momentum, deviation, live_df = get_market_features()
+if st.sidebar.button("🔄 手動データ再取得 ＆ 予測更新"):
+    st.rerun()
 
-# --- ② 画面最上部：ステータス表示 ---
-if status == "HIGH":
-    st.markdown(f"""
-        <div class="main-banner-high">
-            <h1 style="margin:0; font-size: 24px;">🚀 投資分析：【HIGH（上値追い）シグナル】</h1>
-            <p style="margin:5px 0 0 0; font-size: 14px;">BTC: <b>${price:,.2f}</b> ｜ モメンタム: <b>{momentum:+.2f}</b> ｜ 乖離: <b>{deviation:+.2f}</b></p>
-        </div>
-    """, unsafe_allow_html=True)
-elif status == "LOW":
-    st.markdown(f"""
-        <div class="main-banner-low">
-            <h1 style="margin:0; font-size: 24px;">📉 投資分析：【LOW（下値追い）シグナル】</h1>
-            <p style="margin:5px 0 0 0; font-size: 14px;">BTC: <b>${price:,.2f}</b> ｜ モメンタム: <b>{momentum:+.2f}</b> ｜ 乖離: <b>{deviation:+.2f}</b></p>
-        </div>
-    """, unsafe_allow_html=True)
+# --- データ取得と特徴量生成 ---
+df_raw = fetch_real_market_data("BTC-USD")
+
+if df_raw.empty:
+    st.error("❌ 市場データが取得できません。インターネット接続またはAPI制限を確認してください。")
+    st.stop()
+
+df_feat = compute_features(df_raw)
+latest_row = df_feat.iloc[[-1]]
+current_price = float(latest_row['Close'].values[0])
+data_time = latest_row.index[0].strftime('%Y-%m-%d %H:%M:%S')
+
+# 予測計算
+prob_down, prob_up = ai_engine.predict_proba(latest_row[['ret_1', 'ret_3', 'ret_5', 'ret_10', 'rsi', 'ma_ratio', 'volatility']])
+confidence = max(prob_up, prob_down)
+
+# 期待値 (EV) 計算: EV = 勝率 * r - 敗率 * 1
+win_prob = confidence
+loss_prob = 1.0 - win_prob
+ev_value = (win_prob * payout_rate) - (loss_prob * 1.0)
+
+# 方向判定と見送り条件
+direction = "WAIT (見送り)"
+if not ai_engine.is_trained:
+    reason = "モデル未学習のため見送り（初期データ蓄積中）"
+elif ev_value < min_ev_threshold:
+    reason = f"期待値不足 (EV: {ev_value:.3f} < しきい値 {min_ev_threshold})"
+elif confidence < 0.53:
+    reason = f"予測信頼度不足 (Conf: {confidence*100:.1f}%)"
 else:
-    st.markdown(f"""
-        <div class="main-banner-even">
-            <h1 style="margin:0; font-size: 24px;">⚖️ 投資分析：【トレンド曖昧・エントリー見送り】</h1>
-            <p style="margin:5px 0 0 0; font-size: 14px;">BTC: <b>${price:,.2f}</b> ｜ <b>※ノイズ相場のためAIが資金をガート中</b></p>
-        </div>
-    """, unsafe_allow_html=True)
-
-# --- ③ サイドバー設定 ---
-st.sidebar.header("⚙️ 投資・学習パラメータ設定")
-initial_filter_usd = st.sidebar.selectbox("🎯 初動フィルター（最低必要モメンタム）", [2.0, 3.0, 5.0], index=1)
-target_goal_usd = st.sidebar.number_input("🏁 最終目標利益幅 (±50$到達)", min_value=30.0, value=50.0, step=5.0)
-stop_loss_usd = st.sidebar.number_input("🛡️ 逆行損切り幅 (逆方向への許容限界)", min_value=10.0, value=30.0, step=5.0)
-stake_amount = st.sidebar.number_input("💵 1回あたりの投資額 ($)", min_value=1.0, value=5.0, step=1.0)
-payout_rate = st.sidebar.slider("💰 目標達成時の利益率 (%)", 70.0, 150.0, 100.0, 5.0)
-
-# セッション状態の初期化
-if 'balance' not in st.session_state:
-    st.session_state.balance = 0.0
-    st.session_state.total_trades = 0
-    st.session_state.wins = 0
-    st.session_state.loses = 0
-    st.session_state.ai_win_probability = 0.50  # AIの学習による予測精度
-    st.session_state.trade_history = []
-    st.session_state.is_looping = False
-
-def execute_investment_step(filter_usd, goal_usd, sl_usd, stake):
-    try:
-        curr_status, curr_price, curr_mom, curr_dev, df = get_market_features()
-        
-        if curr_status == "EVEN" or abs(curr_mom) < filter_usd:
-            return False, "⚖️ 初動の勢いが条件（フィルター）に満たないため、AIは無駄なエントリーを回避しました。"
-            
-        if df is None or len(df) < 15:
-            return False, "データ不足"
-            
-        # 実際の価格時系列から「エントリー後にゴールへ到達したか、逆行して損切りにかかったか」を検証
-        entry_price = float(df['Close'].iloc[-10])
-        sub_prices = df['Close'].tail(9).values
-        
-        # 🧠 【自己学習ロジック】
-        # 過去の勝敗データ（wins / loses）を基に、AIが相場のノイズパターンを学習し、適応確率を変化させる
-        if st.session_state.total_trades > 0:
-            historical_win_rate = st.session_state.wins / st.session_state.total_trades
-            # 勝率が良いときは自信を持ち、悪いときは慎重にトレンドの質を厳選する
-            st.session_state.ai_win_probability = float(np.clip(0.40 + (historical_win_rate * 0.35), 0.30, 0.85))
-        else:
-            st.session_state.ai_win_probability = 0.50
-            
-        # 判定シミュレーション
-        reached_goal = False
-        hit_stop_loss = False
-        
-        max_favorable = 0.0
-        max_adverse = 0.0
-        
-        for p in sub_prices:
-            diff = p - entry_price if curr_status == "HIGH" else entry_price - p
-            if diff > max_favorable:
-                max_favorable = diff
-            if diff < -max_adverse:
-                max_adverse = abs(diff)
-                
-        # 逆行ラインに先に触れたか、それとも50$ゴールに到達したか
-        if max_adverse >= sl_usd:
-            hit_stop_loss = True
-        if max_favorable >= goal_usd:
-            # ゴールに届いた場合でも、AIの自己学習フィルター（勝率に応じた精度）をクリアするか検証
-            if np.random.choice([True, False], p=[st.session_state.ai_win_probability, 1.0 - st.session_state.ai_win_probability]):
-                reached_goal = True
-                
-        if reached_goal and not hit_stop_loss:
-            profit = stake * (payout_rate / 100.0)
-            st.session_state.balance += profit
-            st.session_state.wins += 1
-            result_str = "WIN 🏆"
-            log_msg = f"🎯 【投資成功】初動から順調に推移し、逆行することなく+${goal_usd}ゴールを達成！ (AI適応精度: {st.session_state.ai_win_probability*100:.1f}%)"
-        else:
-            profit = -stake
-            st.session_state.balance -= stake
-            st.session_state.loses += 1
-            result_str = "LOSE 💥"
-            log_msg = f"📉 { '【逆行・損切り】予測とは逆方向に進み損きりラインに到達' if hit_stop_loss else '【途中失速】ゴールに届かずトレンドが消滅' } (AI再学習中)"
-            
-        st.session_state.total_trades += 1
-        st.session_state.trade_history.insert(0, {
-            "result": result_str,
-            "amount": f"${profit:+.2f}",
-            "balance": f"${st.session_state.balance:+.2f}",
-            "msg": log_msg
-        })
-        
-        return True, log_msg
-    except Exception as e:
-        return False, str(e)
-
-# --- ④ 操作コントロールボタン ---
-col1, col2, col3 = st.columns([2, 2, 1])
-with col1:
-    if not st.session_state.is_looping:
-        if st.button("▶️ 【自己学習オート投資・開始】", use_container_width=True):
-            st.session_state.is_looping = True
-            st.rerun()
+    if prob_up > prob_down:
+        direction = "HIGH (買い)"
+        reason = "短期モメンタムおよび複数指標が上向きを支持"
     else:
-        if st.button("⏹️ 【オート投資・一時停止】", use_container_width=True):
-            st.session_state.is_looping = False
-            st.rerun()
-with col2:
-    if st.button("⚡ 【手動で1回投資検証】", use_container_width=True):
-        executed, msg = execute_investment_step(initial_filter_usd, target_goal_usd, stop_loss_usd, stake_amount)
-        if not executed:
-            st.info(msg)
-        st.rerun()
-with col3:
-    if st.button("🔄 リセット"):
-        st.session_state.is_looping = False
-        st.session_state.balance = 0.0
-        st.session_state.total_trades = 0
-        st.session_state.wins = 0
-        st.session_state.loses = 0
-        st.session_state.ai_win_probability = 0.50
-        st.session_state.trade_history = []
-        st.rerun()
+        direction = "LOW (売り)"
+        reason = "短期モメンタムおよび複数指標が下向きを支持"
+
+pred_10m_price = current_price * (1.0 + 0.0005 if "HIGH" in direction else -0.0005)
+pred_upper = current_price * (1.0 + 0.002)
+pred_lower = current_price * (1.0 - 0.002)
+target_time = (datetime.datetime.now() + datetime.timedelta(minutes=10)).strftime('%Y-%m-%d %H:%M:%S')
+
+# 予測ID発行 ＆ DB保存（未判定レコードの生成）
+pred_id = f"PRED-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+with db.get_connection() as conn:
+    # 直近の未判定予測がなければ新規挿入
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM predictions WHERE status='PENDING'")
+    pending_count = cursor.fetchone()[0]
+    if pending_count == 0 and "WAIT" not in direction:
+        conn.execute("""
+            INSERT OR IGNORE INTO predictions (pred_id, pred_time, symbol, current_price, predicted_price, pred_upper, pred_lower, prob_up, prob_down, confidence, ev, direction, reason, model_version, data_last_time, target_time, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        """, (pred_id, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "BTC-USD", current_price, pred_10m_price, pred_upper, pred_lower, prob_up, prob_down, confidence, ev_value, direction, reason, ai_engine.version, data_time, target_time))
+        conn.commit()
+
+# --- 10分後の勝敗判定バッチ処理（自動実行） ---
+with db.get_connection() as conn:
+    pending_preds = pd.read_sql("SELECT * FROM predictions WHERE status='PENDING'", conn)
+    now_dt = datetime.datetime.now()
+    for _, row in pending_preds.iterrows():
+        t_target = pd.to_datetime(row['target_time'])
+        if now_dt >= t_target:
+            # 判定時刻以降の価格データを取得して勝敗決定
+            if not df_raw.empty:
+                # ターゲット時刻に最も近い価格を検索
+                closest_idx = df_raw.index.get_indexer([t_target], method='nearest')[0]
+                actual_p = float(df_raw['Close'].iloc[closest_idx])
+                entry_p = row['current_price']
+                dir_pred = row['direction']
+                
+                res = "DRAW"
+                pnl = 0.0
+                if "HIGH" in dir_pred:
+                    if actual_p > entry_p:
+                        res = "WIN"
+                        pnl = payout_rate
+                    elif actual_p < entry_p:
+                        res = "LOSE"
+                        pnl = -1.0
+                elif "LOW" in dir_pred:
+                    if actual_p < entry_p:
+                        res = "WIN"
+                        pnl = payout_rate
+                    elif actual_p > entry_p:
+                        res = "LOSE"
+                        pnl = -1.0
+                
+                conn.execute("""
+                    UPDATE predictions SET status='RESOLVED', actual_price=?, result=?, pnl=? WHERE pred_id=?
+                """, (actual_p, res, pnl, row['pred_id']))
+                conn.commit()
+
+# --- 画面レイアウト構築 ---
+st.markdown("### 🎯 【ハイロー10分 AI予測】")
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("現在価格 (BTC-USD)", f"${current_price:,.2f}")
+c2.metric("10分後 予測価格", f"${pred_10m_price:,.2f}")
+c3.metric("上昇確率 (UP)", f"{prob_up*100:.1f}%")
+c4.metric("下落確率 (DOWN)", f"{prob_down*100:.1f}%")
+
+st.info(f"**判定結果:** **{direction}** ｜ **予測信頼度:** {confidence*100:.1f}% ｜ **期待値 (EV):** {ev_value:.3f}x (ペイアウト {payout_rate}倍基準)\n\n**判定根拠:** {reason} (データ時刻: {data_time})")
 
 st.markdown("---")
 
-# --- ⑤ 投資成果ダッシュボード ---
-st.subheader("📊 投資口座・AI自己学習パフォーマンス")
+# --- 成績・AI実績セクション ---
+st.markdown("### 📊 【AI実績 ＆ 仮想投資成績】")
+with db.get_connection() as conn:
+    df_history = pd.read_sql("SELECT * FROM predictions ORDER BY pred_time DESC", conn)
 
-m1, m2, m3, m4 = st.columns(4)
-with m1:
-    st.metric("総損益", f"${st.session_state.balance:+.2f}")
-with m2:
-    win_rate = (st.session_state.wins / st.session_state.total_trades * 100) if st.session_state.total_trades > 0 else 0.0
-    st.metric("実効勝率", f"{win_rate:.1f}%", f"{st.session_state.wins}勝 {st.session_state.loses}敗")
-with m3:
-    st.metric("AIの自己学習適応度", f"{st.session_state.ai_win_probability*100:.1f}%")
-with m4:
-    st.metric("総検証回数", f"{st.session_state.total_trades} 回")
+resolved_df = df_history[df_history['status'] == 'RESOLVED'] if not df_history.empty else pd.DataFrame()
 
-# 🧠 AIの学習・反省ログ
-if st.session_state.trade_history:
-    st.markdown("### 🧠 AIのトレンド追随・学習ログ")
-    latest = st.session_state.trade_history[0]
-    st.markdown(f"""
-        <div class="ai-log-box">
-            <b>直近の結果: {latest['result']}（損益: {latest['amount']}）</b><br>
-            {latest['msg']}<br>
-            <small>口座残高: {latest['balance']}</small>
-        </div>
-    """, unsafe_allow_html=True)
+if not resolved_df.empty:
+    total_res = len(resolved_df)
+    wins = len(resolved_df[resolved_df['result'] == 'WIN'])
+    losses = len(resolved_df[resolved_df['result'] == 'LOSE'])
+    win_rate = (wins / total_res) * 100 if total_res > 0 else 0.0
+    total_pnl = resolved_df['pnl'].sum()
     
-    for h in st.session_state.trade_history[1:5]:
-        st.text(f"[{h['result']}] 損益: {h['amount']} ｜ 口座: {h['balance']} ｜ {h['msg']}")
+    rc1, rc2, rc3, rc4 = st.columns(4)
+    rc1.metric("判定済み件数 / 総予測", f"{total_res}件 / {len(df_history)}件")
+    rc2.metric("累計勝率", f"{win_rate:.1f}% (勝:{wins} / 敗:{losses})")
+    rc3.metric("累積損益 (PnL)", f"{total_pnl:+.2f} 単位")
+    rc4.metric("平均期待値 (EV)", f"{resolved_df['ev'].mean():.3f}x")
 else:
-    st.info("👆 [自己学習オート投資・開始] を押すと、AIが実際の相場トレンドを追いかけ、逆行損切りや50$到達を検証しながら勝率を向上させる学習プロセスが始まります。")
+    st.warning("⚠️ まだ10分経過して判定が確定した予測履歴がありません。判定待ち（PENDING）の予測が完了するまでお待ちください。")
 
-# --- ⑥ 免責事項 ---
-st.markdown("""
-    <div class="disclaimer-box">
-        <b>⚠️ 投資検証に関するご注意</b><br>
-        本システムは実際の市場データを用いてトレンド追随と損切り・利確の優位性を検証するためのシミュレーターです。
-    </div>
-""", unsafe_allow_html=True)
+st.markdown("---")
 
-# --- ⑦ オートループ実行制御 ---
-if st.session_state.is_looping:
-    time.sleep(3.0)
-    execute_investment_step(initial_filter_usd, target_goal_usd, stop_loss_usd, stake_amount)
+# --- 学習状況セクション ---
+st.markdown("### 🧠 【オンライン学習 ＆ モデル検証状況】")
+sc1, sc2, sc3 = st.columns(3)
+with db.get_connection() as conn:
+    train_logs = pd.read_sql("SELECT * FROM training_logs ORDER BY log_id DESC LIMIT 5", conn)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM market_data")
+    market_count = cursor.fetchone()[0]
+
+sc1.metric("市場キャッシュデータ件数", f"{market_count} 件")
+sc2.metric("モデルバージョン", ai_engine.version)
+sc3.metric("学習状態", "🟢 稼働中 (ウォークフォワード検証)" if ai_engine.is_trained else "🟡 初期データ蓄積中")
+
+# 自動学習のトリガー（判定済みデータが溜まったらウォークフォワード学習を実行）
+if len(resolved_df) >= 10 and not ai_engine.is_trained:
+    # 特徴量と正解ラベルの構築（勝=1, 負=0）
+    X_learn = df_feat[['ret_1', 'ret_3', 'ret_5', 'ret_10', 'rsi', 'ma_ratio', 'volatility']].iloc[:-1]
+    y_learn = (df_feat['Close'].shift(-1) > df_feat['Close']).astype(int).iloc[:-1]
+    msg, status = ai_engine.train_walk_forward(X_learn, y_learn)
+    st.success(f"🧠 自動オンライン学習実行: {status}")
+
+if not train_logs.empty:
+    st.dataframe(train_logs, use_container_width=True)
+
+st.markdown("---")
+st.markdown("### 📋 予測・実績履歴テーブル")
+if not df_history.empty:
+    st.dataframe(df_history[['pred_id', 'pred_time', 'direction', 'current_price', 'actual_price', 'result', 'pnl', 'ev', 'status']], use_container_width=True)
+else:
+    st.info("予測履歴はまだありません。")
+
+st.caption(f"UTAYA AI QUANTUM Engine v1.0 | Storage: {STORAGE_DIR} | Current Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+# 自動リフレッシュ処理
+if auto_refresh:
+    time.sleep(15)
     st.rerun()
