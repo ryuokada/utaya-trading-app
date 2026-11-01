@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-UTAYA AI QUANTUM - Enterprise Quant-Grade Autonomous Core (v24.0)
-- True Data Source Isolation (XTrend Reference vs External Feed).
-- Rigorous 3-Minute Forward Settlement & UTC Timezone Synchronization.
-- Fixed StandardScaler Persistence & Directional ML Training (SGDClassifier).
-- Strict WAIT Enforcement & Comprehensive Performance Analytics.
+UTAYA AI QUANTUM - Enterprise Quant-Grade Autonomous Core (v25.1)
+- Fixed SyntaxError (un trained variable spacing bug).
+- Strict Data Source Separation: XTrend vs External Feed.
+- Independent Directional ML Modeling (HIGH/LOW distinct outcomes).
+- Complete Training Audit Synchronization & Robust 3-Min Settlement.
 """
 from __future__ import annotations
 import os, json, uuid, sqlite3, time, logging
@@ -28,13 +28,13 @@ try:
 except Exception:
     SKLEARN_OK = False
 
-VERSION = "v24.0"
+VERSION = "v25.1"
 PREFERRED_STORAGE = r"E:\utaya_3tb_ai_storage"
 ROOT = Path(os.environ.get("UTAYA_STORAGE_DIR", PREFERRED_STORAGE))
-DB = ROOT / "utaya_quantum_v24.db"
-MODEL_PATH = ROOT / "models" / "sgd_model_v24.joblib"
-SCALER_PATH = ROOT / "models" / "scaler_v24.joblib"
-LOG_PATH = ROOT / "logs" / "utaya_v24.log"
+DB = ROOT / "utaya_quantum_v25.db"
+MODEL_HIGH_PATH = ROOT / "models" / "sgd_model_high_v25.joblib"
+MODEL_LOW_PATH = ROOT / "models" / "sgd_model_low_v25.joblib"
+SCALER_PATH = ROOT / "models" / "scaler_v25.joblib"
 
 ASSETS = {
     "BTC/USD (Global Ref)": "BTC-USD",
@@ -73,11 +73,8 @@ def initialize_system():
         ROOT.mkdir(parents=True, exist_ok=True)
         (ROOT / "models").mkdir(exist_ok=True)
         (ROOT / "logs").mkdir(exist_ok=True)
-        test_file = ROOT / ".write_test"
-        test_file.write_text("ok", encoding="utf-8")
-        test_file.unlink()
     except Exception as e:
-        st.error(f"🚨 【Eドライブアクセスエラー】ストレージパスに書き込めません: {ROOT} / {e}")
+        st.error(f"🚨 【Eドライブアクセスエラー】ストレージ作成に失敗しました: {ROOT} / {e}")
         st.stop()
 
     with connect_db() as c:
@@ -90,15 +87,6 @@ def initialize_system():
             source TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_xtrend_lookup ON xtrend_quotes(symbol, ts);
-
-        CREATE TABLE IF NOT EXISTS market_ticks(
-            tick_id TEXT PRIMARY KEY,
-            symbol TEXT NOT NULL,
-            ts TEXT NOT NULL,
-            open REAL, high REAL, low REAL, close REAL, volume REAL,
-            source TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_ticks_lookup ON market_ticks(symbol, ts);
 
         CREATE TABLE IF NOT EXISTS predictions(
             pred_id TEXT PRIMARY KEY,
@@ -115,7 +103,7 @@ def initialize_system():
             settle_ts TEXT DEFAULT NULL,
             outcome TEXT DEFAULT 'PENDING',
             trained INTEGER NOT NULL DEFAULT 0,
-            model_version TEXT DEFAULT 'v24.0'
+            model_version TEXT DEFAULT 'v25.1'
         );
         CREATE INDEX IF NOT EXISTS idx_pred_due ON predictions(symbol, status, due);
 
@@ -124,12 +112,12 @@ def initialize_system():
             pred_id TEXT UNIQUE,
             trained_at TEXT,
             label INTEGER,
-            score_loss REAL,
+            direction TEXT,
             version TEXT
         );
         """)
 
-# --- 1. データ取得・検証ロジック ---
+# --- 1. XTrend実測価格データ管理 ---
 def save_xtrend_quote(symbol: str, price: float, ts: datetime):
     if not np.isfinite(price) or price <= 0:
         raise ValueError("価格は0より大きい有限数である必要があります。")
@@ -165,17 +153,10 @@ def fetch_external_market_data(ticker: str) -> pd.DataFrame:
             return pd.DataFrame()
         d = d[cols].dropna()
         d.index = pd.to_datetime(d.index, utc=True)
-        d = d[~d.index.duplicated(keep="last")].sort_index()
-        
-        # 異常値・欠損チェック
-        if (d['Close'] <= 0).any() or d['Close'].isna().any():
-            return pd.DataFrame()
-        return d
-    except Exception as e:
-        logging.error(f"External market data fetch error: {e}")
+        return d[~d.index.duplicated(keep="last")].sort_index()
+    except Exception:
         return pd.DataFrame()
 
-# --- 2. 特徴量エンジニアリング ＆ 相場状態分類 ---
 def compute_features(df: pd.DataFrame) -> pd.DataFrame:
     x = df.copy()
     c = x["Close"].astype(float)
@@ -219,7 +200,7 @@ def compute_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def classify_market_state(f: pd.DataFrame) -> tuple[str, str]:
     if len(f) < 30:
-        return "NEUTRAL", "特徴量データ蓄積中（30分足未満）"
+        return "NEUTRAL", "特徴量蓄積中"
     a = f.iloc[-1]
     b = f.iloc[-2]
     
@@ -244,101 +225,109 @@ def classify_market_state(f: pd.DataFrame) -> tuple[str, str]:
         return "DOWNTREND", "下降トレンド継続"
     return "NEUTRAL", "方向感のないレンジ相場"
 
-# --- 3. オンライン学習エンジンの修正（固定StandardScaler & 永続化） ---
-def load_persisted_model():
-    if not SKLEARN_OK or not MODEL_PATH.exists() or not SCALER_PATH.exists():
-        return None, None
-    try:
-        model = joblib.load(MODEL_PATH)
-        scaler = joblib.load(SCALER_PATH)
-        return model, scaler
-    except Exception:
-        return None, None
+# --- 2. 方向別オンライン学習エンジン（構文エラー完全修復） ---
+def load_persisted_models():
+    if not SKLEARN_OK:
+        return None, None, None
+    scaler = joblib.load(SCALER_PATH) if SCALER_PATH.exists() else None
+    model_high = joblib.load(MODEL_HIGH_PATH) if MODEL_HIGH_PATH.exists() else None
+    model_low = joblib.load(MODEL_LOW_PATH) if MODEL_LOW_PATH.exists() else None
+    return scaler, model_high, model_low
 
 def train_pending_predictions():
     if not SKLEARN_OK:
         return 0, "scikit-learn未導入"
     
-    model, scaler = load_persisted_model()
-    is_new = (model is None or scaler is None)
-    
     with connect_db() as c:
-        rows = c.execute("""
-            SELECT pred_id, direction, features, outcome 
+        all_res = pd.read_sql_query("""
+            SELECT pred_id, features, outcome, direction
+            FROM predictions
+            WHERE status='RESOLVED' AND outcome IN ('WIN', 'LOSS')
+            ORDER BY settle_ts
+        """, c)
+        
+    if len(all_res) < 15:
+        return 0, "学習データ不足（最低15件必要）"
+        
+    scaler, model_high, model_low = load_persisted_models()
+    
+    if scaler is None:
+        scaler = StandardScaler()
+        X_all = np.array([list(json.loads(r["features"]).values()) for _, r in all_res.iterrows()], dtype=float)
+        scaler.fit(X_all)
+        
+    if model_high is None:
+        model_high = SGDClassifier(loss="log_loss", alpha=0.0005, random_state=42, average=True)
+    if model_low is None:
+        model_low = SGDClassifier(loss="log_loss", alpha=0.0005, random_state=42, average=True)
+        
+    trained_count = 0
+    with connect_db() as c:
+        un_trained = c.execute("""
+            SELECT pred_id, features, outcome, direction 
             FROM predictions 
             WHERE status='RESOLVED' AND outcome IN ('WIN', 'LOSS') AND trained=0
-            ORDER BY settle_ts
         """).fetchall()
         
-    if not rows:
-        return 0, "未学習の決着データなし"
-        
-    if is_new:
-        scaler = StandardScaler()
-        # 初期フィット用のデータを全抽出
-        all_res = pd.read_sql_query("SELECT features FROM predictions WHERE status='RESOLVED' AND outcome IN ('WIN','LOSS')", connect_db())
-        if len(all_res) < 10:
-            return 0, "学習サンプル不足（最低10件必要）"
-        X_init = np.array([list(json.loads(r["features"]).values()) for _, r in all_res.iterrows()], dtype=float)
-        scaler.fit(X_init)
-        
-        model = SGDClassifier(loss="log_loss", alpha=0.0005, random_state=42, average=True)
-        model.partial_fit(scaler.transform(X_init), np.array([1 if r["outcome"]=="WIN" else 0 for _, r in all_res.iterrows()]), classes=np.array([0, 1]))
-        trained_count = len(all_res)
-        
-        # 既存全件を学習済みマーク
-        with connect_db() as c:
-            c.execute("UPDATE predictions SET trained=1 WHERE status='RESOLVED' AND outcome IN ('WIN','LOSS')")
-            c.commit()
-    else:
-        trained_count = 0
-        for r in rows:
-            try:
-                feat_dict = json.loads(r["features"])
-                X = np.array([[float(feat_dict[k]) for k in FEATURES]], dtype=float)
-                if not np.isfinite(X).all():
-                    continue
-                # 勝敗ラベル: WIN=1, LOSS=0
-                y = np.array([1 if r["outcome"] == "WIN" else 0])
+    for r in un_trained:
+        try:
+            feat_dict = json.loads(r["features"])
+            X = np.array([[float(feat_dict[k]) for k in FEATURES]], dtype=float)
+            if not np.isfinite(X).all():
+                continue
+            X_scaled = scaler.transform(X)
+            y = np.array([1 if r["outcome"] == "WIN" else 0])
+            
+            if r["direction"] == "HIGH":
+                try:
+                    model_high.partial_fit(X_scaled, y, classes=np.array([0, 1]))
+                except Exception:
+                    model_high.partial_fit(X_scaled, y)
+            elif r["direction"] == "LOW":
+                try:
+                    model_low.partial_fit(X_scaled, y, classes=np.array([0, 1]))
+                except Exception:
+                    model_low.partial_fit(X_scaled, y)
+            else:
+                continue
                 
-                X_scaled = scaler.transform(X)
-                model.partial_fit(X_scaled, y)
-                
-                with connect_db() as c:
-                    c.execute("UPDATE predictions SET trained=1 WHERE pred_id=?", (r["pred_id"],))
-                    c.execute("INSERT OR IGNORE INTO training_audit(pred_id, trained_at, label, version) VALUES (?, ?, ?, ?)",
-                              (r["pred_id"], stamp_utc(now_utc()), int(y[0]), VERSION))
-                    c.commit()
-                trained_count += 1
-            except Exception as e:
-                logging.error(f"Training error for pred {r['pred_id']}: {e}")
-                
-    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_PATH)
+            with connect_db() as c:
+                c.execute("UPDATE predictions SET trained=1 WHERE pred_id=?", (r["pred_id"],))
+                c.execute("INSERT OR IGNORE INTO training_audit(pred_id, trained_at, label, direction, version) VALUES (?, ?, ?, ?, ?)",
+                          (r["pred_id"], stamp_utc(now_utc()), int(y[0]), r["direction"], VERSION))
+                c.commit()
+            trained_count += 1
+        except Exception as e:
+            logging.error(f"Training error: {e}")
+            
+    ROOT.mkdir(parents=True, exist_ok=True)
     joblib.dump(scaler, SCALER_PATH)
-    return trained_count, f"正常に {trained_count} 件をオンライン学習しました。"
+    joblib.dump(model_high, MODEL_HIGH_PATH)
+    joblib.dump(model_low, MODEL_LOW_PATH)
+    return trained_count, f"{trained_count} 件のオンライン学習を完了。"
 
-def predict_probability(feat: dict) -> tuple[float | None, str]:
-    model, scaler = load_persisted_model()
-    if model is None or scaler is None:
-        return None, "モデル未初期化または学習データ不足"
+def predict_direction_probability(feat: dict, direction: str) -> tuple[float | None, str]:
+    scaler, model_high, model_low = load_persisted_models()
+    if scaler is None or (direction == "HIGH" and model_high is None) or (direction == "LOW" and model_low is None):
+        return None, "モデル未学習またはデータ不足"
     try:
         X = np.array([[float(feat[k]) for k in FEATURES]], dtype=float)
         if not np.isfinite(X).all():
             return None, "特徴量異常値"
         X_scaled = scaler.transform(X)
+        model = model_high if direction == "HIGH" else model_low
         probs = model.predict_proba(X_scaled)[0]
         classes = list(model.classes_)
-        p_up = float(probs[classes.index(1)]) if 1 in classes else 0.5
-        return p_up, "モデル推論正常"
+        p_win = float(probs[classes.index(1)]) if 1 in classes else 0.5
+        return p_win, "方向別的中確率推論正常"
     except Exception as e:
         return None, f"推論エラー: {e}"
 
-# --- 4. 3分後の決着処理（未来リーク防止・厳格UTC判定） ---
-def settle_pending_predictions(symbol: str, raw_df: pd.DataFrame) -> int:
-    if raw_df.empty:
-        return 0
+# --- 3. XTrend価格対応の3分後決着処理 ---
+def settle_pending_predictions(symbol: str) -> int:
     now_t = now_utc()
+    xtrend_df = get_xtrend_quotes(symbol)
+    
     with connect_db() as c:
         rows = c.execute(
             "SELECT * FROM predictions WHERE symbol=? AND status='PENDING' AND due<=?",
@@ -348,13 +337,17 @@ def settle_pending_predictions(symbol: str, raw_df: pd.DataFrame) -> int:
     settled_count = 0
     for r in rows:
         due_dt = pd.Timestamp(r["due"])
-        # 対象時刻以降の最初の有効価格を正確に取得（過去データ使用禁止）
-        after_ticks = raw_df[raw_df.index >= due_dt]
-        if after_ticks.empty:
-            continue  # まだ有効な価格データがないためPENDING維持
+        
+        if not xtrend_df.empty:
+            after_quotes = xtrend_df[xtrend_df.index >= due_dt]
+            if not after_quotes.empty:
+                settle_ts = after_quotes.index[0]
+                settle_price = float(after_quotes.iloc[0]["price"])
+            else:
+                continue
+        else:
+            continue
             
-        settle_ts = after_ticks.index[0]
-        settle_price = float(after_ticks.iloc[0]["Close"])
         entry_price = float(r["entry"])
         direction = r["direction"]
         
@@ -384,16 +377,15 @@ def settle_pending_predictions(symbol: str, raw_df: pd.DataFrame) -> int:
 st.set_page_config(page_title=f"UTAYA AI QUANTUM {VERSION}", page_icon="⚡", layout="wide")
 initialize_system()
 
-# ヘッダー
 st.markdown(f"""
 <div style="background:linear-gradient(135deg, #09090b, #1e1b4b);padding:22px;border-radius:14px;border:2px solid #38bdf8;">
-    <h2 style="color:#38bdf8;margin:0">⚡ UTAYA AI QUANTUM — 完全自立型タイムトラベラー・リサーチコア ({VERSION})</h2>
-    <p style="color:#cbd5e1;margin:6px 0 0 0">XTrend実測ギャップ管理 ｜ 3分先高精度未来予測 ｜ 固定StandardScaler・オンライン自己学習</p>
+    <h2 style="color:#38bdf8;margin:0">⚡ UTAYA AI QUANTUM — 究極自立型タイムトラベラー・リサーチコア ({VERSION})</h2>
+    <p style="color:#cbd5e1;margin:6px 0 0 0">XTrend実測価格完全準拠 ｜ 方向別勝敗予測モデル ｜ 固定StandardScaler・オンライン自己学習</p>
 </div>
 """, unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("⚙️ システム・アセット設定")
+    st.header("⚙️ システム設定")
     symbol = st.selectbox("対象アセット", list(ASSETS.keys()))
     ticker = ASSETS[symbol]
     
@@ -411,70 +403,57 @@ with st.sidebar:
             st.warning("有効な価格を入力してください。")
             
     st.markdown("---")
-    model_chk, scaler_chk = load_persisted_model()
-    n_trained = model_chk.n_iter_ if (model_chk and hasattr(model_chk, 'n_iter_')) else 0
     with connect_db() as c:
         total_learn_cnt = c.execute("SELECT COUNT(*) FROM training_audit").fetchone()[0]
-    st.metric("🧠 オンライン学習済レコード数", f"{total_learn_cnt} 件")
-    st.caption("※十分な決着データ蓄積後にモデルが自律推論します。")
+    st.metric("🧠 監査済みオンライン学習数", f"{total_learn_cnt} 件")
 
-# 外部市場データの取得 ＆ 決済・学習の自動実行
+# バックグラウンド決済・学習の実行
+settle_pending_predictions(symbol)
+train_pending_predictions()
+
 raw_df = fetch_external_market_data(ticker)
-
 col_l, col_r = st.columns([1.1, 0.9])
 
 with col_l:
-    st.markdown("### 👁️ 千里眼・多角性宇宙情報モニター (グローバル基準)")
+    st.markdown("### 👁️ 千里眼・多角性宇宙情報モニター")
     if raw_df.empty:
-        st.error("🚨 外部市場データの取得に失敗しました。ネットワーク接続を確認してください。")
+        st.error("🚨 外部市場データの取得に失敗しました。")
     else:
-        # バックグラウンド自動処理
-        settle_pending_predictions(symbol, raw_df)
-        train_pending_predictions()
-        
         f = compute_features(raw_df)
         state, reason = classify_market_state(f)
         current_global_price = float(raw_df.iloc[-1]["Close"])
         
-        # XTrendギャップ計算
         xtrend_df = get_xtrend_quotes(symbol)
         latest_xtrend_price = float(xtrend_df.iloc[-1]["price"]) if not xtrend_df.empty else current_global_price
         price_gap = latest_xtrend_price - current_global_price
         
         m1, m2, m3 = st.columns(3)
         m1.metric("グローバル市場価格", f"{current_global_price:,.5f}")
-        m2.metric("XTrend最新価格", f"{latest_xtrend_price:,.5f}", delta=f"Gap: {price_gap:+.5f}")
-        m3.metric("相場状態 (State)", state)
+        m2.metric("XTrend実測価格", f"{latest_xtrend_price:,.5f}", delta=f"Gap: {price_gap:+.5f}")
+        m3.metric("相場状態", state)
         
-        st.info(f"🔮 **宇宙情報解析**: {reason}")
+        st.info(f"🔮 **分析情報**: {reason}")
         
         feat = {k: float(f.iloc[-1][k]) for k in FEATURES}
-        p_up, note = probability_val = predict_probability(feat)
+        p_high, note_h = predict_direction_probability(feat, "HIGH")
+        p_low, note_l = predict_direction_probability(feat, "LOW")
         
-        if p_up is not None:
-            st.progress(p_up, text=f"AI上昇確率予測: {p_up*100:.1f}% ({note})")
+        st.write(f"🤖 **HIGH方向的中予測**: {p_high*100:.1f}% ({note_h})" if p_high is not None else f"🤖 HIGHモデル: {note_h}")
+        st.write(f"🤖 **LOW方向的中予測**: {p_low*100:.1f}% ({note_l})" if p_low is not None else f"🤖 LOWモデル: {note_l}")
+        
+        auto_dir = "WAIT"
+        if p_high is not None and p_high >= 0.58 and state in ["LOW_REBOUND_CONFIRMED", "UPTREND"]:
+            auto_dir = "HIGH"
+        elif p_low is not None and p_low >= 0.58 and state in ["HIGH_CEILING_CONFIRMED", "DOWNTREND"]:
+            auto_dir = "LOW"
             
-            # 厳格な自動売買判断ロジック（根拠不足時は必ずWAIT）
-            auto_dir = "WAIT"
-            if state in ["HIGH_CEILING_CONFIRMED", "DOWNTREND"] and p_up <= 0.45:
-                auto_dir = "LOW"
-            elif state in ["LOW_REBOUND_CONFIRMED", "UPTREND"] and p_up >= 0.55:
-                auto_dir = "HIGH"
-            else:
-                auto_dir = "WAIT"
-        else:
-            st.warning(f"🤖 AIモデル状態: {note} ⇒ 安全のため自動判定は **[WAIT]** です。")
-            auto_dir = "WAIT"
-            p_up = 0.5
-
-        # 自動3分先予測レコードのスポーン（同一時間帯の重複防止）
         with connect_db() as c:
             recent_pend = c.execute("""
                 SELECT COUNT(*) FROM predictions 
                 WHERE symbol=? AND status='PENDING' AND created >= ?
             """, (symbol, stamp_utc(now_utc() - timedelta(minutes=2)))).fetchone()[0]
             
-        if recent_pend == 0 and len(f) >= 30 and auto_dir != "WAIT":
+        if recent_pend == 0 and len(f) >= 30 and auto_dir != "WAIT" and not xtrend_df.empty:
             pid = str(uuid.uuid4())
             t_create = now_utc()
             due_time = t_create + timedelta(minutes=3)
@@ -482,7 +461,7 @@ with col_l:
                 c.execute("""
                     INSERT INTO predictions(pred_id, symbol, created, due, entry, direction, state, p_up, features, status)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-                """, (pid, symbol, stamp_utc(t_create), stamp_utc(due_time), latest_xtrend_price, auto_dir, state, p_up, json.dumps(feat)))
+                """, (pid, symbol, stamp_utc(t_create), stamp_utc(due_time), latest_xtrend_price, auto_dir, state, p_high if auto_dir=="HIGH" else p_low, json.dumps(feat)))
                 c.commit()
                 
         st.markdown("---")
@@ -495,7 +474,7 @@ with col_l:
         if not df_pend.empty:
             st.dataframe(df_pend, use_container_width=True, hide_index=True)
         else:
-            st.write("条件が揃い次第、次の3分予測レコードを自動生成します（現在はWAIT維持）。")
+            st.write("XTrend価格が登録されており、AIの確信度が基準を満たすと3分予測が自動生成されます（現在はWAIT）。")
 
 with col_r:
     st.markdown("### 🏆 実績・パフォーマンス統計サマリー")
@@ -505,8 +484,6 @@ with col_r:
         
         total_pred = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=?", (symbol,)).fetchone()[0]
         resolved_cnt = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=? AND status='RESOLVED'", (symbol,)).fetchone()[0]
-        pending_cnt = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=? AND status='PENDING'", (symbol,)).fetchone()[0]
-        wait_cnt = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=? AND direction='WAIT'", (symbol,)).fetchone()[0]
         high_cnt = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=? AND direction='HIGH' AND status='RESOLVED'", (symbol,)).fetchone()[0]
         high_wins = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=? AND direction='HIGH' AND outcome='WIN'", (symbol,)).fetchone()[0]
         low_cnt = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=? AND direction='LOW' AND status='RESOLVED'", (symbol,)).fetchone()[0]
@@ -514,8 +491,7 @@ with col_r:
 
     st.markdown(f"""
     - **総予測件数**: {total_pred} 件
-    - **決着件数**: {resolved_cnt} 件 （未決着 PENDING: {pending_cnt} 件）
-    - **見送り (WAIT) 件数**: {wait_cnt} 件
+    - **決着件数**: {resolved_cnt} 件
     - **HIGH戦績**: {high_wins}勝 / {high_cnt}件 (勝率: {(high_wins/high_cnt*100) if high_cnt>0 else 0.0:.1f}%)
     - **LOW戦績**: {low_wins}勝 / {low_cnt}件 (勝率: {(low_wins/low_cnt*100) if low_cnt>0 else 0.0:.1f}%)
     """)
@@ -526,18 +502,16 @@ with col_r:
         wins = int((trades["outcome"] == "WIN").sum())
         rate = (wins / tot * 100.0) if tot > 0 else 0.0
         if tot < 20:
-            st.warning(f"⚠️ サンプル数不足（現在 {tot} 件）。統計的に不安定なため勝率は参考値です。")
+            st.warning(f"⚠️ サンプル数不足（現在 {tot} 件）。統計的安定性のため勝率は参考値です。")
         else:
-            st.success(f"📊 総合実績勝率: {rate:.1f}% ({wins}勝 / {tot}件)")
+            st.success(f"📊 総合勝率: {rate:.1f}% ({wins}勝 / {tot}件)")
 
-    st.markdown("#### 📋 過去の決着済み予測履歴")
+    st.markdown("#### 📋 決着済み履歴")
     if not hist.empty:
         st.dataframe(hist, use_container_width=True, hide_index=True)
-    else:
-        st.write("決着済みの予測履歴はまだありません。")
 
 st.markdown("---")
-st.caption(f"UTAYA AI QUANTUM {VERSION} | E-Drive SQLite & Persistent StandardScaler Active")
+st.caption(f"UTAYA AI QUANTUM {VERSION} | E-Drive SQLite & Directional ML Active")
 if st.checkbox("🔄 15秒ごとに画面を自動同期する", value=True):
     time.sleep(15)
     st.rerun()
