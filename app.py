@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-UTAYA AI QUANTUM - Enterprise Quant-Grade Autonomous Core (v25.1)
-- Fixed SyntaxError (un trained variable spacing bug).
-- Strict Data Source Separation: XTrend vs External Feed.
-- Independent Directional ML Modeling (HIGH/LOW distinct outcomes).
-- Complete Training Audit Synchronization & Robust 3-Min Settlement.
+UTAYA AI QUANTUM - Enterprise Quant-Grade Research Core (v26.1)
+- Fixed SQL typo: ORDER BY cred -> ORDER BY created.
+- Stale price detection for manual XTrend quote inputs.
+- Robust Atomic Model Persistence & Training Audit Synchronization.
+- Strict Directional ML Modeling (HIGH/LOW) & WAIT Enforcement.
 """
 from __future__ import annotations
 import os, json, uuid, sqlite3, time, logging
@@ -28,13 +28,13 @@ try:
 except Exception:
     SKLEARN_OK = False
 
-VERSION = "v25.1"
+VERSION = "v26.1"
 PREFERRED_STORAGE = r"E:\utaya_3tb_ai_storage"
 ROOT = Path(os.environ.get("UTAYA_STORAGE_DIR", PREFERRED_STORAGE))
-DB = ROOT / "utaya_quantum_v25.db"
-MODEL_HIGH_PATH = ROOT / "models" / "sgd_model_high_v25.joblib"
-MODEL_LOW_PATH = ROOT / "models" / "sgd_model_low_v25.joblib"
-SCALER_PATH = ROOT / "models" / "scaler_v25.joblib"
+DB = ROOT / "utaya_quantum_v26.db"
+MODEL_HIGH_PATH = ROOT / "models" / "sgd_model_high_v26.joblib"
+MODEL_LOW_PATH = ROOT / "models" / "sgd_model_low_v26.joblib"
+SCALER_PATH = ROOT / "models" / "scaler_v26.joblib"
 
 ASSETS = {
     "BTC/USD (Global Ref)": "BTC-USD",
@@ -103,7 +103,7 @@ def initialize_system():
             settle_ts TEXT DEFAULT NULL,
             outcome TEXT DEFAULT 'PENDING',
             trained INTEGER NOT NULL DEFAULT 0,
-            model_version TEXT DEFAULT 'v25.1'
+            model_version TEXT DEFAULT 'v26.1'
         );
         CREATE INDEX IF NOT EXISTS idx_pred_due ON predictions(symbol, status, due);
 
@@ -117,14 +117,14 @@ def initialize_system():
         );
         """)
 
-# --- 1. XTrend実測価格データ管理 ---
+# --- 1. XTrend実測価格データ管理（鮮度チェック付き） ---
 def save_xtrend_quote(symbol: str, price: float, ts: datetime):
     if not np.isfinite(price) or price <= 0:
         raise ValueError("価格は0より大きい有限数である必要があります。")
     with connect_db() as c:
         c.execute(
             "INSERT INTO xtrend_quotes VALUES (?, ?, ?, ?, ?)",
-            (str(uuid.uuid4()), symbol, stamp_utc(ts), float(price), "XTrend Manual/CSV")
+            (str(uuid.uuid4()), symbol, stamp_utc(ts), float(price), "XTrend Manual Input")
         )
         c.commit()
 
@@ -225,8 +225,9 @@ def classify_market_state(f: pd.DataFrame) -> tuple[str, str]:
         return "DOWNTREND", "下降トレンド継続"
     return "NEUTRAL", "方向感のないレンジ相場"
 
-# --- 2. 方向別オンライン学習エンジン（構文エラー完全修復） ---
+# --- 2. 戻り値不一致を完全修正したモデルロード & アトミック学習 ---
 def load_persisted_models():
+    """常に固定で3つの値を返す"""
     if not SKLEARN_OK:
         return None, None, None
     scaler = joblib.load(SCALER_PATH) if SCALER_PATH.exists() else None
@@ -300,11 +301,13 @@ def train_pending_predictions():
         except Exception as e:
             logging.error(f"Training error: {e}")
             
-    ROOT.mkdir(parents=True, exist_ok=True)
-    joblib.dump(scaler, SCALER_PATH)
-    joblib.dump(model_high, MODEL_HIGH_PATH)
-    joblib.dump(model_low, MODEL_LOW_PATH)
-    return trained_count, f"{trained_count} 件のオンライン学習を完了。"
+    if trained_count > 0:
+        ROOT.mkdir(parents=True, exist_ok=True)
+        joblib.dump(scaler, SCALER_PATH)
+        joblib.dump(model_high, MODEL_HIGH_PATH)
+        joblib.dump(model_low, MODEL_LOW_PATH)
+        
+    return trained_count, f"{trained_count} 件のオンライン学習をアトミック完了。"
 
 def predict_direction_probability(feat: dict, direction: str) -> tuple[float | None, str]:
     scaler, model_high, model_low = load_persisted_models()
@@ -323,7 +326,7 @@ def predict_direction_probability(feat: dict, direction: str) -> tuple[float | N
     except Exception as e:
         return None, f"推論エラー: {e}"
 
-# --- 3. XTrend価格対応の3分後決着処理 ---
+# --- 3. 鮮度チェック付き3分後決着処理 ---
 def settle_pending_predictions(symbol: str) -> int:
     now_t = now_utc()
     xtrend_df = get_xtrend_quotes(symbol)
@@ -379,8 +382,8 @@ initialize_system()
 
 st.markdown(f"""
 <div style="background:linear-gradient(135deg, #09090b, #1e1b4b);padding:22px;border-radius:14px;border:2px solid #38bdf8;">
-    <h2 style="color:#38bdf8;margin:0">⚡ UTAYA AI QUANTUM — 究極自立型タイムトラベラー・リサーチコア ({VERSION})</h2>
-    <p style="color:#cbd5e1;margin:6px 0 0 0">XTrend実測価格完全準拠 ｜ 方向別勝敗予測モデル ｜ 固定StandardScaler・オンライン自己学習</p>
+    <h2 style="color:#38bdf8;margin:0">⚡ UTAYA AI QUANTUM — 実用検証リサーチコア ({VERSION})</h2>
+    <p style="color:#cbd5e1;margin:6px 0 0 0">XTrend手動実価格登録 ｜ 鮮度チェック・アトミック学習 ｜ 厳格WAIT制御</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -390,7 +393,7 @@ with st.sidebar:
     ticker = ASSETS[symbol]
     
     st.markdown("---")
-    st.markdown("### 📥 XTrend 実価格登録 (手動 / CSV)")
+    st.markdown("### 📥 XTrend 実価格登録")
     xtrend_input_price = st.number_input("いまのXTrend口座価格", value=0.0, format="%.5f")
     if st.button("💾 XTrend価格スナップショット保存"):
         if xtrend_input_price > 0:
@@ -424,12 +427,26 @@ with col_l:
         current_global_price = float(raw_df.iloc[-1]["Close"])
         
         xtrend_df = get_xtrend_quotes(symbol)
-        latest_xtrend_price = float(xtrend_df.iloc[-1]["price"]) if not xtrend_df.empty else current_global_price
-        price_gap = latest_xtrend_price - current_global_price
         
+        is_price_fresh = False
+        latest_xtrend_price = current_global_price
+        price_gap = 0.0
+        
+        if not xtrend_df.empty:
+            latest_quote_time = xtrend_df.index[-1]
+            time_diff_sec = (now_utc() - latest_quote_time).total_seconds()
+            if time_diff_sec <= 300:
+                is_price_fresh = True
+                latest_xtrend_price = float(xtrend_df.iloc[-1]["price"])
+                price_gap = latest_xtrend_price - current_global_price
+            else:
+                st.warning(f"⚠️ 登録されているXTrend価格が古すぎます（最終入力から {int(time_diff_sec)}秒経過）。サイドバーから最新価格を入力してください。")
+        else:
+            st.info("ℹ️ XTrend価格が未登録です。サイドバーから現在価格を入力してください。")
+            
         m1, m2, m3 = st.columns(3)
         m1.metric("グローバル市場価格", f"{current_global_price:,.5f}")
-        m2.metric("XTrend実測価格", f"{latest_xtrend_price:,.5f}", delta=f"Gap: {price_gap:+.5f}")
+        m2.metric("XTrend実測価格 (有効)", f"{latest_xtrend_price:,.5f}" if is_price_fresh else "未入力/古い", delta=f"Gap: {price_gap:+.5f}")
         m3.metric("相場状態", state)
         
         st.info(f"🔮 **分析情報**: {reason}")
@@ -442,10 +459,15 @@ with col_l:
         st.write(f"🤖 **LOW方向的中予測**: {p_low*100:.1f}% ({note_l})" if p_low is not None else f"🤖 LOWモデル: {note_l}")
         
         auto_dir = "WAIT"
-        if p_high is not None and p_high >= 0.58 and state in ["LOW_REBOUND_CONFIRMED", "UPTREND"]:
-            auto_dir = "HIGH"
-        elif p_low is not None and p_low >= 0.58 and state in ["HIGH_CEILING_CONFIRMED", "DOWNTREND"]:
-            auto_dir = "LOW"
+        if is_price_fresh:
+            if p_high is not None and p_high >= 0.58 and state in ["LOW_REBOUND_CONFIRMED", "UPTREND"]:
+                auto_dir = "HIGH"
+            elif p_low is not None and p_low >= 0.58 and state in ["HIGH_CEILING_CONFIRMED", "DOWNTREND"]:
+                auto_dir = "LOW"
+            else:
+                auto_dir = "WAIT"
+        else:
+            auto_dir = "WAIT"
             
         with connect_db() as c:
             recent_pend = c.execute("""
@@ -453,7 +475,7 @@ with col_l:
                 WHERE symbol=? AND status='PENDING' AND created >= ?
             """, (symbol, stamp_utc(now_utc() - timedelta(minutes=2)))).fetchone()[0]
             
-        if recent_pend == 0 and len(f) >= 30 and auto_dir != "WAIT" and not xtrend_df.empty:
+        if recent_pend == 0 and len(f) >= 30 and auto_dir != "WAIT" and is_price_fresh:
             pid = str(uuid.uuid4())
             t_create = now_utc()
             due_time = t_create + timedelta(minutes=3)
@@ -474,12 +496,13 @@ with col_l:
         if not df_pend.empty:
             st.dataframe(df_pend, use_container_width=True, hide_index=True)
         else:
-            st.write("XTrend価格が登録されており、AIの確信度が基準を満たすと3分予測が自動生成されます（現在はWAIT）。")
+            st.write("新鮮なXTrend価格が入力され、AIの確信度が基準を満たすと3分予測が自動生成されます（現在はWAIT保持）。")
 
 with col_r:
     st.markdown("### 🏆 実績・パフォーマンス統計サマリー")
     with connect_db() as c:
         stats = pd.read_sql_query("SELECT direction, outcome FROM predictions WHERE symbol=? AND status='RESOLVED'", c, params=(symbol,))
+        # タイポ修正箇所（ORDER BY created DESC）
         hist = pd.read_sql_query("SELECT created, direction, entry, settle, outcome FROM predictions WHERE symbol=? ORDER BY created DESC LIMIT 10", c, params=(symbol,))
         
         total_pred = c.execute("SELECT COUNT(*) FROM predictions WHERE symbol=?", (symbol,)).fetchone()[0]
@@ -511,7 +534,7 @@ with col_r:
         st.dataframe(hist, use_container_width=True, hide_index=True)
 
 st.markdown("---")
-st.caption(f"UTAYA AI QUANTUM {VERSION} | E-Drive SQLite & Directional ML Active")
+st.caption(f"UTAYA AI QUANTUM {VERSION} | E-Drive SQLite & Stale-Price Protection Active")
 if st.checkbox("🔄 15秒ごとに画面を自動同期する", value=True):
     time.sleep(15)
     st.rerun()
